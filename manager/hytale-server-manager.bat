@@ -9,6 +9,7 @@ rem
 rem  IMPORTANT: Make your own backups to be safe. Downgrading/restoring backups
 rem  may break servers and worlds. Use at your own risk.
 rem ============================================================================
+rem MANAGER_VERSION=1.0.0
 
 set "MANAGER_DIR=%~dp0"
 set "MANAGER_DIR=%MANAGER_DIR:~0,-1%"
@@ -22,6 +23,7 @@ set "VERSION_FILE=server_version.txt"
 set "PATCHLINE_FILE=server_patchline.txt"
 set "BACKUP_DIR=backups"
 set "DOWNLOADER_ZIP_URL=https://downloader.hytale.com/hytale-downloader.zip"
+set "MANAGER_REPO_RAW=https://raw.githubusercontent.com/Stormster/hytale-server-manager/main/manager/hytale-server-manager.bat"
 
 rem -------- Check Java (needed for server, checked early) --------
 java -version >nul 2>&1
@@ -56,6 +58,10 @@ rem ============================================================================
 rem  MAIN MENU
 rem ============================================================================
 :menu
+if not defined MANAGER_UPDATE_CHECKED (
+    call :check_manager_update
+    set "MANAGER_UPDATE_CHECKED=1"
+)
 set "choice="
 cls
 echo.
@@ -63,19 +69,24 @@ echo  ========================================
 echo   HYTALE SERVER MANAGER - HytaleLife.com
 echo  ========================================
 echo.
+if defined MANAGER_UPDATE_AVAILABLE (
+    echo   [!] Manager update available: v!MANAGER_NEW_VERSION! - use Update Manager below
+    echo.
+)
 echo   [1] Start Server
 echo   [2] Check for Updates
 echo   [3] Create Backup
 echo   [4] Restore Backup
 echo   [5] Refresh Auth ^(re-login if expired^)
 echo   [6] Exit
+echo   [7] Update Manager
 echo.
 echo   ---
 echo   Back up your server often. Lost data cannot be recovered.
 echo   Report issues: https://HytaleLife.com/issues
 echo   ---
 echo.
-set /p "choice=Select option [1-6]: "
+set /p "choice=Select option [1-7]: "
 
 if "%choice%"=="1" goto start_server
 if "%choice%"=="2" goto check_updates
@@ -83,10 +94,91 @@ if "%choice%"=="3" goto create_backup
 if "%choice%"=="4" goto restore_backup
 if "%choice%"=="5" goto refresh_auth
 if "%choice%"=="6" exit /b 0
+if "%choice%"=="7" goto update_manager
 
 echo Invalid option.
 timeout /t 2 >nul
 goto menu
+
+rem ============================================================================
+rem  UPDATE MANAGER - Check for and install manager script updates
+rem ============================================================================
+:update_manager
+set "MANAGER_UPDATE_AVAILABLE="
+set "MANAGER_NEW_VERSION="
+call :check_manager_update
+echo.
+if defined MANAGER_UPDATE_AVAILABLE (
+    echo [Manager] Update available: v!MANAGER_NEW_VERSION!
+    echo.
+    echo   [1] Update now
+    echo   [2] Skip
+    echo.
+    set /p "um_choice=Choice [1-2]: "
+    if "!um_choice!"=="1" goto do_manager_update
+) else (
+    echo [Manager] No update available. You have the latest manager version.
+)
+echo.
+pause
+goto menu
+
+:do_manager_update
+set "REMOTE_BAT=%TEMP%\hytale-manager-remote.bat"
+set "SCRIPT_PATH=%~f0"
+echo.
+echo [Manager] Downloading update...
+curl -s -L -o "%REMOTE_BAT%" "%MANAGER_REPO_RAW%" 2>nul
+if not exist "%REMOTE_BAT%" (
+    echo [ERROR] Failed to download. Check your connection or try again later.
+    pause
+    goto menu
+)
+findstr /c:"rem MANAGER_VERSION=" "%REMOTE_BAT%" >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Downloaded file appears invalid. Aborting.
+    del "%REMOTE_BAT%" 2>nul
+    pause
+    goto menu
+)
+echo [Manager] Backing up current manager...
+copy /y "!SCRIPT_PATH!" "!SCRIPT_PATH!.bak" >nul 2>&1
+echo [Manager] Applying update...
+copy /y "%REMOTE_BAT%" "!SCRIPT_PATH!" >nul
+del "%REMOTE_BAT%" 2>nul
+if not exist "!SCRIPT_PATH!" (
+    echo [ERROR] Update failed. Restoring backup...
+    copy /y "!SCRIPT_PATH!.bak" "!SCRIPT_PATH!" >nul
+    pause
+    goto menu
+)
+echo.
+echo [Manager] Update complete! Restart the manager to use the new version.
+echo.
+pause
+goto menu
+
+rem ============================================================================
+rem  SUBROUTINE: check_manager_update - fetches remote, compares version
+rem ============================================================================
+:check_manager_update
+setlocal EnableDelayedExpansion
+set "LOCAL_VER="
+set "REMOTE_VER="
+for /f "tokens=2 delims==" %%a in ('findstr /c:"rem MANAGER_VERSION=" "%~f0" 2^>nul') do set "LOCAL_VER=%%a"
+if not defined LOCAL_VER set "LOCAL_VER=0.0.0"
+set "REMOTE_FILE=%TEMP%\hytale-manager-remote-check.bat"
+curl -s -L -o "!REMOTE_FILE!" "%MANAGER_REPO_RAW%" 2>nul
+if exist "!REMOTE_FILE!" (
+    for /f "tokens=2 delims==" %%a in ('findstr /c:"rem MANAGER_VERSION=" "!REMOTE_FILE!" 2^>nul') do set "REMOTE_VER=%%a"
+    del "!REMOTE_FILE!" 2>nul
+)
+if defined REMOTE_VER if not "!REMOTE_VER!"=="!LOCAL_VER!" (
+    endlocal & set "MANAGER_UPDATE_AVAILABLE=1" & set "MANAGER_NEW_VERSION=%REMOTE_VER%"
+    goto :eof
+)
+endlocal & set "MANAGER_UPDATE_AVAILABLE=" & set "MANAGER_NEW_VERSION="
+goto :eof
 
 rem ============================================================================
 rem  SUBROUTINE: init_version_from_zip (must be before callers)
