@@ -1,0 +1,6 @@
+*
+!.gitignore
+!hytale-server-manager.bat
+!manager/
+!manager/**
+!test
