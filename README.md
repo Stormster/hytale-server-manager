@@ -21,7 +21,7 @@ A Windows batch script for managing your Hytale dedicated server. Built by Hytal
 4. Use the menu to start the server, update, back up, and manage config.
 
 ## Folder Layout
-This script is intended to run from the **server root folder** (the same folder where your server files and config live).
+This script is intended to run from the **server root folder** (the same folder where your server files and config will live).
 
 ## Usage Notes
 - Run in a normal Command Prompt window.
@@ -30,4 +30,4 @@ This script is intended to run from the **server root folder** (the same folder 
 
 ## Support
 - Report issues on GitHub Issues
-- https://hytaleLife.com/issues
+- https://HytaleLife.com/issues
