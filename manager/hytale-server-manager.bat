@@ -9,7 +9,7 @@ rem
 rem  IMPORTANT: Make your own backups to be safe. Downgrading/restoring backups
 rem  may break servers and worlds. Use at your own risk.
 rem ============================================================================
-rem MANAGER_VERSION=1.0.1
+rem MANAGER_VERSION=1.1.0
 
 set "MANAGER_DIR=%~dp0"
 set "MANAGER_DIR=%MANAGER_DIR:~0,-1%"
@@ -75,11 +75,11 @@ if defined MANAGER_UPDATE_AVAILABLE (
 )
 echo   [1] Start Server
 echo   [2] Check for Updates
-echo   [3] Create Backup
-echo   [4] Restore Backup
+echo   [3] Backups Manager
+echo   [4] Configuration ^(edit config, whitelist, bans, view log^)
 echo   [5] Refresh Auth ^(re-login if expired^)
-echo   [6] Exit
-echo   [7] Update Manager
+echo   [6] Update Manager
+echo   [7] Exit
 echo.
 echo   ---
 echo   Back up your server often. Lost data cannot be recovered.
@@ -90,15 +90,88 @@ set /p "choice=Select option [1-7]: "
 
 if "%choice%"=="1" goto start_server
 if "%choice%"=="2" goto check_updates
-if "%choice%"=="3" goto create_backup
-if "%choice%"=="4" goto restore_backup
+if "%choice%"=="3" goto backups_manager
+if "%choice%"=="4" goto configuration
 if "%choice%"=="5" goto refresh_auth
-if "%choice%"=="6" exit /b 0
-if "%choice%"=="7" goto update_manager
+if "%choice%"=="6" goto update_manager
+if "%choice%"=="7" exit /b 0
 
 echo Invalid option.
 timeout /t 2 >nul
 goto menu
+
+rem ============================================================================
+rem  BACKUPS MANAGER
+rem ============================================================================
+:backups_manager
+set "bm_choice="
+cls
+echo.
+echo  ========================================
+echo   BACKUPS MANAGER - HytaleLife.com
+echo  ========================================
+echo.
+echo   [1] Create Backup
+echo   [2] Restore Backup
+echo   [3] Back to menu
+echo.
+set /p "bm_choice=Select option [1-3]: "
+if "!bm_choice!"=="1" goto create_backup
+if "!bm_choice!"=="2" goto restore_backup
+if "!bm_choice!"=="3" goto menu
+echo Invalid option.
+timeout /t 2 >nul
+goto backups_manager
+
+rem ============================================================================
+rem  CONFIGURATION - Edit server files
+rem ============================================================================
+:configuration
+set "cfg_choice="
+cls
+echo.
+echo  ========================================
+echo   CONFIGURATION - HytaleLife.com
+echo  ========================================
+echo.
+echo   [1] Edit config.json
+echo   [2] Edit whitelist.json
+echo   [3] Edit bans.json
+echo   [4] View latest log
+echo   [5] Back to menu
+echo.
+set /p "cfg_choice=Select option [1-5]: "
+if "!cfg_choice!"=="1" (
+    if exist "Server\config.json" (start "" "Server\config.json") else (echo [INFO] config.json not found.)
+    timeout /t 2 >nul
+    goto configuration
+)
+if "!cfg_choice!"=="2" (
+    if exist "Server\whitelist.json" (start "" "Server\whitelist.json") else (echo [INFO] whitelist.json not found.)
+    timeout /t 2 >nul
+    goto configuration
+)
+if "!cfg_choice!"=="3" (
+    if exist "Server\bans.json" (start "" "Server\bans.json") else (echo [INFO] bans.json not found.)
+    timeout /t 2 >nul
+    goto configuration
+)
+if "!cfg_choice!"=="4" (
+    set "LOG_OPENED=0"
+    for /f "delims=" %%f in ('dir /b /o-d "Server\logs\*.log" 2^>nul') do (
+        if "!LOG_OPENED!"=="0" (
+            start "" "Server\logs\%%f"
+            set "LOG_OPENED=1"
+        )
+    )
+    if "!LOG_OPENED!"=="0" echo [INFO] No log files found.
+    timeout /t 2 >nul
+    goto configuration
+)
+if "!cfg_choice!"=="5" goto menu
+echo Invalid option.
+timeout /t 2 >nul
+goto configuration
 
 rem ============================================================================
 rem  UPDATE MANAGER - Check for and install manager script updates
@@ -387,7 +460,7 @@ rem ============================================================================
 :create_backup
 call :create_backup_internal
 pause
-goto menu
+goto backups_manager
 
 :create_backup_internal
 setlocal EnableDelayedExpansion
@@ -429,7 +502,7 @@ rem ============================================================================
 if not exist "%BACKUP_DIR%" (
     echo [ERROR] No backups folder or backups exist.
     pause
-    goto menu
+    goto backups_manager
 )
 
 echo.
@@ -444,24 +517,24 @@ for /d %%D in ("%BACKUP_DIR%\*") do (
 if %n%==0 (
     echo   No backups found.
     pause
-    goto menu
+    goto backups_manager
 )
 echo.
 set /p "pick=Select backup number (or 0 to cancel): "
-if "!pick!"=="0" goto menu
-if "!pick!"=="" goto menu
+if "!pick!"=="0" goto backups_manager
+if "!pick!"=="" goto backups_manager
 
 set "RESTORE_SRC=!bak%pick%!"
 if not defined RESTORE_SRC (
     echo Invalid selection.
     pause
-    goto menu
+    goto backups_manager
 )
 
 if not exist "!RESTORE_SRC!\Server" (
     echo [ERROR] Invalid backup - missing Server folder.
     pause
-    goto menu
+    goto backups_manager
 )
 
 echo.
@@ -472,7 +545,7 @@ set /p "confirm=Type YES to confirm: "
 if /i not "!confirm!"=="YES" (
     echo Cancelled.
     pause
-    goto menu
+    goto backups_manager
 )
 
 echo [Manager] Restoring...
@@ -486,7 +559,7 @@ if exist "!RESTORE_SRC!\%PATCHLINE_FILE%" copy /y "!RESTORE_SRC!\%PATCHLINE_FILE
 
 echo [Manager] Restore complete.
 pause
-goto menu
+goto backups_manager
 
 rem ============================================================================
 rem  FIRST-TIME SETUP (Server folder missing)
