@@ -1,6 +1,6 @@
 *
 !.gitignore
+hytale-setup.code-workspace
 !hytale-server-manager.bat
 !manager/
 !manager/**
-!test
