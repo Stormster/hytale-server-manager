@@ -9,7 +9,7 @@ rem
 rem  IMPORTANT: Make your own backups to be safe. Downgrading/restoring backups
 rem  may break servers and worlds. Use at your own risk.
 rem ============================================================================
-rem MANAGER_VERSION=1.1.3
+rem MANAGER_VERSION=1.1.4
 
 set "MANAGER_DIR=%~dp0"
 set "MANAGER_DIR=%MANAGER_DIR:~0,-1%"
@@ -71,7 +71,7 @@ echo   HYTALE SERVER MANAGER - HytaleLife.com
 echo  ========================================
 echo.
 if defined MANAGER_UPDATE_AVAILABLE (
-    echo   [!] Manager update available: v!MANAGER_NEW_VERSION! - use Update Manager below
+    echo   [!] Manager update available: v!MANAGER_NEW_VERSION! - use Update Server Manager below
     echo.
 )
 echo   [1] Start Server
@@ -79,7 +79,7 @@ echo   [2] Check for Updates
 echo   [3] Backups Manager
 echo   [4] Configuration ^(edit config, whitelist, bans, view log^)
 echo   [5] Refresh Auth ^(re-login if expired^)
-echo   [6] Update Manager
+echo   [6] Update Server Manager
 echo   [7] Exit
 echo.
 echo   ---
@@ -203,7 +203,7 @@ set "SCRIPT_PATH=%~f0"
 echo.
 echo [Manager] Downloading update...
 set "MANAGER_DOWNLOAD_URL=https://raw.githubusercontent.com/%MANAGER_REPO%/!MANAGER_UPDATE_TAG!/hytale-server-manager.bat"
-curl -s -L -o "%REMOTE_BAT%" "!MANAGER_DOWNLOAD_URL!" 2>nul
+curl -s -L -H "User-Agent: Hytale-Server-Manager/1.0" -o "%REMOTE_BAT%" "!MANAGER_DOWNLOAD_URL!" 2>nul
 if not exist "%REMOTE_BAT%" (
     echo [ERROR] Failed to download. Check your connection or try again later.
     pause
@@ -244,9 +244,9 @@ set "REMOTE_TAG="
 for /f "tokens=2 delims==" %%a in ('findstr /c:"rem MANAGER_VERSION=" "%~f0" 2^>nul') do set "LOCAL_VER=%%a"
 if not defined LOCAL_VER set "LOCAL_VER=0.0.0"
 set "API_JSON=%TEMP%\hytale-manager-release.json"
-curl -s -L -o "!API_JSON!" "%MANAGER_RELEASE_API%" 2>nul
+curl -s -L -H "User-Agent: Hytale-Server-Manager/1.0" -o "!API_JSON!" "%MANAGER_RELEASE_API%" 2>nul
 if exist "!API_JSON!" (
-    for /f "delims=" %%t in ('powershell -NoProfile -Command "try { (Get-Content (Join-Path $env:TEMP 'hytale-manager-release.json') -Raw | ConvertFrom-Json).tag_name } catch { }" 2^>nul') do set "REMOTE_TAG=%%t"
+    for /f "delims=" %%t in ('powershell -NoProfile -Command "try { ((Get-Content (Join-Path $env:TEMP 'hytale-manager-release.json') -Raw | ConvertFrom-Json).tag_name).Trim() } catch { }" 2^>nul') do set "REMOTE_TAG=%%t"
     del "!API_JSON!" 2>nul
 )
 if defined REMOTE_TAG (
