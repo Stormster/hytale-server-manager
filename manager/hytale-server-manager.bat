@@ -9,7 +9,7 @@ rem
 rem  IMPORTANT: Make your own backups to be safe. Downgrading/restoring backups
 rem  may break servers and worlds. Use at your own risk.
 rem ============================================================================
-rem MANAGER_VERSION=1.0.0
+rem MANAGER_VERSION=1.0.1
 
 set "MANAGER_DIR=%~dp0"
 set "MANAGER_DIR=%MANAGER_DIR:~0,-1%"
