@@ -6,7 +6,7 @@ update banner, and first-time setup wizard when no server is installed.
 import customtkinter as ctk
 
 from src.ui.base_view import BaseView
-from src.ui.components import Card, SectionTitle, InfoRow, StatusBadge, LogConsole
+from src.ui.components import Card, SectionTitle, InfoRow, StatusBadge
 from src.services import server as server_svc
 from src.services import updater
 from src.services import github as gh
@@ -46,7 +46,7 @@ class DashboardView(BaseView):
         self._update_banner_link.pack(side="right", padx=16, pady=10)
         # banner is packed in on_appear only if needed
 
-        # --- Main content area (scrollable for safety) ---
+        # --- Main content area ---
         self._main_frame = ctk.CTkFrame(self, fg_color="transparent")
         self._main_frame.grid(row=1, column=0, sticky="nswe", padx=24, pady=(12, 24))
         self._main_frame.grid_columnconfigure(0, weight=1)
@@ -143,10 +143,50 @@ class DashboardView(BaseView):
             corner_radius=10,
             command=self._on_first_time_setup,
         )
-        self._setup_btn.pack(anchor="w", pady=(8, 8))
+        self._setup_btn.pack(anchor="w", pady=(8, 12))
 
-        self._setup_log = LogConsole(self._setup_inner, height=140)
-        self._setup_log.pack(fill="x", pady=(4, 0))
+        # Progress area inside setup card
+        self._setup_progress_frame = ctk.CTkFrame(self._setup_inner, fg_color="transparent")
+        # Not packed yet – shown during install
+
+        self._setup_progress_status = ctk.CTkLabel(
+            self._setup_progress_frame,
+            text="Preparing...",
+            font=ctk.CTkFont(size=13),
+            anchor="w",
+        )
+        self._setup_progress_status.pack(anchor="w", pady=(0, 6))
+
+        bar_row = ctk.CTkFrame(self._setup_progress_frame, fg_color="transparent")
+        bar_row.pack(fill="x")
+        bar_row.grid_columnconfigure(0, weight=1)
+
+        self._setup_progress_bar = ctk.CTkProgressBar(
+            bar_row,
+            height=18,
+            corner_radius=8,
+            progress_color=("#3498db", "#2980b9"),
+        )
+        self._setup_progress_bar.grid(row=0, column=0, sticky="we", padx=(0, 12))
+        self._setup_progress_bar.set(0)
+
+        self._setup_progress_pct = ctk.CTkLabel(
+            bar_row,
+            text="0%",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            width=50,
+            anchor="e",
+        )
+        self._setup_progress_pct.grid(row=0, column=1, sticky="e")
+
+        self._setup_progress_detail = ctk.CTkLabel(
+            self._setup_progress_frame,
+            text="",
+            font=ctk.CTkFont(size=12),
+            text_color=("gray40", "gray60"),
+            anchor="w",
+        )
+        self._setup_progress_detail.pack(anchor="w", pady=(6, 0))
 
         # --- Footer ---
         footer = ctk.CTkLabel(
@@ -240,20 +280,41 @@ class DashboardView(BaseView):
 
     def _on_first_time_setup(self):
         self._setup_btn.configure(state="disabled", text="Installing...")
-        self._setup_log.clear()
         patchline = self._channel_var.get()
 
+        # Show progress bar
+        self._setup_progress_bar.set(0)
+        self._setup_progress_bar.configure(progress_color=("#3498db", "#2980b9"))
+        self._setup_progress_pct.configure(text="0%")
+        self._setup_progress_detail.configure(text="")
+        self._setup_progress_status.configure(text="Preparing...")
+        self._setup_progress_frame.pack(fill="x", pady=(4, 0))
+
         def on_status(msg):
-            self.after(0, lambda m=msg: self._setup_log.append(m))
+            self.after(0, lambda m=msg: self._setup_progress_status.configure(text=m))
+
+        def on_progress(percent, detail):
+            def _update():
+                self._setup_progress_bar.set(percent / 100.0)
+                self._setup_progress_pct.configure(text=f"{percent:.0f}%")
+                self._setup_progress_detail.configure(text=detail)
+            self.after(0, _update)
 
         def on_done(ok, msg):
             def _finish():
-                self._setup_log.append(msg)
                 if ok:
+                    self._setup_progress_bar.set(1.0)
+                    self._setup_progress_pct.configure(text="100%")
+                    self._setup_progress_bar.configure(progress_color=("#2ecc71", "#27ae60"))
+                    self._setup_progress_status.configure(text=msg)
                     self._setup_btn.configure(text="Done!", state="disabled")
                     self.after(1500, self._refresh_status)
                 else:
+                    self._setup_progress_status.configure(text=msg)
+                    self._setup_progress_bar.configure(progress_color=("#e74c3c", "#c0392b"))
                     self._setup_btn.configure(text="Install Server", state="normal")
             self.after(0, _finish)
 
-        updater.perform_first_time_setup(patchline, on_status=on_status, on_done=on_done)
+        updater.perform_first_time_setup(
+            patchline, on_status=on_status, on_progress=on_progress, on_done=on_done
+        )

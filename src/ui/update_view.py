@@ -6,7 +6,7 @@ import threading
 import customtkinter as ctk
 
 from src.ui.base_view import BaseView
-from src.ui.components import Card, SectionTitle, InfoRow, StatusBadge, LogConsole
+from src.ui.components import Card, SectionTitle, InfoRow, StatusBadge
 from src.services import updater
 
 
@@ -17,7 +17,7 @@ class UpdateView(BaseView):
 
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(4, weight=0)
 
         # Title
         SectionTitle(self, text="Server Updates").grid(
@@ -85,9 +85,52 @@ class UpdateView(BaseView):
         )
         self._update_pre_btn.pack(side="left")
 
-        # --- Log output ---
-        self._log = LogConsole(self, height=200)
-        self._log.grid(row=3, column=0, sticky="nswe", padx=24, pady=(4, 24))
+        # --- Progress area (hidden by default) ---
+        self._progress_card = Card(self)
+        # Not gridded yet – shown only during download
+
+        progress_inner = ctk.CTkFrame(self._progress_card, fg_color="transparent")
+        progress_inner.pack(fill="x", padx=20, pady=16)
+        progress_inner.grid_columnconfigure(0, weight=1)
+
+        self._progress_status = ctk.CTkLabel(
+            progress_inner,
+            text="Preparing...",
+            font=ctk.CTkFont(size=13),
+            anchor="w",
+        )
+        self._progress_status.grid(row=0, column=0, sticky="w", pady=(0, 8))
+
+        bar_row = ctk.CTkFrame(progress_inner, fg_color="transparent")
+        bar_row.grid(row=1, column=0, sticky="we")
+        bar_row.grid_columnconfigure(0, weight=1)
+
+        self._progress_bar = ctk.CTkProgressBar(
+            bar_row,
+            height=18,
+            corner_radius=8,
+            progress_color=("#3498db", "#2980b9"),
+        )
+        self._progress_bar.grid(row=0, column=0, sticky="we", padx=(0, 12))
+        self._progress_bar.set(0)
+
+        self._progress_pct = ctk.CTkLabel(
+            bar_row,
+            text="0%",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            width=50,
+            anchor="e",
+        )
+        self._progress_pct.grid(row=0, column=1, sticky="e")
+
+        self._progress_detail = ctk.CTkLabel(
+            progress_inner,
+            text="",
+            font=ctk.CTkFont(size=12),
+            text_color=("gray40", "gray60"),
+            anchor="w",
+        )
+        self._progress_detail.grid(row=2, column=0, sticky="w", pady=(6, 0))
 
         # Cached status
         self._last_status: dict | None = None
@@ -106,13 +149,34 @@ class UpdateView(BaseView):
         self._status_badge.set("Press Check for Updates", "neutral")
 
     # ------------------------------------------------------------------
+    # Progress bar helpers
+    # ------------------------------------------------------------------
+
+    def _show_progress(self):
+        self._progress_bar.set(0)
+        self._progress_pct.configure(text="0%")
+        self._progress_detail.configure(text="")
+        self._progress_status.configure(text="Preparing...")
+        self._progress_card.grid(row=3, column=0, sticky="we", padx=24, pady=(0, 12))
+
+    def _hide_progress(self):
+        self._progress_card.grid_forget()
+
+    def _set_progress(self, percent: float, detail: str):
+        self._progress_bar.set(percent / 100.0)
+        self._progress_pct.configure(text=f"{percent:.0f}%")
+        self._progress_detail.configure(text=detail)
+
+    def _set_progress_status(self, text: str):
+        self._progress_status.configure(text=text)
+
+    # ------------------------------------------------------------------
     # Check
     # ------------------------------------------------------------------
 
     def _on_check(self):
         self._check_btn.configure(state="disabled", text="Checking...")
-        self._log.clear()
-        self._log.append("[Manager] Checking versions...")
+        self._hide_progress()
 
         def _worker():
             status = updater.get_update_status()
@@ -138,7 +202,6 @@ class UpdateView(BaseView):
         self._update_release_btn.configure(state="normal" if has_rel else "disabled")
         self._update_pre_btn.configure(state="normal" if has_pre else "disabled")
         self._check_btn.configure(state="normal", text="Check for Updates")
-        self._log.append("[Manager] Version check complete.")
 
     # ------------------------------------------------------------------
     # Update
@@ -148,21 +211,28 @@ class UpdateView(BaseView):
         self._check_btn.configure(state="disabled")
         self._update_release_btn.configure(state="disabled")
         self._update_pre_btn.configure(state="disabled")
-        self._log.clear()
+        self._show_progress()
 
         def on_status(msg):
-            self.after(0, lambda m=msg: self._log.append(m))
+            self.after(0, lambda m=msg: self._set_progress_status(m))
+
+        def on_progress(percent, detail):
+            self.after(0, lambda p=percent, d=detail: self._set_progress(p, d))
 
         def on_done(ok, msg):
             def _finish():
-                self._log.append(msg)
-                self._check_btn.configure(state="normal", text="Check for Updates")
                 if ok:
+                    self._set_progress(100, "")
+                    self._progress_status.configure(text=msg)
+                    self._progress_bar.configure(progress_color=("#2ecc71", "#27ae60"))
                     self._status_badge.set("Updated!", "ok")
                     self._row_installed.set_value(updater.read_installed_version())
                     self._row_patchline.set_value(updater.read_installed_patchline())
                 else:
+                    self._progress_status.configure(text=msg)
+                    self._progress_bar.configure(progress_color=("#e74c3c", "#c0392b"))
                     self._status_badge.set("Update failed", "error")
+                self._check_btn.configure(state="normal", text="Check for Updates")
             self.after(0, _finish)
 
-        updater.perform_update(patchline, on_status=on_status, on_done=on_done)
+        updater.perform_update(patchline, on_status=on_status, on_progress=on_progress, on_done=on_done)
