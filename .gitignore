@@ -28,6 +28,9 @@ hytale-downloader-windows-amd64.exe
 temp_extract/
 temp_update.zip
 first_time_setup.zip
+start.bat
+start.sh
+hytale-server-manager.bat
 
 # ---- OS ----
 Thumbs.db
