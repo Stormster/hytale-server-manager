@@ -1,4 +1,35 @@
-*
-!.gitignore
-hytale-setup.code-workspace
-!hytale-server-manager.bat
+# ---- Build artifacts ----
+dist/
+build/
+*.spec.bak
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# ---- IDE / editor ----
+.vscode/
+.idea/
+*.code-workspace
+
+# ---- Hytale runtime files (not source) ----
+Server/
+backups/
+*.zip
+*.jar
+server_version.txt
+server_patchline.txt
+hytale-downloader-windows-amd64.exe
+.hytale-downloader-credentials.json
+temp_extract/
+temp_update.zip
+first_time_setup.zip
+
+# ---- OS ----
+Thumbs.db
+Desktop.ini
+.DS_Store
