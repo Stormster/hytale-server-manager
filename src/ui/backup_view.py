@@ -81,15 +81,43 @@ class BackupView(BaseView):
         inner.pack(fill="x", padx=16, pady=12)
         inner.grid_columnconfigure(0, weight=1)
 
-        # Name
-        name_label = ctk.CTkLabel(
-            inner,
-            text=entry.name,
+        # Title row: type badge + title
+        title_row = ctk.CTkFrame(inner, fg_color="transparent")
+        title_row.grid(row=0, column=0, sticky="w")
+
+        # Type badge
+        is_update = entry.backup_type == "pre-update"
+        badge_text = "UPDATE" if is_update else "MANUAL"
+        badge_color = ("#e67e22", "#d35400") if is_update else ("#3498db", "#2980b9")
+        badge = ctk.CTkLabel(
+            title_row,
+            text=f" {badge_text} ",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color=badge_color[1],
+            text_color="#ffffff",
+            corner_radius=4,
+        )
+        badge.pack(side="left", padx=(0, 8))
+
+        title_label = ctk.CTkLabel(
+            title_row,
+            text=entry.display_title,
             font=ctk.CTkFont(size=13, weight="bold"),
             anchor="w",
-            wraplength=500,
         )
-        name_label.grid(row=0, column=0, sticky="w")
+        title_label.pack(side="left")
+
+        # Version detail (e.g. "2026.02.06 (pre-release) → 2026.02.06 (release)")
+        detail = entry.display_detail
+        if detail:
+            detail_label = ctk.CTkLabel(
+                inner,
+                text=detail,
+                font=ctk.CTkFont(size=12),
+                text_color=("gray35", "gray65"),
+                anchor="w",
+            )
+            detail_label.grid(row=1, column=0, sticky="w", pady=(2, 0))
 
         # Date
         date_str = entry.created.strftime("%b %d, %Y at %I:%M %p") if entry.created else "Unknown"
@@ -100,11 +128,11 @@ class BackupView(BaseView):
             text_color=("gray50", "gray55"),
             anchor="w",
         )
-        date_label.grid(row=1, column=0, sticky="w", pady=(2, 0))
+        date_label.grid(row=2, column=0, sticky="w", pady=(2, 0))
 
         # Buttons
         btn_frame = ctk.CTkFrame(inner, fg_color="transparent")
-        btn_frame.grid(row=0, column=1, rowspan=2, sticky="e", padx=(12, 0))
+        btn_frame.grid(row=0, column=1, rowspan=3, sticky="e", padx=(12, 0))
 
         restore_btn = ctk.CTkButton(
             btn_frame,

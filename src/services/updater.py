@@ -3,6 +3,7 @@ Version checking, downloading updates, and extracting them into the Server folde
 """
 
 import os
+import re
 import shutil
 import zipfile
 import threading
@@ -100,17 +101,59 @@ def get_update_status() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Progress parsing
+# ---------------------------------------------------------------------------
+
+# Matches lines like: [====...] 91.0% (1.3 GB / 1.4 GB)
+_PROGRESS_RE = re.compile(r'(\d+\.?\d*)%\s*\(([^)]+)\)')
+
+
+def parse_progress(line: str) -> tuple[float, str] | None:
+    """
+    Try to parse a downloader progress line.
+
+    Returns ``(percent, detail_str)`` or ``None`` if the line isn't progress.
+    """
+    m = _PROGRESS_RE.search(line)
+    if m:
+        return float(m.group(1)), m.group(2).strip()
+    return None
+
+
+def _make_dl_output_handler(
+    on_status: Optional[Callable[[str], None]],
+    on_progress: Optional[Callable[[float, str], None]],
+) -> Callable[[str], None]:
+    """
+    Return a callback that routes downloader output:
+    - progress lines -> on_progress(percent, detail)
+    - everything else -> on_status(line)
+    """
+    def _handler(line: str):
+        prog = parse_progress(line)
+        if prog and on_progress:
+            on_progress(prog[0], prog[1])
+        elif on_status:
+            on_status(line)
+    return _handler
+
+
+# ---------------------------------------------------------------------------
 # Perform update
 # ---------------------------------------------------------------------------
 
 def perform_update(
     patchline: str = "release",
     on_status: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[float, str], None]] = None,
     on_done: Optional[Callable[[bool, str], None]] = None,
 ) -> threading.Thread:
     """
     Download the server zip for *patchline*, back up the current server,
     extract the update, and save version info.  Runs in a thread.
+
+    *on_progress(percent, detail)* is called with download progress (0-100).
+    *on_status(msg)* is called for non-progress status messages.
     """
 
     def _worker():
@@ -125,15 +168,13 @@ def perform_update(
             done_event = threading.Event()
             dl_result: dict = {"rc": -1}
 
-            def _dl_output(line):
-                if on_status:
-                    on_status(line)
+            output_handler = _make_dl_output_handler(on_status, on_progress)
 
             def _dl_done(rc):
                 dl_result["rc"] = rc
                 done_event.set()
 
-            dl.download_server(zip_path, patchline, on_output=_dl_output, on_done=_dl_done)
+            dl.download_server(zip_path, patchline, on_output=output_handler, on_done=_dl_done)
             done_event.wait()
 
             if dl_result["rc"] != 0:
@@ -182,6 +223,7 @@ def perform_update(
 def perform_first_time_setup(
     patchline: str = "release",
     on_status: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[float, str], None]] = None,
     on_done: Optional[Callable[[bool, str], None]] = None,
 ) -> threading.Thread:
     """First-time install: fetch downloader if needed, then download + extract server."""
@@ -216,11 +258,13 @@ def perform_first_time_setup(
             done_event = threading.Event()
             dl_result: dict = {"rc": -1}
 
+            output_handler = _make_dl_output_handler(on_status, on_progress)
+
             def _dl_done(rc):
                 dl_result["rc"] = rc
                 done_event.set()
 
-            dl.download_server(zip_path, patchline, on_output=on_status, on_done=_dl_done)
+            dl.download_server(zip_path, patchline, on_output=output_handler, on_done=_dl_done)
             done_event.wait()
 
             if dl_result["rc"] != 0:
