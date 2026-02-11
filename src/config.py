@@ -42,7 +42,6 @@ PATCHLINE_FILE = "server_patchline.txt"
 BACKUP_DIR = "backups"
 SERVER_DIR = "Server"
 SERVER_JAR = os.path.join(SERVER_DIR, "HytaleServer.jar")
-START_BAT = "start.bat"
 
 # ---------------------------------------------------------------------------
 # UI constants
