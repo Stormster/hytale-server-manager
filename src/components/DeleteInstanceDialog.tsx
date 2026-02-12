@@ -62,7 +62,7 @@ export function DeleteInstanceDialog({
               type="checkbox"
               checked={deleteFiles}
               onChange={(e) => setDeleteFiles(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-input"
+              className="mt-1 h-4 w-4 rounded border-2 border-white/70 bg-transparent accent-white focus:ring-2 focus:ring-white/60 focus:ring-offset-2 focus:ring-offset-background"
             />
             <div className="grid gap-1.5 leading-none">
               <Label
