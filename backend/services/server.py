@@ -27,6 +27,7 @@ class _ProcessEntry:
     game_port: int
     console_callback: Callable[[str], None]
     done_callback: Callable[[int], None]
+    psutil_process: object = None  # persistent psutil.Process for CPU tracking
 
 
 _server_processes: dict[str, _ProcessEntry] = {}
@@ -114,40 +115,68 @@ def get_all_running_ports() -> dict[str, int]:
         }
 
 
+def _get_psutil_process(entry: _ProcessEntry) -> "Optional[object]":
+    """Get or create a persistent psutil.Process for CPU tracking."""
+    try:
+        import psutil
+    except ImportError:
+        return None
+    p = entry.psutil_process
+    if p is not None:
+        try:
+            if p.is_running():
+                return p
+        except Exception:
+            pass
+    try:
+        p = psutil.Process(entry.process.pid)
+        p.cpu_percent(interval=None)  # prime it
+        entry.psutil_process = p
+        return p
+    except Exception:
+        return None
+
+
 def get_resource_usage(instance_name: Optional[str] = None) -> tuple[Optional[float], Optional[float]]:
     """
-    (ram_mb, cpu_percent) for the Java process child. If instance_name given, that instance.
+    (ram_mb, cpu_percent) for the Java server process.
+    Uses a persistent psutil.Process so cpu_percent accumulates between polls.
     """
-    proc = None
+    entry = None
     with _server_lock:
         if instance_name:
-            entry = _server_processes.get(instance_name)
-            if entry and entry.process.poll() is None:
-                proc = entry.process
+            e = _server_processes.get(instance_name)
+            if e and e.process.poll() is None:
+                entry = e
         else:
-            for entry in _server_processes.values():
-                if entry.process.poll() is None:
-                    proc = entry.process
+            for e in _server_processes.values():
+                if e.process.poll() is None:
+                    entry = e
                     break
-    if not proc or not proc.pid:
+    if not entry:
         return (None, None)
     try:
         import psutil
     except ImportError:
         return (None, None)
+    p = _get_psutil_process(entry)
+    if not p:
+        return (None, None)
     try:
-        parent = psutil.Process(proc.pid)
-        for child in parent.children(recursive=True):
-            try:
-                name = (child.name() or "").lower()
-                if "java" in name:
-                    mem = child.memory_info()
-                    ram_mb = (mem.rss or 0) / (1024 * 1024)
-                    cpu_percent = child.cpu_percent(interval=0.1)
-                    return (round(ram_mb, 1), round(cpu_percent, 1))
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        mem = p.memory_info()
+        ram_mb = (mem.rss or 0) / (1024 * 1024)
+        cpu = p.cpu_percent(interval=None)
+        # Also sum children (Java may fork the JVM)
+        try:
+            for child in p.children(recursive=True):
+                try:
+                    cpu += child.cpu_percent(interval=None)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+        return (round(ram_mb, 1), round(cpu, 1))
+    except (psutil.NoSuchProcess, psutil.AccessDenied, AttributeError):
         pass
     return (None, None)
 
