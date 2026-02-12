@@ -15,6 +15,17 @@ struct BackendChild {
     child: std::sync::Mutex<Option<CommandChild>>,
 }
 
+/// Kill the backend sidecar if it's still running. Safe to call multiple times.
+fn kill_backend_child<R: tauri::Runtime>(app: &impl tauri::Manager<R>) {
+    if let Some(backend) = app.try_state::<BackendChild>() {
+        if let Ok(mut guard) = backend.child.lock() {
+            if let Some(child) = guard.take() {
+                let _ = child.kill();
+            }
+        }
+    }
+}
+
 /// Tauri command: return the backend port (or 0 if not ready yet).
 #[tauri::command]
 async fn get_backend_port(state: tauri::State<'_, Arc<BackendState>>) -> Result<u16, String> {
@@ -65,17 +76,17 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![get_backend_port])
+        .on_window_event(|window, event| {
+            // Kill backend when user closes the window (fires before ExitRequested)
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                kill_backend_child(window);
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
-                if let Some(backend) = app_handle.try_state::<BackendChild>() {
-                    if let Ok(mut guard) = backend.child.lock() {
-                        if let Some(child) = guard.take() {
-                            let _ = child.kill();
-                        }
-                    }
-                }
+                kill_backend_child(app_handle);
             }
         });
 }
