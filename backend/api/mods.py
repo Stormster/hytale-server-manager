@@ -2,6 +2,8 @@
 Mods API – list and toggle mods. Toggling disabled while server is running.
 """
 
+import os
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -18,6 +20,25 @@ router = APIRouter()
 def list_mods():
     server_dir = resolve_instance(SERVER_DIR)
     return {"mods": mods_svc.list_mods(server_dir)}
+
+
+@router.post("/install-required")
+def install_required_mods():
+    """Download and install Nitrado WebServer + Query plugins. Requires server stopped."""
+    if server_svc.is_running():
+        return JSONResponse(
+            {"ok": False, "error": "Stop the server before installing required mods."},
+            status_code=409,
+        )
+    server_dir = resolve_instance(SERVER_DIR)
+    if not os.path.isdir(server_dir):
+        return JSONResponse(
+            {"ok": False, "error": "Server not installed. Install the server first."},
+            status_code=400,
+        )
+    from services import nitrado_plugins as nitrado
+    ok = nitrado.install_nitrado_plugins(server_dir)
+    return {"ok": ok}
 
 
 class ToggleRequest(BaseModel):
