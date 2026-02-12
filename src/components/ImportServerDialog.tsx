@@ -21,14 +21,17 @@ interface Props {
 export function ImportServerDialog({ open, onOpenChange }: Props) {
   const [name, setName] = useState("");
   const [sourcePath, setSourcePath] = useState("");
-  const [copiedToPath, setCopiedToPath] = useState<string | null>(null);
+  const [successResult, setSuccessResult] = useState<{
+    path: string;
+    copied: boolean;
+  } | null>(null);
   const importInstance = useImportInstance();
   const { data: settings } = useSettings();
   const destPath =
     settings?.root_dir && name.trim()
       ? `${settings.root_dir.replace(/[/\\]+$/, "")}\\${name.trim()}`
       : "";
-  const isSuccess = !!copiedToPath;
+  const isSuccess = !!successResult;
 
   const handleBrowse = async () => {
     try {
@@ -54,12 +57,13 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
     importInstance.mutate(
       { name: name.trim(), source_path: sourcePath.trim() },
       {
-        onSuccess: (data) => {
-          setCopiedToPath(
-            data?.name && settings?.root_dir
-              ? `${settings.root_dir.replace(/[/\\]+$/, "")}\\${data.name}`
-              : destPath || null
-          );
+        onSuccess: (data: { name?: string; copied?: boolean }) => {
+          if (data?.name && settings?.root_dir) {
+            setSuccessResult({
+              path: `${settings.root_dir.replace(/[/\\]+$/, "")}\\${data.name}`,
+              copied: data.copied !== false,
+            });
+          }
         },
       }
     );
@@ -68,7 +72,7 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
   const handleClose = () => {
     setName("");
     setSourcePath("");
-    setCopiedToPath(null);
+    setSuccessResult(null);
     importInstance.reset();
     onOpenChange(false);
   };
@@ -82,8 +86,10 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
           </DialogTitle>
           <DialogDescription>
             {isSuccess
-              ? "Your server has been copied to your root servers directory. Make future edits to files in that location, not the original folder."
-              : "Point to an existing Hytale server folder. A copy will be created in your servers directory."}
+              ? successResult?.copied
+                ? "Your server has been copied to your root servers directory. Make future edits to files in that location, not the original folder."
+                : "The server was already in your root directory and has been added to the manager."
+              : "Point to an existing Hytale server folder. A copy will be created if it's not already in your servers directory."}
           </DialogDescription>
         </DialogHeader>
 
@@ -92,15 +98,17 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
             <>
               <div className="rounded-md border bg-muted/50 px-3 py-2.5">
                 <p className="text-xs font-medium text-muted-foreground">
-                  Copied to
+                  {successResult?.copied ? "Copied to" : "Location"}
                 </p>
                 <p className="mt-0.5 text-sm font-medium break-all">
-                  {copiedToPath}
+                  {successResult?.path}
                 </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  This is the copy in your root servers directory. Edit files
-                  here, not in the original folder.
-                </p>
+                {successResult?.copied && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    This is the copy in your root servers directory. Edit files
+                    here, not in the original folder.
+                  </p>
+                )}
               </div>
               <DialogFooter>
                 <Button onClick={handleClose}>Done</Button>
@@ -136,8 +144,8 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  The folder should contain a Server/ directory with
-                  HytaleServer.jar.
+                  Select the folder that contains your Assets.zip, with a Server/
+                  subfolder and HytaleServer.jar inside.
                 </p>
               </div>
 
@@ -158,11 +166,19 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
                 </p>
               )}
 
-              {importInstance.isPending && destPath && (
+              {importInstance.isPending && (
                 <p className="text-sm text-muted-foreground">
-                  Copying to{" "}
-                  <span className="font-medium text-foreground">{destPath}</span>
-                  …
+                  {destPath ? (
+                    <>
+                      Importing to{" "}
+                      <span className="font-medium text-foreground">
+                        {destPath}
+                      </span>
+                      …
+                    </>
+                  ) : (
+                    "Importing…"
+                  )}
                 </p>
               )}
 
@@ -178,7 +194,7 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
                     importInstance.isPending
                   }
                 >
-                  {importInstance.isPending ? "Copying…" : "Import"}
+                  {importInstance.isPending ? "Importing…" : "Import"}
                 </Button>
               </DialogFooter>
             </>
