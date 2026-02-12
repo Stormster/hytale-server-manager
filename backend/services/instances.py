@@ -94,6 +94,18 @@ def import_instance(name: str, source_path: str) -> dict:
     if not os.path.isdir(source_path):
         raise ValueError("Source path is not a directory")
 
+    # Validate that the folder is a Hytale server instance
+    server_dir = os.path.join(source_path, "Server")
+    assets_zip = os.path.join(source_path, "Assets.zip")
+    if not os.path.isdir(server_dir):
+        raise ValueError(
+            "Selected folder is not a valid Hytale server. It must contain a Server/ subfolder."
+        )
+    if not os.path.isfile(assets_zip):
+        raise ValueError(
+            "Selected folder is not a valid Hytale server. It must contain Assets.zip."
+        )
+
     shutil.copytree(source_path, dest)
     return {"name": name}
 
