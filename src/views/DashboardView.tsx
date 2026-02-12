@@ -89,13 +89,15 @@ function SortableInstanceCard({
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
-  } = useSortable({ id: inst.name });
+  } = useSortable({
+    id: inst.name,
+    transition: null,
+  });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: "none", // no animations on drag/drop
   };
 
   const isActive = inst.name === activeInstance;
@@ -120,7 +122,7 @@ function SortableInstanceCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group transition-shadow",
+        "group",
         isActive && "ring-2 ring-primary",
         isDragging && "opacity-50"
       )}
@@ -421,7 +423,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           </div>
         </SortableContext>
 
-        <DragOverlay>
+        <DragOverlay dropAnimation={null}>
           {activeId && instances ? (
             (() => {
               const inst = instances.find((i) => i.name === activeId);
