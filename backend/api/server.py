@@ -4,6 +4,7 @@ Server API routes – start / stop / status / live console SSE.
 
 import asyncio
 import json
+from datetime import datetime, timezone
 from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse, JSONResponse
 
@@ -68,9 +69,23 @@ _console = _ConsoleManager()
 
 @router.get("/status")
 def status():
+    uptime = server_svc.get_uptime_seconds()
+    last_exit_time, last_exit_code = server_svc.get_last_exit_info()
+    ram_mb, cpu_percent = server_svc.get_resource_usage()
+    players = server_svc.get_players()
+
     return {
         "installed": server_svc.is_installed(),
         "running": server_svc.is_running(),
+        "uptime_seconds": round(uptime, 1) if uptime is not None else None,
+        "last_exit_time": (
+            datetime.fromtimestamp(last_exit_time, tz=timezone.utc).isoformat()
+            if last_exit_time is not None else None
+        ),
+        "last_exit_code": last_exit_code,
+        "ram_mb": ram_mb,
+        "cpu_percent": cpu_percent,
+        "players": players,
     }
 
 
