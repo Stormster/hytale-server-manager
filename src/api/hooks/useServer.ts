@@ -10,14 +10,18 @@ export function useServerStatus() {
     queryKey: ["server", "status", activeInstance],
     queryFn: () => api("/api/server/status"),
     refetchInterval: 3000,
-    enabled: !!activeInstance,
+    enabled: true, // Always fetch for running_instances on dashboard
   });
 }
 
 export function useStartServer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api<{ ok: boolean }>("/api/server/start", { method: "POST" }),
+    mutationFn: (instance?: string) =>
+      api<{ ok: boolean }>("/api/server/start", {
+        method: "POST",
+        body: instance ? JSON.stringify({ instance }) : undefined,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["server", "status"] });
     },
@@ -27,7 +31,11 @@ export function useStartServer() {
 export function useStopServer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api<{ ok: boolean }>("/api/server/stop", { method: "POST" }),
+    mutationFn: (instance?: string) =>
+      api<{ ok: boolean }>("/api/server/stop", {
+        method: "POST",
+        body: instance ? JSON.stringify({ instance }) : undefined,
+      }),
     onSuccess: () => {
       setTimeout(() => {
         qc.invalidateQueries({ queryKey: ["server", "status"] });

@@ -53,3 +53,4 @@ hytale-server-manager.bat
 Thumbs.db
 Desktop.ini
 .DS_Store
+server info/config.json

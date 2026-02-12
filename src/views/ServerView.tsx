@@ -80,11 +80,12 @@ export function ServerView() {
   }, [running]);
 
   // Connect to the console SSE stream when server is running
-  const connectConsole = useCallback(() => {
+  const connectConsole = useCallback((instance: string) => {
     if (abortRef.current) abortRef.current();
 
     setConnected(true);
-    abortRef.current = subscribeSSE("/api/server/console", {
+    const consoleUrl = `/api/server/console?instance=${encodeURIComponent(instance)}`;
+    abortRef.current = subscribeSSE(consoleUrl, {
       onEvent(event, data) {
         const d = data as Record<string, unknown>;
         if (event === "output") {
@@ -106,6 +107,10 @@ export function ServerView() {
     });
   }, []);
 
+  const doConnect = useCallback(() => {
+    if (activeInstance) connectConsole(activeInstance);
+  }, [activeInstance, connectConsole]);
+
   // When switching instances: disconnect and clear console
   useEffect(() => {
     if (abortRef.current) abortRef.current();
@@ -115,10 +120,10 @@ export function ServerView() {
 
   // Auto-connect when viewing the running instance and server is running
   useEffect(() => {
-    if (viewingRunningInstance && running && !connected) {
-      connectConsole();
+    if (viewingRunningInstance && running && !connected && activeInstance) {
+      doConnect();
     }
-  }, [viewingRunningInstance, running, connected, connectConsole]);
+  }, [viewingRunningInstance, running, connected, activeInstance, doConnect]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -129,10 +134,11 @@ export function ServerView() {
 
   const handleStart = () => {
     setLines([]);
-    startServer.mutate(undefined, {
+    startServer.mutate(activeInstance || undefined, {
       onSuccess: () => {
-        // Small delay then connect to console
-        setTimeout(connectConsole, 300);
+        if (activeInstance) {
+          setTimeout(() => connectConsole(activeInstance), 300);
+        }
       },
     });
   };

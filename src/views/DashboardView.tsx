@@ -51,12 +51,13 @@ interface SortableInstanceCardProps {
   inst: Instance;
   activeInstance: string;
   running: boolean;
+  runningInstances: Array<{ name: string; game_port?: number | null; uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null }>;
   serverStatus: { uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null; players?: number | null; last_exit_code?: number | null; last_exit_time?: string | null } | undefined;
   lastBackupAgo: string | null;
   backupStale: boolean;
   updateAvailable: boolean;
   onNavigate: (view: ViewName) => void;
-  onRestart: () => void;
+  onRestart: (instanceName: string) => void;
   onCreateBackup: () => void;
   onOpenLogs: (name: string) => void;
   onInstall: () => void;
@@ -70,6 +71,7 @@ function SortableInstanceCard({
   inst,
   activeInstance,
   running,
+  runningInstances,
   serverStatus,
   lastBackupAgo,
   backupStale,
@@ -102,7 +104,7 @@ function SortableInstanceCard({
 
   const isActive = inst.name === activeInstance;
   const thisInstalled = inst.installed;
-  const thisRunning = isActive && running;
+  const thisRunning = runningInstances.some((r) => r.name === inst.name);
   const statusVariant = !thisInstalled
     ? "warning"
     : thisRunning
@@ -164,6 +166,14 @@ function SortableInstanceCard({
               </span>
             )}
           </span>
+          {thisInstalled && (
+            <span className="text-xs text-muted-foreground/80" title="Game port · Nitrado WebServer port">
+              Port {inst.game_port ?? 5520}
+              {inst.webserver_port != null && (
+                <> · Web {inst.webserver_port}</>
+              )}
+            </span>
+          )}
           {isActive && updateAvailable && (
             <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-medium text-amber-400">
               Update available
@@ -171,37 +181,42 @@ function SortableInstanceCard({
           )}
         </div>
 
-        {isActive && thisInstalled && (
+        {(isActive || thisRunning) && thisInstalled && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {thisRunning ? (
-              <>
-                <span title="Uptime">
-                  {formatUptime(serverStatus?.uptime_seconds ?? null)}
-                </span>
-                {serverStatus?.ram_mb != null && (
-                  <span className="flex items-center gap-1" title="RAM">
-                    <HardDrive className="h-3 w-3" />
-                    {serverStatus.ram_mb} MB
-                  </span>
-                )}
-                {serverStatus?.cpu_percent != null && (
-                  <span className="flex items-center gap-1" title="CPU">
-                    <Cpu className="h-3 w-3" />
-                    {serverStatus.cpu_percent}%
-                  </span>
-                )}
-                {serverStatus?.players != null ? (
-                  <span className="flex items-center gap-1" title="Players">
-                    <Users className="h-3 w-3" />
-                    {serverStatus.players}
-                  </span>
-                ) : (
-                            <span className="flex items-center gap-1 text-muted-foreground/70" title="Player count from Nitrado Query. Ensure nitrado.query.web.read.basic is in ANONYMOUS (mods/Nitrado_WebServer/permissions.json)">
-                    <Users className="h-3 w-3" />
-                    —
-                  </span>
-                )}
-              </>
+              (() => {
+                const runInfo = runningInstances.find((r) => r.name === inst.name);
+                return (
+                  <>
+                    <span title="Uptime">
+                      {formatUptime(runInfo?.uptime_seconds ?? serverStatus?.uptime_seconds ?? null)}
+                    </span>
+                    {(runInfo?.ram_mb ?? serverStatus?.ram_mb) != null && (
+                      <span className="flex items-center gap-1" title="RAM">
+                        <HardDrive className="h-3 w-3" />
+                        {runInfo?.ram_mb ?? serverStatus?.ram_mb} MB
+                      </span>
+                    )}
+                    {(runInfo?.cpu_percent ?? serverStatus?.cpu_percent) != null && (
+                      <span className="flex items-center gap-1" title="CPU">
+                        <Cpu className="h-3 w-3" />
+                        {runInfo?.cpu_percent ?? serverStatus?.cpu_percent}%
+                      </span>
+                    )}
+                    {serverStatus?.players != null ? (
+                      <span className="flex items-center gap-1" title="Players">
+                        <Users className="h-3 w-3" />
+                        {serverStatus.players}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-muted-foreground/70" title="Player count from Nitrado Query. Ensure nitrado.query.web.read.basic is in ANONYMOUS (mods/Nitrado_WebServer/permissions.json)">
+                        <Users className="h-3 w-3" />
+                        —
+                      </span>
+                    )}
+                  </>
+                );
+              })()
             ) : (
               serverStatus?.last_exit_code != null &&
               serverStatus.last_exit_code !== 0 && (
@@ -236,15 +251,15 @@ function SortableInstanceCard({
                 <Button
                   size="sm"
                   onClick={() => {
-                    if (running) stopServer.mutate();
-                    else startServer.mutate(undefined, { onSuccess: () => onNavigate("server") });
+                    if (thisRunning) stopServer.mutate(inst.name);
+                    else startServer.mutate(inst.name, { onSuccess: () => onNavigate("server") });
                   }}
                   disabled={startServer.isPending || stopServer.isPending}
                 >
-                  {running ? "Stop" : "Start"}
+                  {thisRunning ? "Stop" : "Start"}
                 </Button>
                 <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onRestart} disabled={!running} title="Restart">
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onRestart(inst.name)} disabled={!thisRunning} title="Restart">
                     <RotateCw className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onCreateBackup} disabled={createBackup.isPending} title="Backup now">
@@ -260,6 +275,30 @@ function SortableInstanceCard({
                 <Download className="h-4 w-4" />
                 Install Server
               </Button>
+            )
+          ) : thisInstalled ? (
+            thisRunning ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => stopServer.mutate(inst.name)}
+                disabled={stopServer.isPending}
+              >
+                Stop
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => startServer.mutate(inst.name, { onSuccess: () => onNavigate("server") })}
+                  disabled={startServer.isPending}
+                >
+                  Start
+                </Button>
+                <Button size="sm" variant="outline" onClick={onSelect}>
+                  Select
+                </Button>
+              </>
             )
           ) : (
             <Button size="sm" variant="outline" onClick={onSelect}>
@@ -319,11 +358,11 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
   const createBackup = useCreateBackup();
 
-  const handleRestart = () => {
-    stopServer.mutate(undefined, {
+  const handleRestart = (instanceName: string) => {
+    stopServer.mutate(instanceName, {
       onSuccess: () => {
         setTimeout(() => {
-          startServer.mutate(undefined, {
+          startServer.mutate(instanceName, {
             onSuccess: () => onNavigate("server"),
           });
         }, 1500);
@@ -398,6 +437,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   inst={inst}
                   activeInstance={activeInstance}
                   running={running}
+                  runningInstances={serverStatus?.running_instances ?? []}
                   serverStatus={serverStatus}
                   lastBackupAgo={lastBackupAgo}
                   backupStale={backupStale}
