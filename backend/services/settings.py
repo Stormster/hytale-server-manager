@@ -120,3 +120,31 @@ def get_active_instance_dir() -> str:
     if root and inst:
         return os.path.join(root, inst)
     return ""
+
+
+# -- Instance ports (game + Nitrado webserver, Nitrado = game + 100) ----------
+
+def get_instance_ports() -> dict:
+    """Return {instance_name: {"game": int, "webserver": int}}."""
+    return dict(load().get("instance_ports", {}))
+
+
+def get_instance_port(instance_name: str) -> tuple[int | None, int | None]:
+    """Return (game_port, webserver_port) for instance, or (None, None)."""
+    ports = get_instance_ports()
+    p = ports.get(instance_name)
+    if p and isinstance(p, dict):
+        g = p.get("game")
+        w = p.get("webserver")
+        if isinstance(g, int) and isinstance(w, int):
+            return (g, w)
+    return (None, None)
+
+
+def set_instance_port(instance_name: str, game_port: int, webserver_port: int) -> None:
+    """Store ports for an instance."""
+    s = load()
+    ports = dict(s.get("instance_ports", {}))
+    ports[instance_name] = {"game": game_port, "webserver": webserver_port}
+    s["instance_ports"] = ports
+    _save(s)

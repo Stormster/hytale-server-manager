@@ -21,6 +21,14 @@ def resolve_instance(*parts: str) -> str:
     return os.path.join(get_active_instance_dir(), *parts)
 
 
+def resolve_instance_by_name(instance_name: str, *parts: str) -> str:
+    """Join *parts* onto the given instance folder (for multi-server operations)."""
+    root = get_root_dir()
+    if root and instance_name:
+        return os.path.join(root, instance_name, *parts)
+    return ""
+
+
 def ensure_dir(path: str) -> str:
     """Create *path* (and parents) if it doesn't exist.  Returns the path."""
     os.makedirs(path, exist_ok=True)

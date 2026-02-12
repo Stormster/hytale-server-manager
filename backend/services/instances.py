@@ -68,11 +68,30 @@ def list_instances() -> list[dict]:
             except Exception:
                 pass
 
+        # Ports: assign on first list if missing, then read for display
+        game_port = None
+        webserver_port = None
+        try:
+            from services.ports import assign_port_for_instance, get_instance_ports_display
+            from services.settings import get_root_dir
+            root = get_root_dir()
+            if root and installed:
+                # Ensure port assigned (idempotent) so we display correct values
+                assign_port_for_instance(name)
+                ports_map = get_instance_ports_display([name], root)
+                if name in ports_map:
+                    game_port = ports_map[name].get("game")
+                    webserver_port = ports_map[name].get("webserver")
+        except Exception:
+            pass
+
         instances.append({
             "name": name,
             "installed": installed,
             "version": version,
             "patchline": patchline,
+            "game_port": game_port,
+            "webserver_port": webserver_port,
         })
 
     return instances

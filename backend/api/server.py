@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 # ---------------------------------------------------------------------------
-# Shared console state – bridges thread callbacks to async SSE subscribers
+# Per-instance console state – bridges thread callbacks to async SSE subscribers
 # ---------------------------------------------------------------------------
 
 class _ConsoleManager:
@@ -50,17 +50,21 @@ class _ConsoleManager:
                 pass
 
     def on_output(self, line: str):
-        """Thread-safe callback for server output."""
         if self._loop:
             self._loop.call_soon_threadsafe(self.push_line, line)
 
     def on_done(self, rc: int):
-        """Thread-safe callback for server exit."""
         if self._loop:
             self._loop.call_soon_threadsafe(self.push_done, rc)
 
 
-_console = _ConsoleManager()
+_consoles: dict[str, _ConsoleManager] = {}
+
+
+def _get_console(instance_name: str) -> _ConsoleManager:
+    if instance_name not in _consoles:
+        _consoles[instance_name] = _ConsoleManager()
+    return _consoles[instance_name]
 
 
 # ---------------------------------------------------------------------------
@@ -69,16 +73,30 @@ _console = _ConsoleManager()
 
 @router.get("/status")
 def status():
-    uptime = server_svc.get_uptime_seconds()
-    last_exit_time, last_exit_code = server_svc.get_last_exit_info()
-    ram_mb, cpu_percent = server_svc.get_resource_usage()
-    players = server_svc.get_players()
     running_instance = server_svc.get_running_instance()
+    running_instances = []
+    for name in server_svc.get_running_instances():
+        uptime = server_svc.get_uptime_seconds(name)
+        ram_mb, cpu_percent = server_svc.get_resource_usage(name)
+        game_port = server_svc.get_running_game_port(name)
+        running_instances.append({
+            "name": name,
+            "game_port": game_port,
+            "uptime_seconds": round(uptime, 1) if uptime is not None else None,
+            "ram_mb": ram_mb,
+            "cpu_percent": cpu_percent,
+        })
+    # For active instance or single running
+    uptime = server_svc.get_uptime_seconds(running_instance) if running_instance else None
+    ram_mb, cpu_percent = server_svc.get_resource_usage(running_instance) if running_instance else server_svc.get_resource_usage()
+    players = server_svc.get_players()
+    last_exit_time, last_exit_code = server_svc.get_last_exit_info()
 
     return {
         "installed": server_svc.is_installed(),
         "running": server_svc.is_running(),
         "running_instance": running_instance,
+        "running_instances": running_instances,
         "uptime_seconds": round(uptime, 1) if uptime is not None else None,
         "last_exit_time": (
             datetime.fromtimestamp(last_exit_time, tz=timezone.utc).isoformat()
@@ -92,14 +110,25 @@ def status():
 
 
 @router.post("/start")
-async def start():
-    if server_svc.is_running():
+async def start(body: dict = Body(default=None)):
+    from services.settings import get_active_instance
+    inst = (body or {}).get("instance") or get_active_instance()
+    if not inst:
         return JSONResponse(
-            {"ok": False, "error": "Server is already running"}, status_code=409
+            {"ok": False, "error": "No instance selected"}, status_code=400
+        )
+    if server_svc.is_instance_running(inst):
+        return JSONResponse(
+            {"ok": False, "error": "That instance is already running"}, status_code=409
         )
 
-    _console.reset(asyncio.get_event_loop())
-    result = server_svc.start(on_output=_console.on_output, on_done=_console.on_done)
+    console = _get_console(inst)
+    console.reset(asyncio.get_event_loop())
+    result = server_svc.start(
+        instance_name=inst,
+        on_output=console.on_output,
+        on_done=console.on_done,
+    )
 
     if result is None:
         return JSONResponse(
@@ -110,8 +139,9 @@ async def start():
 
 
 @router.post("/stop")
-def stop():
-    server_svc.stop()
+def stop(body: dict = Body(default=None)):
+    instance_name = (body or {}).get("instance")
+    server_svc.stop(instance_name=instance_name)
     return {"ok": True}
 
 
@@ -119,33 +149,34 @@ def stop():
 def command(body: dict = Body(...)):
     """Send a command to the server's stdin (when running)."""
     cmd = body.get("command", "")
+    instance_name = body.get("instance")
     if not isinstance(cmd, str):
         return JSONResponse({"ok": False, "error": "command must be a string"}, status_code=400)
     if not server_svc.is_running():
         return JSONResponse({"ok": False, "error": "Server is not running"}, status_code=409)
-    if server_svc.send_command(cmd):
+    if server_svc.send_command(cmd, instance_name=instance_name):
         return {"ok": True}
     return JSONResponse({"ok": False, "error": "Failed to send command"}, status_code=500)
 
 
 @router.get("/console")
-async def console():
-    """SSE stream of live console output."""
+async def console(instance: str | None = None):
+    """SSE stream of live console output. ?instance=Name for specific instance."""
+    from services.settings import get_active_instance
+    inst = instance or get_active_instance()
+    if not inst:
+        return JSONResponse({"error": "No instance specified"}, status_code=400)
+    console_mgr = _get_console(inst)
     queue: asyncio.Queue = asyncio.Queue()
-    _console.subscribers.append(queue)
+    console_mgr.subscribers.append(queue)
 
     async def generate():
         try:
-            # Send buffered lines first
-            for line in list(_console.buffer):
+            for line in list(console_mgr.buffer):
                 yield f"event: output\ndata: {json.dumps({'line': line})}\n\n"
-
-            # If server already stopped, send done and exit
-            if not _console.server_active and _console.last_exit_code is not None:
-                yield f"event: done\ndata: {json.dumps({'code': _console.last_exit_code})}\n\n"
+            if not console_mgr.server_active and console_mgr.last_exit_code is not None:
+                yield f"event: done\ndata: {json.dumps({'code': console_mgr.last_exit_code})}\n\n"
                 return
-
-            # Stream new events
             while True:
                 try:
                     event_type, data = await asyncio.wait_for(queue.get(), timeout=30)
@@ -157,7 +188,7 @@ async def console():
                 except asyncio.TimeoutError:
                     yield f"event: ping\ndata: {{}}\n\n"
         finally:
-            if queue in _console.subscribers:
-                _console.subscribers.remove(queue)
+            if queue in console_mgr.subscribers:
+                console_mgr.subscribers.remove(queue)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
