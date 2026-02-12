@@ -120,8 +120,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">
-              This instance doesn't have a server installed yet. Use the
-              instance dropdown in the sidebar to{" "}
+              This instance doesn't have a server installed yet. Click your
+              instance name in the sidebar to{" "}
               <strong>Add Server</strong> or go to{" "}
               <button
                 onClick={() => onNavigate("updates")}
