@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from typing import Callable, Optional
 
 from config import SERVER_DIR, SERVER_JAR
@@ -19,6 +20,9 @@ from utils.paths import resolve_instance
 
 _server_process: Optional[subprocess.Popen] = None
 _server_thread: Optional[threading.Thread] = None
+_server_start_time: Optional[float] = None
+_last_exit_time: Optional[float] = None
+_last_exit_code: Optional[int] = None
 
 
 def is_installed() -> bool:
@@ -27,6 +31,55 @@ def is_installed() -> bool:
 
 def is_running() -> bool:
     return _server_process is not None and _server_process.poll() is None
+
+
+def get_uptime_seconds() -> Optional[float]:
+    """Seconds since server process started, or None if not running."""
+    if not is_running() or _server_start_time is None:
+        return None
+    return time.time() - _server_start_time
+
+
+def get_last_exit_info() -> tuple[Optional[float], Optional[int]]:
+    """(timestamp_float, exit_code) of the last server exit, or (None, None)."""
+    return (_last_exit_time, _last_exit_code)
+
+
+def get_resource_usage() -> tuple[Optional[float], Optional[float]]:
+    """
+    (ram_mb, cpu_percent) for the Java process child of the server.
+    Returns (None, None) if not running or psutil unavailable.
+    """
+    if not is_running() or not _server_process or not _server_process.pid:
+        return (None, None)
+    try:
+        import psutil
+    except ImportError:
+        return (None, None)
+    try:
+        parent = psutil.Process(_server_process.pid)
+        for child in parent.children(recursive=True):
+            try:
+                name = (child.name() or "").lower()
+                if "java" in name:
+                    mem = child.memory_info()
+                    ram_mb = (mem.rss or 0) / (1024 * 1024)
+                    cpu_percent = child.cpu_percent(interval=None)
+                    return (round(ram_mb, 1), round(cpu_percent, 1))
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        pass
+    return (None, None)
+
+
+def get_players() -> Optional[int]:
+    """
+    Current player count. Hytale does not expose a vanilla query protocol;
+    third-party plugins (e.g. Nitrado Query Plugin) are required.
+    Returns None until such integration exists.
+    """
+    return None
 
 
 def _get_start_script_cmd() -> Optional[list[str]]:
@@ -112,7 +165,7 @@ def start(
         return None
 
     def _worker():
-        global _server_process
+        global _server_process, _server_start_time, _last_exit_time, _last_exit_code
         rc = 0
 
         while True:
@@ -137,6 +190,7 @@ def start(
                     text=True,
                     creationflags=creation_flags,
                 )
+                _server_start_time = time.time()
                 if on_output and _server_process.stdout:
                     for line in _server_process.stdout:
                         on_output(line.rstrip("\n"))
@@ -165,6 +219,8 @@ def start(
                     on_output("[Launcher] Previous files may be in updater/backup/ for rollback.")
             break
 
+        _last_exit_time = time.time()
+        _last_exit_code = rc
         _server_process = None
         if on_done:
             on_done(rc)
