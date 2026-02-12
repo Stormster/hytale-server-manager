@@ -44,7 +44,13 @@ def fetch_downloader(
         try:
             if on_status:
                 on_status("Downloading Hytale downloader...")
-            resp = requests.get(DOWNLOADER_ZIP_URL, timeout=60, stream=True)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Accept": "application/zip,*/*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://hytale.com/",
+            }
+            resp = requests.get(DOWNLOADER_ZIP_URL, timeout=60, stream=True, headers=headers)
             resp.raise_for_status()
 
             data = io.BytesIO(resp.content)
