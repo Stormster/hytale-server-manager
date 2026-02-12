@@ -57,6 +57,7 @@ def create_app():
     from api.info import router as info_router
     from api.settings_routes import router as settings_router
     from api.instances import router as instances_router
+    from api.mods import router as mods_router
 
     app = FastAPI(title="Hytale Server Manager Backend")
 
@@ -76,6 +77,7 @@ def create_app():
     app.include_router(info_router, prefix="/api", tags=["info"])
     app.include_router(settings_router, prefix="/api", tags=["settings"])
     app.include_router(instances_router, prefix="/api/instances", tags=["instances"])
+    app.include_router(mods_router, prefix="/api/mods", tags=["mods"])
 
     @app.get("/api/health")
     async def health():
