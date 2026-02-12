@@ -23,34 +23,7 @@ export default function App() {
   const [importOpen, setImportOpen] = useState(false);
   const [manageInstancesOpen, setManageInstancesOpen] = useState(false);
 
-  // Show loading while settings and auth are being fetched
-  if (isLoading || authLoading) {
-    return (
-      <div className="relative flex h-screen w-screen items-center justify-center">
-        <div className="hytale-bg">
-          <div className="hytale-bg-image" />
-          <div className="hytale-bg-overlay" />
-        </div>
-        <p className="relative text-sm text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
-
-  // Show onboarding if root_dir is not configured
-  if (!settings?.root_dir) {
-    return <OnboardingView />;
-  }
-
-  // Show auth required if not authenticated (needed for downloads)
-  if (!authStatus?.has_credentials) {
-    return <AuthRequiredView />;
-  }
-
-  const handleNavigate = (view: ViewName) => {
-    setActiveView(view);
-  };
-
-  // Graceful shutdown: stop server before closing (Tauri only)
+  // Graceful shutdown: stop server before closing (Tauri only). Must be before any early returns.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
@@ -79,6 +52,33 @@ export default function App() {
     })();
     return () => unlisten?.();
   }, []);
+
+  // Show loading while settings and auth are being fetched
+  if (isLoading || authLoading) {
+    return (
+      <div className="relative flex h-screen w-screen items-center justify-center">
+        <div className="hytale-bg">
+          <div className="hytale-bg-image" />
+          <div className="hytale-bg-overlay" />
+        </div>
+        <p className="relative text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  // Show onboarding if root_dir is not configured
+  if (!settings?.root_dir) {
+    return <OnboardingView />;
+  }
+
+  // Show auth required if not authenticated (needed for downloads)
+  if (!authStatus?.has_credentials) {
+    return <AuthRequiredView />;
+  }
+
+  const handleNavigate = (view: ViewName) => {
+    setActiveView(view);
+  };
 
   return (
     <div className="relative flex h-screen w-screen overflow-hidden select-none">
