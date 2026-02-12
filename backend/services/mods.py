@@ -8,7 +8,7 @@ from typing import Callable, Optional
 from config import SERVER_DIR
 from utils.paths import resolve_instance
 
-MODS_SUBFOLDERS = ("mods",)
+MODS_SUBFOLDERS = ("mods", "plugins")
 DISABLED_SUBFOLDER = "disabled"
 REQUIRED_PREFIXES = ("nitrado-webserver", "nitrado-query")
 

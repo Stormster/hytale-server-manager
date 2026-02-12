@@ -65,11 +65,15 @@ def install_nitrado_plugins(
     on_status: Optional[Callable[[str], None]] = None,
 ) -> bool:
     """
-    Download and install latest Nitrado WebServer + Query plugins into server_dir/mods/.
-    Also ensures ANONYMOUS can read query basics for manager player count display.
+    Download and install latest Nitrado WebServer + Query plugins.
+
+    WebServer must load before Query (it provides the HTTP layer Query depends on).
+    Installs to mods/ and plugins/ (Hytale may use either). Ensures query permissions.
     """
     mods_path = os.path.join(server_dir, "mods")
+    plugins_path = os.path.join(server_dir, "plugins")
     os.makedirs(mods_path, exist_ok=True)
+    os.makedirs(plugins_path, exist_ok=True)
     ok = True
 
     for repo, prefix, ext in PLUGINS:
@@ -85,13 +89,13 @@ def install_nitrado_plugins(
         if not download_url:
             ok = False
             continue
-        dest = os.path.join(mods_path, filename)
         try:
             resp = requests.get(download_url, timeout=60, stream=True, headers={"User-Agent": "Hytale-Server-Manager"})
             resp.raise_for_status()
-            with open(dest, "wb") as f:
-                for chunk in resp.iter_content(chunk_size=65536):
-                    f.write(chunk)
+            data = resp.content
+            for folder in (mods_path, plugins_path):
+                with open(os.path.join(folder, filename), "wb") as f:
+                    f.write(data)
             if on_status:
                 on_status(f"  Installed {filename}")
         except Exception as e:
