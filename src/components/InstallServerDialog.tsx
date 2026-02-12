@@ -124,16 +124,23 @@ export function InstallServerDialog({
 
         {step === "installing" && (
           <div className="space-y-3 py-2">
-            <p className="text-sm">{status}</p>
+            <p className="text-sm">
+              {detail ? (
+                <>
+                  {status}
+                  {status && " — "}
+                  <span className="text-muted-foreground">{detail}</span>
+                </>
+              ) : (
+                status || "Preparing..."
+              )}
+            </p>
             <div className="flex items-center gap-3">
               <Progress value={progress} className="flex-1 h-3" />
               <span className="text-sm font-medium w-12 text-right">
                 {Math.round(progress)}%
               </span>
             </div>
-            {detail && (
-              <p className="text-xs text-muted-foreground">{detail}</p>
-            )}
           </div>
         )}
 
