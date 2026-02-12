@@ -18,6 +18,11 @@ def parse_args():
         default=None,
         help="Pre-seed the root servers directory in settings (dev convenience)",
     )
+    parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="Auto-reload on file changes (dev only)",
+    )
     return parser.parse_args()
 
 
@@ -34,6 +39,13 @@ def find_free_port(start: int) -> int:
 
 
 def create_app():
+    # Pre-seed root_dir from env (used when running under uvicorn reload subprocess)
+    root_dir = os.environ.get("HYTALE_ROOT_DIR")
+    if root_dir:
+        from services.settings import get_root_dir, set_root_dir
+        if not get_root_dir():
+            set_root_dir(os.path.abspath(root_dir))
+
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
 
@@ -72,11 +84,16 @@ def create_app():
     return app
 
 
+# Module-level app for uvicorn "main:app" (required for --reload)
+app = create_app()
+
+
 def main():
     args = parse_args()
 
-    # Optionally pre-seed root_dir for dev convenience
+    # Optionally pre-seed root_dir for dev convenience (pass to reload subprocess via env)
     if args.root_dir:
+        os.environ["HYTALE_ROOT_DIR"] = os.path.abspath(args.root_dir)
         from services.settings import get_root_dir, set_root_dir
         if not get_root_dir():
             set_root_dir(os.path.abspath(args.root_dir))
@@ -86,11 +103,19 @@ def main():
     # Signal to Tauri that the backend is ready
     print(f"BACKEND_READY:{port}", flush=True)
 
-    app = create_app()
-
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    if args.reload:
+        # Uvicorn requires import string for reload to work
+        uvicorn.run(
+            "main:app",
+            host="127.0.0.1",
+            port=port,
+            log_level="warning",
+            reload=True,
+        )
+    else:
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 
 if __name__ == "__main__":
