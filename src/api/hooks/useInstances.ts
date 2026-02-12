@@ -65,13 +65,17 @@ export function useImportInstance() {
 export function useDeleteInstance() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      api(`/api/instances/${encodeURIComponent(name)}`, {
-        method: "DELETE",
-      }),
+    mutationFn: ({ name, deleteFiles }: { name: string; deleteFiles: boolean }) =>
+      api(
+        `/api/instances/${encodeURIComponent(name)}?delete_files=${deleteFiles}`,
+        { method: "DELETE" }
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["instances"] });
       qc.invalidateQueries({ queryKey: ["settings"] });
+      qc.invalidateQueries({ queryKey: ["server-status"] });
+      qc.invalidateQueries({ queryKey: ["updater-local-status"] });
+      qc.invalidateQueries({ queryKey: ["backups"] });
     },
   });
 }

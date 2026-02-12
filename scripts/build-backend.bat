@@ -1,6 +1,10 @@
 @echo off
 setlocal
 
+rem Stop any running backend (avoids "Access is denied" when exe is locked)
+taskkill /F /IM server-manager-backend-x86_64-pc-windows-msvc.exe 2>nul
+taskkill /F /IM server-manager-backend.exe 2>nul
+
 echo ==^> Building backend with PyInstaller...
 cd backend
 python -m PyInstaller build.spec --noconfirm

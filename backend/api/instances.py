@@ -52,9 +52,9 @@ def import_instance(body: ImportInstanceRequest):
 
 
 @router.delete("/{name}")
-def delete_instance(name: str):
+def delete_instance(name: str, delete_files: bool = True):
     try:
-        inst_svc.delete_instance(name)
+        inst_svc.delete_instance(name, delete_files=delete_files)
         return {"ok": True}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

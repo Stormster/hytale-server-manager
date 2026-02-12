@@ -59,6 +59,33 @@ def set_root_dir(path: str) -> None:
     _save(s)
 
 
+# -- Ignored instances ---------------------------------------------------------
+# Instance names to hide from the manager (removed without deleting files)
+
+
+def get_ignored_instances() -> list[str]:
+    """Return list of instance names hidden from the manager."""
+    return list(load().get("ignored_instances", []))
+
+
+def add_ignored_instance(name: str) -> None:
+    """Hide an instance from the manager (files stay on disk)."""
+    s = load()
+    ignored = list(s.get("ignored_instances", []))
+    if name not in ignored:
+        ignored.append(name)
+        s["ignored_instances"] = ignored
+        _save(s)
+
+
+def remove_ignored_instance(name: str) -> None:
+    """Show an instance in the manager again."""
+    s = load()
+    ignored = [x for x in s.get("ignored_instances", []) if x != name]
+    s["ignored_instances"] = ignored
+    _save(s)
+
+
 # -- Active instance ----------------------------------------------------------
 
 def get_active_instance() -> str:
