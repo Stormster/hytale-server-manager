@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { AppSidebar, type ViewName } from "@/components/AppSidebar";
 import { DashboardView } from "@/views/DashboardView";
+import { InstancesView } from "@/views/InstancesView";
+import { InstanceSettingsView } from "@/views/InstanceSettingsView";
 import { ServerView } from "@/views/ServerView";
 import { UpdateView } from "@/views/UpdateView";
 import { BackupView } from "@/views/BackupView";
@@ -47,6 +49,13 @@ export default function App() {
         {activeView === "dashboard" && (
           <DashboardView onNavigate={handleNavigate} />
         )}
+        {activeView === "instances" && (
+          <InstancesView
+            onAddServer={() => setAddOpen(true)}
+            onImportServer={() => setImportOpen(true)}
+          />
+        )}
+        {activeView === "instance-settings" && <InstanceSettingsView />}
         {activeView === "server" && <ServerView />}
         {activeView === "updates" && <UpdateView />}
         {activeView === "backups" && <BackupView />}

@@ -166,18 +166,22 @@ def rename_instance(old_name: str, new_name: str) -> dict:
     if not root:
         raise ValueError("Root directory not configured")
 
+    new_name = _sanitize_folder_name(new_name)
     old = os.path.join(root, old_name)
-    new = os.path.join(root, new_name)
+    new_path = os.path.join(root, new_name)
 
     if not os.path.isdir(old):
         raise ValueError(f"Instance '{old_name}' not found")
-    if os.path.exists(new):
+    if os.path.exists(new_path):
         raise ValueError(f"Instance '{new_name}' already exists")
 
-    os.rename(old, new)
+    os.rename(old, new_path)
 
     # Update active if it was the renamed one
     if settings.get_active_instance() == old_name:
         settings.set_active_instance(new_name)
+
+    # Remove old name from ignored list if present (renamed folder is now visible)
+    settings.remove_ignored_instance(old_name)
 
     return {"name": new_name}
