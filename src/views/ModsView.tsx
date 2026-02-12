@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { useMods, useToggleMod } from "@/api/hooks/useMods";
 import { useServerStatus } from "@/api/hooks/useServer";
 import { useSettings } from "@/api/hooks/useSettings";
-import { Lock, Download } from "lucide-react";
+import { Lock, Download, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
 
@@ -46,6 +46,7 @@ export function ModsView() {
   };
 
   const [fixingPerms, setFixingPerms] = useState(false);
+  const [fixingPort, setFixingPort] = useState(false);
   const requiredModsPresent = !missingRequired;
   const handleEnsureQueryPermissions = async () => {
     setFixingPerms(true);
@@ -56,6 +57,18 @@ export function ModsView() {
       });
     } finally {
       setFixingPerms(false);
+    }
+  };
+  const handleEnsureWebserverPort = async () => {
+    setFixingPort(true);
+    try {
+      await api<{ ok: boolean }>("/api/mods/ensure-webserver-port", {
+        method: "POST",
+        body: "{}",
+      });
+      refetch();
+    } finally {
+      setFixingPort(false);
     }
   };
 
@@ -83,15 +96,27 @@ export function ModsView() {
             </Button>
           )}
           {activeInstance && requiredModsPresent && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleEnsureQueryPermissions}
-              disabled={fixingPerms}
-              title="Add nitrado.query.web.read.basic to ANONYMOUS. Restart the server for changes to apply."
-            >
-              {fixingPerms ? "Updating..." : "Fix player count"}
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleEnsureWebserverPort}
+                disabled={running || fixingPort}
+                title="Assign a unique WebServer port. Use when switching instances to avoid port conflicts."
+              >
+                <Wrench className="h-4 w-4" />
+                {fixingPort ? "Updating..." : "Fix port conflict"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleEnsureQueryPermissions}
+                disabled={fixingPerms}
+                title="Add nitrado.query.web.read.basic to ANONYMOUS. Restart the server for changes to apply."
+              >
+                {fixingPerms ? "Updating..." : "Fix player count"}
+              </Button>
+            </>
           )}
         </div>
       </div>
