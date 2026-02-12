@@ -23,7 +23,7 @@ export default function App() {
   const [importOpen, setImportOpen] = useState(false);
   const [manageInstancesOpen, setManageInstancesOpen] = useState(false);
 
-  // Graceful shutdown: stop server before closing (Tauri only). Must be before any early returns.
+  // Graceful shutdown: stop all servers before closing (Tauri only). Must be before any early returns.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
@@ -33,16 +33,36 @@ export default function App() {
         const win = getCurrentWindow();
         unlisten = await win.onCloseRequested(async (event) => {
           event.preventDefault();
+          const CLOSE_TIMEOUT = 8000; // Max wait before force-close
+          const deadline = Date.now() + CLOSE_TIMEOUT;
           try {
-            await api("/api/server/stop", { method: "POST" });
-            const deadline = Date.now() + 20_000;
-            while (Date.now() < deadline) {
-              const status = await api<{ running: boolean }>("/api/server/status");
-              if (!status.running) break;
-              await new Promise((r) => setTimeout(r, 500));
+            const { invoke } = await import("@tauri-apps/api/core");
+            const port = await invoke<number>("get_backend_port");
+            const url = `http://127.0.0.1:${port}`;
+            const ctrl = new AbortController();
+            const timeoutId = setTimeout(() => ctrl.abort(), CLOSE_TIMEOUT);
+            try {
+              await fetch(`${url}/api/server/stop`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ all: true }),
+                signal: ctrl.signal,
+              });
+              while (Date.now() < deadline) {
+                try {
+                  const res = await fetch(`${url}/api/server/status`, { signal: ctrl.signal });
+                  const status = await res.json();
+                  if (!status?.running) break;
+                } catch {
+                  break;
+                }
+                await new Promise((r) => setTimeout(r, 400));
+              }
+            } finally {
+              clearTimeout(timeoutId);
             }
           } catch {
-            // Backend unreachable or not in Tauri; allow close anyway
+            // Backend unreachable or not ready – close anyway
           }
           await win.destroy();
         });

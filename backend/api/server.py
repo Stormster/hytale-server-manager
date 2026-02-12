@@ -140,8 +140,12 @@ async def start(body: dict = Body(default=None)):
 
 @router.post("/stop")
 def stop(body: dict = Body(default=None)):
-    instance_name = (body or {}).get("instance")
-    server_svc.stop(instance_name=instance_name)
+    body = body or {}
+    if body.get("all"):
+        server_svc.stop_all()
+    else:
+        instance_name = body.get("instance")
+        server_svc.stop(instance_name=instance_name)
     return {"ok": True}
 
 

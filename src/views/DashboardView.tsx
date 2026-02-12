@@ -20,7 +20,7 @@ import { InstallServerDialog } from "@/components/InstallServerDialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useServerStatus, useStartServer, useStopServer } from "@/api/hooks/useServer";
 import { useInstances, useSetActiveInstance, useReorderInstances } from "@/api/hooks/useInstances";
-import { useBackups, useCreateBackup } from "@/api/hooks/useBackups";
+import { useCreateBackup } from "@/api/hooks/useBackups";
 import { useCheckUpdates } from "@/api/hooks/useUpdater";
 import { useAppInfo } from "@/api/hooks/useInfo";
 import { useManagerUpdate } from "@/api/hooks/useInfo";
@@ -53,12 +53,10 @@ interface SortableInstanceCardProps {
   running: boolean;
   runningInstances: Array<{ name: string; game_port?: number | null; uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null }>;
   serverStatus: { uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null; players?: number | null; last_exit_code?: number | null; last_exit_time?: string | null } | undefined;
-  lastBackupAgo: string | null;
-  backupStale: boolean;
   updateAvailable: boolean;
   onNavigate: (view: ViewName) => void;
   onRestart: (instanceName: string) => void;
-  onCreateBackup: () => void;
+  onCreateBackup: (instanceName: string) => void;
   onOpenLogs: (name: string) => void;
   onInstall: () => void;
   onSelect: () => void;
@@ -73,8 +71,6 @@ function SortableInstanceCard({
   running,
   runningInstances,
   serverStatus,
-  lastBackupAgo,
-  backupStale,
   updateAvailable,
   onNavigate,
   onRestart,
@@ -124,10 +120,25 @@ function SortableInstanceCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group",
-        isActive && "ring-2 ring-primary",
+        "group transition-colors",
+        isActive && "ring-4 ring-ring bg-accent",
+        !isActive && "cursor-pointer hover:bg-muted/50",
         isDragging && "opacity-50"
       )}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("button")) return;
+        if (!isActive) onSelect();
+      }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={isActive}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if ((e.target as HTMLElement).closest("button")) return;
+          if (!isActive) onSelect();
+        }
+      }}
     >
       <CardContent className="space-y-3 pt-5">
         <div
@@ -181,9 +192,9 @@ function SortableInstanceCard({
           )}
         </div>
 
-        {(isActive || thisRunning) && thisInstalled && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {thisRunning ? (
+        {thisInstalled && (
+          <div className="flex min-h-5 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {(isActive || thisRunning) && thisRunning ? (
               (() => {
                 const runInfo = runningInstances.find((r) => r.name === inst.name);
                 return (
@@ -217,25 +228,30 @@ function SortableInstanceCard({
                   </>
                 );
               })()
-            ) : (
+            ) : (isActive || thisRunning) &&
               serverStatus?.last_exit_code != null &&
-              serverStatus.last_exit_code !== 0 && (
-                <span className="text-amber-400" title="Last exit">
-                  Crashed {serverStatus.last_exit_time ? timeAgo(serverStatus.last_exit_time) : "recently"}
-                </span>
-              )
-            )}
+              serverStatus.last_exit_code !== 0 ? (
+              <span className="text-amber-400" title="Last exit">
+                Crashed {serverStatus.last_exit_time ? timeAgo(serverStatus.last_exit_time) : "recently"}
+              </span>
+            ) : null}
           </div>
         )}
 
-        {isActive && (
+        {thisInstalled && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             Last backup:{" "}
-            {lastBackupAgo ? (
-              <span className={cn(backupStale && "text-amber-400")}>
-                {lastBackupAgo}
-                {backupStale && <AlertTriangle className="ml-1 inline h-3.5 w-3.5 align-middle" />}
-              </span>
+            {inst.last_backup_created ? (
+              (() => {
+                const ago = timeAgo(inst.last_backup_created);
+                const stale = isStale(inst.last_backup_created);
+                return (
+                  <span className={cn(stale && "text-amber-400")}>
+                    {ago}
+                    {stale && <AlertTriangle className="ml-1 inline h-3.5 w-3.5 align-middle" />}
+                  </span>
+                );
+              })()
             ) : (
               <span className="flex items-center gap-1 text-amber-400">
                 Never <AlertTriangle className="h-3.5 w-3.5" />
@@ -245,65 +261,37 @@ function SortableInstanceCard({
         )}
 
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {isActive ? (
-            thisInstalled ? (
-              <>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    if (thisRunning) stopServer.mutate(inst.name);
-                    else startServer.mutate(inst.name, { onSuccess: () => onNavigate("server") });
-                  }}
-                  disabled={startServer.isPending || stopServer.isPending}
-                >
-                  {thisRunning ? "Stop" : "Start"}
+          {thisInstalled ? (
+            <>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (thisRunning) stopServer.mutate(inst.name);
+                  else startServer.mutate(inst.name, { onSuccess: () => onNavigate("server") });
+                }}
+                disabled={startServer.isPending || stopServer.isPending}
+              >
+                {thisRunning ? "Stop" : "Start"}
+              </Button>
+              <div className="flex gap-1">
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onRestart(inst.name)} disabled={!thisRunning} title="Restart">
+                  <RotateCw className="h-3.5 w-3.5" />
                 </Button>
-                <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onRestart(inst.name)} disabled={!thisRunning} title="Restart">
-                    <RotateCw className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onCreateBackup} disabled={createBackup.isPending} title="Backup now">
-                    <Archive className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onOpenLogs(inst.name)} title="Open logs">
-                    <FileText className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </>
-            ) : (
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onCreateBackup(inst.name)} disabled={createBackup.isPending} title="Backup now">
+                  <Archive className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onOpenLogs(inst.name)} title="Open logs">
+                  <FileText className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
               <Button size="sm" onClick={onInstall} className="gap-2">
                 <Download className="h-4 w-4" />
                 Install Server
               </Button>
-            )
-          ) : thisInstalled ? (
-            thisRunning ? (
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => stopServer.mutate(inst.name)}
-                disabled={stopServer.isPending}
-              >
-                Stop
-              </Button>
-            ) : (
-              <>
-                <Button
-                  size="sm"
-                  onClick={() => startServer.mutate(inst.name, { onSuccess: () => onNavigate("server") })}
-                  disabled={startServer.isPending}
-                >
-                  Start
-                </Button>
-                <Button size="sm" variant="outline" onClick={onSelect}>
-                  Select
-                </Button>
-              </>
-            )
-          ) : (
-            <Button size="sm" variant="outline" onClick={onSelect}>
-              Select
-            </Button>
+            </>
           )}
         </div>
       </CardContent>
@@ -323,7 +311,6 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const { data: settings } = useSettings();
   const { data: instances } = useInstances();
   const { data: serverStatus } = useServerStatus();
-  const { data: backups } = useBackups();
   const checkUpdates = useCheckUpdates();
   const { data: appInfo } = useAppInfo();
   const { data: managerUpdate } = useManagerUpdate();
@@ -339,9 +326,6 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const running = serverStatus?.running ?? false;
   const activeInstance = settings?.active_instance || "None";
   const rootDir = (settings?.root_dir || "").replace(/[/\\]+$/, "");
-  const lastBackup = backups?.[0];
-  const lastBackupAgo = lastBackup?.created ? timeAgo(lastBackup.created) : null;
-  const backupStale = lastBackup?.created ? isStale(lastBackup.created) : true;
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -357,6 +341,16 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   };
 
   const createBackup = useCreateBackup();
+
+  const handleCreateBackup = (instanceName: string) => {
+    if (instanceName !== activeInstance) {
+      setActive.mutate(instanceName, {
+        onSuccess: () => createBackup.mutate(),
+      });
+    } else {
+      createBackup.mutate();
+    }
+  };
 
   const handleRestart = (instanceName: string) => {
     stopServer.mutate(instanceName, {
@@ -439,12 +433,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   running={running}
                   runningInstances={serverStatus?.running_instances ?? []}
                   serverStatus={serverStatus}
-                  lastBackupAgo={lastBackupAgo}
-                  backupStale={backupStale}
                   updateAvailable={!!checkUpdates.data?.update_available}
                   onNavigate={onNavigate}
                   onRestart={handleRestart}
-                  onCreateBackup={() => createBackup.mutate()}
+                  onCreateBackup={handleCreateBackup}
                   onOpenLogs={handleOpenLogs}
                   onInstall={() => setInstallOpen(true)}
                   onSelect={() => setActive.mutate(inst.name)}
