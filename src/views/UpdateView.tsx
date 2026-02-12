@@ -5,11 +5,18 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
 import { InfoRow } from "@/components/InfoRow";
+import { InstallServerDialog } from "@/components/InstallServerDialog";
 import { useUpdaterLocalStatus, useCheckUpdates } from "@/api/hooks/useUpdater";
+import { useSettings } from "@/api/hooks/useSettings";
+import { useQueryClient } from "@tanstack/react-query";
 import { subscribeSSE } from "@/api/client";
 import type { UpdaterFullStatus } from "@/api/types";
+import { Download } from "lucide-react";
 
 export function UpdateView() {
+  const { data: settings } = useSettings();
+  const queryClient = useQueryClient();
+  const [installOpen, setInstallOpen] = useState(false);
   const { data: localStatus } = useUpdaterLocalStatus();
   const checkUpdates = useCheckUpdates();
 
@@ -70,6 +77,8 @@ export function UpdateView() {
 
   const iv = localStatus?.installed_version ?? "...";
   const ip = localStatus?.installed_patchline ?? "release";
+  const notInstalled = iv === "unknown" || iv === "...";
+  const activeInstance = settings?.active_instance || "None";
 
   const rr = fullStatus?.remote_release;
   const rp = fullStatus?.remote_prerelease;
@@ -81,6 +90,38 @@ export function UpdateView() {
     <div className="p-6 space-y-6 max-w-3xl">
       <h2 className="text-xl font-bold">Server Updates</h2>
 
+      {/* Not installed: offer Install Server */}
+      {notInstalled && activeInstance !== "None" && (
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              No server is installed for this instance. Install the Hytale
+              server to check for updates.
+            </p>
+            <Button
+              onClick={() => setInstallOpen(true)}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Install Server
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <InstallServerDialog
+        open={installOpen}
+        onOpenChange={setInstallOpen}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["server", "status"] });
+          queryClient.invalidateQueries({ queryKey: ["updater", "local-status"] });
+          setFullStatus(null);
+        }}
+      />
+
+      {/* Version info and update actions - only when server is installed */}
+      {!notInstalled && (
+        <>
       {/* Version info card */}
       <Card>
         <CardContent className="pt-6 space-y-2">
@@ -195,6 +236,9 @@ export function UpdateView() {
             )}
           </CardContent>
         </Card>
+      )}
+
+        </>
       )}
     </div>
   );
