@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppSidebar, type ViewName } from "@/components/AppSidebar";
 import { DashboardView } from "@/views/DashboardView";
 import { ServerView } from "@/views/ServerView";
@@ -49,6 +49,36 @@ export default function App() {
   const handleNavigate = (view: ViewName) => {
     setActiveView(view);
   };
+
+  // Graceful shutdown: stop server before closing (Tauri only)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const { api } = await import("@/api/client");
+        const win = getCurrentWindow();
+        unlisten = await win.onCloseRequested(async (event) => {
+          event.preventDefault();
+          try {
+            await api("/api/server/stop", { method: "POST" });
+            const deadline = Date.now() + 20_000;
+            while (Date.now() < deadline) {
+              const status = await api<{ running: boolean }>("/api/server/status");
+              if (!status.running) break;
+              await new Promise((r) => setTimeout(r, 500));
+            }
+          } catch {
+            // Backend unreachable or not in Tauri; allow close anyway
+          }
+          await win.destroy();
+        });
+      } catch {
+        // Not in Tauri (browser dev)
+      }
+    })();
+    return () => unlisten?.();
+  }, []);
 
   return (
     <div className="relative flex h-screen w-screen overflow-hidden select-none">
