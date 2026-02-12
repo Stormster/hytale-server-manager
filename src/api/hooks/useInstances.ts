@@ -88,7 +88,22 @@ export function useReorderInstances() {
         method: "PUT",
         body: JSON.stringify({ names }),
       }),
-    onSuccess: () => {
+    onMutate: async (names) => {
+      await qc.cancelQueries({ queryKey: ["instances"] });
+      const prev = qc.getQueryData<Instance[]>(["instances"]);
+      if (prev) {
+        const byName = new Map(prev.map((i) => [i.name, i]));
+        const reordered = names.map((n) => byName.get(n)).filter(Boolean) as Instance[];
+        if (reordered.length === prev.length) {
+          qc.setQueryData(["instances"], reordered);
+        }
+      }
+      return { prev };
+    },
+    onError: (_err, _names, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["instances"], ctx.prev);
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["instances"] });
     },
   });

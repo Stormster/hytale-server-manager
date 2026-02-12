@@ -64,7 +64,7 @@ def get_resource_usage() -> tuple[Optional[float], Optional[float]]:
                 if "java" in name:
                     mem = child.memory_info()
                     ram_mb = (mem.rss or 0) / (1024 * 1024)
-                    cpu_percent = child.cpu_percent(interval=None)
+                    cpu_percent = child.cpu_percent(interval=0.1)
                     return (round(ram_mb, 1), round(cpu_percent, 1))
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
@@ -75,11 +75,14 @@ def get_resource_usage() -> tuple[Optional[float], Optional[float]]:
 
 def get_players() -> Optional[int]:
     """
-    Current player count. Hytale does not expose a vanilla query protocol;
-    third-party plugins (e.g. Nitrado Query Plugin) are required.
-    Returns None until such integration exists.
+    Current player count from Nitrado Query plugin.
+    Returns None if server not running, plugins not installed, or query fails.
     """
-    return None
+    try:
+        from services import nitrado_query
+        return nitrado_query.query_players()
+    except Exception:
+        return None
 
 
 def _get_start_script_cmd() -> Optional[list[str]]:
