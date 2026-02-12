@@ -17,6 +17,7 @@ export interface Instance {
 export interface ServerStatus {
   installed: boolean;
   running: boolean;
+  running_instance: string | null;
   uptime_seconds: number | null;
   last_exit_time: string | null;
   last_exit_code: number | null;

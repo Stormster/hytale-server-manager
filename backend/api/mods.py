@@ -36,6 +36,20 @@ def ensure_query_permissions():
     return {"ok": True}
 
 
+@router.post("/ensure-webserver-port")
+def ensure_webserver_port():
+    """
+    Assign a unique Nitrado WebServer port for this instance.
+    Use when switching instances to avoid "Address already in use" conflicts.
+    """
+    server_dir = resolve_instance(SERVER_DIR)
+    if not os.path.isdir(server_dir):
+        return JSONResponse({"ok": False, "error": "Server not installed."}, status_code=400)
+    from services.nitrado_plugins import _ensure_webserver_config
+    _ensure_webserver_config(server_dir, force_unique=True)
+    return {"ok": True}
+
+
 @router.post("/install-required")
 def install_required_mods():
     """Download and install Nitrado WebServer + Query plugins. Requires server stopped."""

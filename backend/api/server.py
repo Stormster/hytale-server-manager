@@ -73,10 +73,12 @@ def status():
     last_exit_time, last_exit_code = server_svc.get_last_exit_info()
     ram_mb, cpu_percent = server_svc.get_resource_usage()
     players = server_svc.get_players()
+    running_instance = server_svc.get_running_instance()
 
     return {
         "installed": server_svc.is_installed(),
         "running": server_svc.is_running(),
+        "running_instance": running_instance,
         "uptime_seconds": round(uptime, 1) if uptime is not None else None,
         "last_exit_time": (
             datetime.fromtimestamp(last_exit_time, tz=timezone.utc).isoformat()
