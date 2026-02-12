@@ -10,6 +10,7 @@ import {
 } from "@/api/hooks/useServer";
 import { useSettings } from "@/api/hooks/useSettings";
 import { subscribeSSE } from "@/api/client";
+import { HardDrive, Cpu } from "lucide-react";
 
 const AUTH_NEEDED = /no server tokens configured/i;
 const AUTH_ALREADY_LOADED = /token refresh scheduled|session service client initialized/i;
@@ -22,8 +23,11 @@ export function ServerView() {
 
   const activeInstance = settings?.active_instance ?? "";
   const runningInstance = status?.running_instance ?? null;
+  const runningInstances = status?.running_instances ?? [];
   const viewingRunningInstance =
     !!activeInstance && activeInstance === runningInstance;
+  const isActiveInstanceRunning =
+    !!activeInstance && runningInstances.some((r) => r.name === activeInstance);
 
   const [lines, setLines] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
@@ -36,6 +40,9 @@ export function ServerView() {
   linesRef.current = lines;
   const running = status?.running ?? false;
   const installed = status?.installed ?? false;
+  const displayRunInfo = running
+    ? runningInstances.find((r) => r.name === (viewingRunningInstance ? activeInstance : runningInstance))
+    : null;
 
   // Detect "No server tokens configured" - only show modal if credentials aren't already loaded.
   // Server may output "No server tokens" briefly during boot before loading encrypted store.
@@ -145,7 +152,9 @@ export function ServerView() {
 
   const handleStop = () => {
     setLines((prev) => [...prev, "[Manager] Stopping server..."]);
-    stopServer.mutate();
+    // Stop the instance we're viewing, or the running one if viewing a different instance
+    const toStop = viewingRunningInstance ? activeInstance : runningInstance;
+    stopServer.mutate(toStop ?? undefined);
   };
 
   return (
@@ -153,24 +162,35 @@ export function ServerView() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold">Server Console</h2>
-        <StatusBadge
-          text={running ? "Running" : "Stopped"}
-          variant={running ? "ok" : "neutral"}
-        />
+        <div className="flex items-center gap-2">
+          {running && displayRunInfo && (
+            <>
+              {(displayRunInfo.ram_mb ?? status?.ram_mb) != null && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground" title="RAM">
+                  <HardDrive className="h-3.5 w-3.5" />
+                  {displayRunInfo.ram_mb ?? status?.ram_mb} MB
+                </span>
+              )}
+              {(displayRunInfo.cpu_percent ?? status?.cpu_percent) != null && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground" title="CPU">
+                  <Cpu className="h-3.5 w-3.5" />
+                  {displayRunInfo.cpu_percent ?? status?.cpu_percent}%
+                </span>
+              )}
+            </>
+          )}
+          <StatusBadge
+            text={running ? "Running" : "Stopped"}
+            variant={running ? "ok" : "neutral"}
+          />
+        </div>
       </div>
-
-      {running && !viewingRunningInstance && runningInstance && (
-        <p className="mb-4 rounded-md bg-muted px-4 py-2 text-sm text-muted-foreground">
-          Instance <strong>{runningInstance}</strong> is running. Switch to it in
-          the sidebar to view its console.
-        </p>
-      )}
 
       {/* Controls */}
       <div className="flex gap-3 mb-4">
         <Button
           onClick={handleStart}
-          disabled={running || !installed}
+          disabled={isActiveInstanceRunning || !installed}
         >
           Start Server
         </Button>
