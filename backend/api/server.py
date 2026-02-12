@@ -4,7 +4,7 @@ Server API routes – start / stop / status / live console SSE.
 
 import asyncio
 import json
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from services import server as server_svc
@@ -96,6 +96,19 @@ async def start():
 def stop():
     server_svc.stop()
     return {"ok": True}
+
+
+@router.post("/command")
+def command(body: dict = Body(...)):
+    """Send a command to the server's stdin (when running)."""
+    cmd = body.get("command", "")
+    if not isinstance(cmd, str):
+        return JSONResponse({"ok": False, "error": "command must be a string"}, status_code=400)
+    if not server_svc.is_running():
+        return JSONResponse({"ok": False, "error": "Server is not running"}, status_code=409)
+    if server_svc.send_command(cmd):
+        return {"ok": True}
+    return JSONResponse({"ok": False, "error": "Failed to send command"}, status_code=500)
 
 
 @router.get("/console")

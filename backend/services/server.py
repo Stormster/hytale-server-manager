@@ -1,11 +1,15 @@
 """
 Server lifecycle – start / stop / status.
+
+Uses the instance's start.bat (Windows) or start.sh (Unix) directly so we
+follow Hytale's launch logic exactly; each release may change how the server
+should be started.
 """
 
 import os
-import re
 import shutil
 import subprocess
+import sys
 import threading
 from typing import Callable, Optional
 
@@ -25,36 +29,22 @@ def is_running() -> bool:
     return _server_process is not None and _server_process.poll() is None
 
 
-def _parse_start_bat() -> dict:
-    result = {"jvm_args": [], "server_args": []}
-    bat = resolve_instance("start.bat")
-    if not os.path.isfile(bat):
-        return result
+def _get_start_script_cmd() -> Optional[list[str]]:
+    """Return the command to run the instance's start script, or None if not found."""
+    instance_dir = resolve_instance("")
+    if not instance_dir:
+        return None
 
-    try:
-        with open(bat, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
+    if sys.platform == "win32":
+        bat = os.path.join(instance_dir, "start.bat")
+        if os.path.isfile(bat):
+            return ["cmd", "/c", os.path.basename(bat)]
+    else:
+        sh = os.path.join(instance_dir, "start.sh")
+        if os.path.isfile(sh):
+            return ["bash", os.path.basename(sh)]
 
-        m = re.search(r'set\s+DEFAULT_ARGS\s*=\s*(.+)', content, re.IGNORECASE)
-        if m:
-            raw = m.group(1).strip()
-            raw = re.sub(r'%\*', '', raw).strip()
-            if raw:
-                result["server_args"] = raw.split()
-
-        for m in re.finditer(
-            r'set\s+"?JVM_ARGS\s*=\s*(.+?)"?\s*$',
-            content,
-            re.IGNORECASE | re.MULTILINE,
-        ):
-            val = m.group(1).strip()
-            if val and "AOTCache" not in val:
-                result["jvm_args"].extend(val.split())
-
-    except Exception:
-        pass
-
-    return result
+    return None
 
 
 def _apply_staged_update(on_output: Optional[Callable[[str], None]] = None) -> bool:
@@ -91,14 +81,6 @@ def _apply_staged_update(on_output: Optional[Callable[[str], None]] = None) -> b
     return True
 
 
-_DEFAULT_SERVER_ARGS = [
-    "--assets", "../Assets.zip",
-    "--backup",
-    "--backup-dir", "backups",
-    "--backup-frequency", "30",
-]
-
-
 def start(
     on_output: Optional[Callable[[str], None]] = None,
     on_done: Optional[Callable[[int], None]] = None,
@@ -110,12 +92,21 @@ def start(
             on_output("[Manager] Server is already running.")
         return None
 
+    instance_dir = resolve_instance("")
     server_dir = resolve_instance(SERVER_DIR)
     jar_path = resolve_instance(SERVER_JAR)
 
     if not os.path.isfile(jar_path):
         if on_output:
             on_output("[ERROR] HytaleServer.jar not found. Install or update the server first.")
+        if on_done:
+            on_done(-1)
+        return None
+
+    start_cmd = _get_start_script_cmd()
+    if not start_cmd:
+        if on_output:
+            on_output("[ERROR] start.bat / start.sh not found. Reinstall the server.")
         if on_done:
             on_done(-1)
         return None
@@ -127,31 +118,24 @@ def start(
         while True:
             applied_update = _apply_staged_update(on_output)
 
-            jvm_args = []
-            aot_path = os.path.join(server_dir, "HytaleServer.aot")
-            if os.path.isfile(aot_path):
-                if on_output:
-                    on_output("[Launcher] Using AOT cache for faster startup")
-                jvm_args.append("-XX:AOTCache=HytaleServer.aot")
-
-            parsed = _parse_start_bat()
-            server_args = parsed["server_args"] if parsed["server_args"] else list(_DEFAULT_SERVER_ARGS)
-            extra_jvm = parsed["jvm_args"]
-            jvm_args.extend(extra_jvm)
-
-            cmd = ["java"] + jvm_args + ["-jar", "HytaleServer.jar"] + server_args
-
             if on_output:
-                on_output(f"[Launcher] Starting: {' '.join(cmd)}")
+                on_output(f"[Launcher] Running: {' '.join(start_cmd)}")
+
+            creation_flags = 0
+            if sys.platform == "win32":
+                creation_flags = getattr(
+                    subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200
+                ) | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 
             try:
                 _server_process = subprocess.Popen(
-                    cmd,
-                    cwd=server_dir,
+                    start_cmd,
+                    cwd=instance_dir,
+                    stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                    creationflags=creation_flags,
                 )
                 if on_output and _server_process.stdout:
                     for line in _server_process.stdout:
@@ -159,7 +143,7 @@ def start(
                 rc = _server_process.wait()
             except FileNotFoundError:
                 if on_output:
-                    on_output("[ERROR] Java not found. Install Java 25+ from https://adoptium.net")
+                    on_output("[ERROR] Could not run start script. Install Java 25+ from https://adoptium.net")
                 rc = -1
                 break
             except Exception as exc:
@@ -190,10 +174,51 @@ def start(
     return _server_thread
 
 
+def send_command(text: str) -> bool:
+    """Send text to the server's stdin. Returns False if not running or no stdin."""
+    global _server_process
+    if not _server_process or _server_process.poll() is not None:
+        return False
+    if not _server_process.stdin:
+        return False
+    try:
+        _server_process.stdin.write(text)
+        _server_process.stdin.flush()
+        return True
+    except (OSError, BrokenPipeError):
+        return False
+
+
 def stop() -> None:
     global _server_process
-    if _server_process and _server_process.poll() is None:
-        try:
+    if not _server_process or _server_process.poll() is not None:
+        return
+
+    # Try graceful shutdown first: send /stop to server console
+    send_command("stop\n")
+    try:
+        _server_process.wait(timeout=10)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+
+    # Force kill if still running after 10 seconds
+    try:
+        pid = _server_process.pid
+        if sys.platform == "win32" and pid:
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                capture_output=True,
+                timeout=5,
+            )
+        else:
             _server_process.terminate()
+            try:
+                _server_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                _server_process.kill()
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            _server_process.kill()
         except OSError:
             pass

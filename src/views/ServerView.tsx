@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
-import { LogConsole } from "@/components/LogConsole";
+import { ServerConsole } from "@/components/ServerConsole";
+import { ServerAuthModal } from "@/components/ServerAuthModal";
 import {
   useServerStatus,
   useStartServer,
   useStopServer,
 } from "@/api/hooks/useServer";
 import { subscribeSSE } from "@/api/client";
+
+const AUTH_NEEDED = /no server tokens configured/i;
 
 export function ServerView() {
   const { data: status } = useServerStatus();
@@ -16,10 +19,26 @@ export function ServerView() {
 
   const [lines, setLines] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const authShownRef = useRef(false);
   const abortRef = useRef<(() => void) | null>(null);
 
   const running = status?.running ?? false;
   const installed = status?.installed ?? false;
+
+  // Detect "No server tokens configured" and show auth modal
+  useEffect(() => {
+    if (!running || authShownRef.current) return;
+    const hasAuthNeeded = lines.some((l) => AUTH_NEEDED.test(l));
+    if (hasAuthNeeded) {
+      authShownRef.current = true;
+      setAuthModalOpen(true);
+    }
+  }, [running, lines]);
+
+  useEffect(() => {
+    if (!running) authShownRef.current = false;
+  }, [running]);
 
   // Connect to the console SSE stream when server is running
   const connectConsole = useCallback(() => {
@@ -112,7 +131,18 @@ export function ServerView() {
       </div>
 
       {/* Console */}
-      <LogConsole lines={lines} className="flex-1 min-h-0" />
+      <ServerConsole
+        lines={lines}
+        running={running}
+        className="flex-1 min-h-0"
+      />
+
+      <ServerAuthModal
+        open={authModalOpen}
+        onOpenChange={setAuthModalOpen}
+        lines={lines}
+        running={running}
+      />
     </div>
   );
 }
