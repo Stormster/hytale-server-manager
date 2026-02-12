@@ -9,7 +9,7 @@ export function useServerStatus() {
   return useQuery<ServerStatus>({
     queryKey: ["server", "status", activeInstance],
     queryFn: () => api("/api/server/status"),
-    refetchInterval: 3000,
+    refetchInterval: 1000,
     enabled: true, // Always fetch for running_instances on dashboard
   });
 }
