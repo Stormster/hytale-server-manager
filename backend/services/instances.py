@@ -22,13 +22,16 @@ def _sanitize_folder_name(name: str) -> str:
 
 
 def list_instances() -> list[dict]:
-    """Scan root_dir for instance subfolders."""
+    """Scan root_dir for instance subfolders (excluding ignored)."""
     root = settings.get_root_dir()
     if not root or not os.path.isdir(root):
         return []
 
+    ignored = set(settings.get_ignored_instances())
     instances = []
     for name in sorted(os.listdir(root)):
+        if name in ignored:
+            continue
         full = os.path.join(root, name)
         if not os.path.isdir(full) or name.startswith("."):
             continue
@@ -80,38 +83,66 @@ def create_instance(name: str) -> dict:
 
 
 def import_instance(name: str, source_path: str) -> dict:
-    """Copy an existing server directory into the root as a new instance."""
+    """Add an existing server to the manager. Copies only if source is outside root."""
     root = settings.get_root_dir()
     if not root:
         raise ValueError("Root directory not configured")
 
     name = _sanitize_folder_name(name)
-    dest = os.path.join(root, name)
-    if os.path.exists(dest):
-        raise ValueError(f"Instance '{name}' already exists")
+    root_abs = os.path.abspath(root)
+    source_abs = os.path.abspath(source_path)
 
-    source_path = os.path.abspath(source_path)
-    if not os.path.isdir(source_path):
+    if not os.path.isdir(source_abs):
         raise ValueError("Source path is not a directory")
 
-    # Validate that the folder is a Hytale server instance
-    server_dir = os.path.join(source_path, "Server")
-    assets_zip = os.path.join(source_path, "Assets.zip")
+    # Validate that the folder is a Hytale server instance (the folder containing Assets.zip)
+    assets_zip = os.path.join(source_abs, "Assets.zip")
+    server_dir = os.path.join(source_abs, "Server")
+    jar_path = os.path.join(server_dir, "HytaleServer.jar")
+
+    if not os.path.isfile(assets_zip):
+        raise ValueError(
+            "Selected folder is not a valid Hytale server. It must be the folder containing Assets.zip."
+        )
     if not os.path.isdir(server_dir):
         raise ValueError(
             "Selected folder is not a valid Hytale server. It must contain a Server/ subfolder."
         )
-    if not os.path.isfile(assets_zip):
+    if not os.path.isfile(jar_path):
         raise ValueError(
-            "Selected folder is not a valid Hytale server. It must contain Assets.zip."
+            "Selected folder is not a valid Hytale server. Server/ must contain HytaleServer.jar."
         )
 
-    shutil.copytree(source_path, dest)
-    return {"name": name}
+    dest = os.path.join(root_abs, name)
+
+    # Already in the right place (inside root)? Just register / restore, no copy
+    try:
+        source_rel = os.path.relpath(source_abs, root_abs)
+    except ValueError:
+        source_rel = None  # different drives on Windows
+    if (
+        source_rel
+        and not source_rel.startswith("..")
+        and os.path.sep not in source_rel
+    ):
+        path_name = source_rel
+        if path_name and path_name.lower() == name.lower():
+            settings.remove_ignored_instance(path_name)
+            return {"name": path_name, "copied": False}
+    elif os.path.normpath(source_abs) == os.path.normpath(dest):
+        settings.remove_ignored_instance(name)
+        return {"name": name, "copied": False}
+
+    # Different location – copy to root
+    if os.path.exists(dest):
+        raise ValueError(f"Instance '{name}' already exists")
+
+    shutil.copytree(source_abs, dest)
+    return {"name": name, "copied": True}
 
 
-def delete_instance(name: str) -> None:
-    """Permanently delete an instance subfolder."""
+def delete_instance(name: str, delete_files: bool = True) -> None:
+    """Remove instance from manager. If delete_files=True, also delete folder from disk."""
     root = settings.get_root_dir()
     if not root:
         raise ValueError("Root directory not configured")
@@ -120,11 +151,13 @@ def delete_instance(name: str) -> None:
     if not os.path.isdir(dest):
         raise ValueError(f"Instance '{name}' not found")
 
-    # Safety: don't delete the active instance if server is running
     if settings.get_active_instance() == name:
         settings.set_active_instance("")
 
-    shutil.rmtree(dest)
+    if delete_files:
+        shutil.rmtree(dest)
+    else:
+        settings.add_ignored_instance(name)
 
 
 def rename_instance(old_name: str, new_name: str) -> dict:
