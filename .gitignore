@@ -19,6 +19,7 @@ backend/build/
 # ---- Tauri / Rust ----
 src-tauri/target/
 src-tauri/binaries/
+src-tauri/server-manager-backend-*.exe
 
 # ---- Environment ----
 .env

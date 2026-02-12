@@ -3,8 +3,22 @@ Server instance management – list, create, import, delete.
 """
 
 import os
+import re
 import shutil
 from services import settings
+
+
+def _sanitize_folder_name(name: str) -> str:
+    """Convert user-friendly name to filesystem-safe folder name.
+    Keeps spaces for display; removes only invalid filesystem chars.
+    """
+    # Replace invalid filesystem chars with dash
+    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "-", name)
+    # Collapse multiple dashes
+    safe = re.sub(r"-+", "-", safe)
+    # Strip leading/trailing dashes and whitespace
+    safe = safe.strip("-").strip()
+    return safe or name.strip() or "instance"
 
 
 def list_instances() -> list[dict]:
@@ -56,6 +70,7 @@ def create_instance(name: str) -> dict:
     if not root:
         raise ValueError("Root directory not configured")
 
+    name = _sanitize_folder_name(name)
     dest = os.path.join(root, name)
     if os.path.exists(dest):
         raise ValueError(f"Instance '{name}' already exists")
@@ -70,6 +85,7 @@ def import_instance(name: str, source_path: str) -> dict:
     if not root:
         raise ValueError("Root directory not configured")
 
+    name = _sanitize_folder_name(name)
     dest = os.path.join(root, name)
     if os.path.exists(dest):
         raise ValueError(f"Instance '{name}' already exists")
