@@ -22,6 +22,20 @@ def list_mods():
     return {"mods": mods_svc.list_mods(server_dir)}
 
 
+@router.post("/ensure-query-permissions")
+def ensure_query_permissions():
+    """
+    Add nitrado.query.web.read.basic to ANONYMOUS so the manager can fetch player count.
+    Safe to call repeatedly – merges with existing permissions.
+    """
+    server_dir = resolve_instance(SERVER_DIR)
+    if not os.path.isdir(server_dir):
+        return JSONResponse({"ok": False, "error": "Server not installed."}, status_code=400)
+    from services.nitrado_plugins import _ensure_query_permissions
+    _ensure_query_permissions(server_dir)
+    return {"ok": True}
+
+
 @router.post("/install-required")
 def install_required_mods():
     """Download and install Nitrado WebServer + Query plugins. Requires server stopped."""

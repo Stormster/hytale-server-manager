@@ -194,7 +194,7 @@ function SortableInstanceCard({
                     {serverStatus.players}
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-muted-foreground/70" title="Player count requires a query plugin">
+                            <span className="flex items-center gap-1 text-muted-foreground/70" title="Player count from Nitrado Query. Ensure nitrado.query.web.read.basic is in ANONYMOUS (mods/Nitrado_WebServer/permissions.json)">
                     <Users className="h-3 w-3" />
                     —
                   </span>

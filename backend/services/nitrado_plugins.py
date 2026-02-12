@@ -38,13 +38,35 @@ def _get_jar_url(repo: str) -> tuple[str, str] | None:
     return None
 
 
+def _ensure_query_permissions(server_dir: str) -> None:
+    """Create or merge permissions.json so ANONYMOUS can read Nitrado Query basic info."""
+    import json
+    ws_dir = os.path.join(server_dir, "mods", "Nitrado_WebServer")
+    os.makedirs(ws_dir, exist_ok=True)
+    path = os.path.join(ws_dir, "permissions.json")
+    data = {"Groups": {}}
+    if os.path.isfile(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            pass
+    groups = data.setdefault("Groups", {})
+    anon = groups.setdefault("ANONYMOUS", [])
+    needed = "nitrado.query.web.read.basic"
+    if needed not in anon:
+        anon.append(needed)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
 def install_nitrado_plugins(
     server_dir: str,
     on_status: Optional[Callable[[str], None]] = None,
 ) -> bool:
     """
-    Download and install latest Nitrado WebServer + Query plugins into server_dir/plugins/.
-    Returns True if both installed, False on any failure (non-fatal – logs via on_status).
+    Download and install latest Nitrado WebServer + Query plugins into server_dir/mods/.
+    Also ensures ANONYMOUS can read query basics for manager player count display.
     """
     mods_path = os.path.join(server_dir, "mods")
     os.makedirs(mods_path, exist_ok=True)
@@ -77,4 +99,5 @@ def install_nitrado_plugins(
                 on_status(f"  Failed to install {filename}: {e}")
             ok = False
 
+    _ensure_query_permissions(server_dir)
     return ok
