@@ -7,22 +7,25 @@ import { BackupView } from "@/views/BackupView";
 import { ConfigView } from "@/views/ConfigView";
 import { SettingsView } from "@/views/SettingsView";
 import { OnboardingView } from "@/views/OnboardingView";
+import { AuthRequiredView } from "@/views/AuthRequiredView";
 import { AddServerDialog } from "@/components/AddServerDialog";
 import { ImportServerDialog } from "@/components/ImportServerDialog";
 import { InstancesModal } from "@/components/InstancesModal";
 import { InstanceSettingsModal } from "@/components/InstanceSettingsModal";
 import { useSettings } from "@/api/hooks/useSettings";
+import { useAuthStatus } from "@/api/hooks/useAuth";
 
 export default function App() {
   const { data: settings, isLoading } = useSettings();
+  const { data: authStatus, isLoading: authLoading } = useAuthStatus();
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [manageInstancesOpen, setManageInstancesOpen] = useState(false);
   const [manageInstanceOpen, setManageInstanceOpen] = useState(false);
 
-  // Show loading while settings are being fetched
-  if (isLoading) {
+  // Show loading while settings and auth are being fetched
+  if (isLoading || authLoading) {
     return (
       <div className="relative flex h-screen w-screen items-center justify-center">
         <div className="hytale-bg">
@@ -37,6 +40,11 @@ export default function App() {
   // Show onboarding if root_dir is not configured
   if (!settings?.root_dir) {
     return <OnboardingView />;
+  }
+
+  // Show auth required if not authenticated (needed for downloads)
+  if (!authStatus?.has_credentials) {
+    return <AuthRequiredView />;
   }
 
   const handleNavigate = (view: ViewName) => {
