@@ -2,6 +2,7 @@
 export interface AppSettings {
   root_dir: string;
   active_instance: string;
+  default_root_dir?: string;
 }
 
 // ---- Instances ----

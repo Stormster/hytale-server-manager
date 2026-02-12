@@ -68,7 +68,7 @@ npm run tauri dev
 
 ```powershell
 # 1. Build the backend sidecar
-powershell -File scripts/build-backend.ps1
+scripts\build-backend.bat
 
 # 2. Build the Tauri app (produces .msi installer)
 npm run tauri build
