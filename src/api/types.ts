@@ -1,0 +1,104 @@
+// ---- Settings ----
+export interface AppSettings {
+  root_dir: string;
+  active_instance: string;
+}
+
+// ---- Instances ----
+export interface Instance {
+  name: string;
+  installed: boolean;
+  version: string;
+  patchline: string;
+}
+
+// ---- Server ----
+export interface ServerStatus {
+  installed: boolean;
+  running: boolean;
+}
+
+// ---- Updater ----
+export interface UpdaterLocalStatus {
+  installed_version: string;
+  installed_patchline: string;
+}
+
+export interface UpdaterFullStatus {
+  installed_version: string;
+  installed_patchline: string;
+  remote_release: string | null;
+  remote_prerelease: string | null;
+  update_available: boolean;
+  can_switch_release: boolean;
+  can_switch_prerelease: boolean;
+}
+
+// ---- Backups ----
+export interface Backup {
+  folder_name: string;
+  backup_type: "manual" | "pre-update";
+  label: string;
+  display_title: string;
+  display_detail: string;
+  from_version: string | null;
+  from_patchline: string | null;
+  to_version: string | null;
+  to_patchline: string | null;
+  created: string | null;
+  has_server: boolean;
+}
+
+// ---- Config Files ----
+export interface ConfigFileContent {
+  content: string;
+}
+
+export interface LatestLog {
+  filename: string;
+  content: string;
+}
+
+// ---- Auth ----
+export interface AuthStatus {
+  has_credentials: boolean;
+}
+
+// ---- Info ----
+export interface AppInfo {
+  manager_version: string;
+  java_ok: boolean;
+  java_version: string;
+  has_downloader: boolean;
+  github_repo: string;
+  report_url: string;
+}
+
+export interface ManagerUpdateInfo {
+  update_available: boolean;
+  latest_version: string;
+  download_url: string;
+}
+
+// ---- SSE Events ----
+export interface SSEStatusEvent {
+  message: string;
+}
+
+export interface SSEProgressEvent {
+  percent: number;
+  detail: string;
+}
+
+export interface SSEDoneEvent {
+  ok: boolean;
+  message: string;
+}
+
+export interface SSEOutputEvent {
+  line: string;
+}
+
+export interface SSEConsoleDoneEvent {
+  code: number;
+}
