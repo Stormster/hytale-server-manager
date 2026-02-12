@@ -22,14 +22,24 @@ def _sanitize_folder_name(name: str) -> str:
 
 
 def list_instances() -> list[dict]:
-    """Scan root_dir for instance subfolders (excluding ignored)."""
+    """Scan root_dir for instance subfolders (excluding ignored). Ordered by instance_order."""
     root = settings.get_root_dir()
     if not root or not os.path.isdir(root):
         return []
 
     ignored = set(settings.get_ignored_instances())
+    order = settings.get_instance_order()
+    all_names = sorted(os.listdir(root))
+
+    def sort_key(name: str) -> tuple[int, str]:
+        try:
+            idx = order.index(name)
+            return (idx, name)
+        except ValueError:
+            return (len(order), name)
+
     instances = []
-    for name in sorted(os.listdir(root)):
+    for name in sorted(all_names, key=sort_key):
         if name in ignored:
             continue
         full = os.path.join(root, name)

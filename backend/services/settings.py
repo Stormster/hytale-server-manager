@@ -86,6 +86,20 @@ def remove_ignored_instance(name: str) -> None:
     _save(s)
 
 
+# -- Instance order -----------------------------------------------------------
+
+def get_instance_order() -> list[str]:
+    """Return ordered list of instance names for display order."""
+    return list(load().get("instance_order", []))
+
+
+def set_instance_order(names: list[str]) -> None:
+    """Set the display order of instances."""
+    s = load()
+    s["instance_order"] = names
+    _save(s)
+
+
 # -- Active instance ----------------------------------------------------------
 
 def get_active_instance() -> str:
