@@ -1,4 +1,19 @@
 import { useState, useEffect } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InstallServerDialog } from "@/components/InstallServerDialog";
@@ -12,6 +27,7 @@ import { useManagerUpdate } from "@/api/hooks/useInfo";
 import { useSettings } from "@/api/hooks/useSettings";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ViewName } from "@/components/AppSidebar";
+import type { Instance } from "@/api/types";
 import { timeAgo, isStale, formatUptime } from "@/lib/timeAgo";
 import {
   ExternalLink,
@@ -31,6 +47,237 @@ interface DashboardViewProps {
   onNavigate: (view: ViewName) => void;
 }
 
+interface SortableInstanceCardProps {
+  inst: Instance;
+  activeInstance: string;
+  running: boolean;
+  serverStatus: { uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null; players?: number | null; last_exit_code?: number | null; last_exit_time?: string | null } | undefined;
+  lastBackupAgo: string | null;
+  backupStale: boolean;
+  updateAvailable: boolean;
+  onNavigate: (view: ViewName) => void;
+  onRestart: () => void;
+  onCreateBackup: () => void;
+  onOpenLogs: (name: string) => void;
+  onInstall: () => void;
+  onSelect: () => void;
+  startServer: ReturnType<typeof useStartServer>;
+  stopServer: ReturnType<typeof useStopServer>;
+  createBackup: ReturnType<typeof useCreateBackup>;
+}
+
+function SortableInstanceCard({
+  inst,
+  activeInstance,
+  running,
+  serverStatus,
+  lastBackupAgo,
+  backupStale,
+  updateAvailable,
+  onNavigate,
+  onRestart,
+  onCreateBackup,
+  onOpenLogs,
+  onInstall,
+  onSelect,
+  startServer,
+  stopServer,
+  createBackup,
+}: SortableInstanceCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: inst.name });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const isActive = inst.name === activeInstance;
+  const thisInstalled = inst.installed;
+  const thisRunning = isActive && running;
+  const statusVariant = !thisInstalled
+    ? "warning"
+    : thisRunning
+      ? "ok"
+      : "neutral";
+  const shortVersion = thisInstalled
+    ? (() => {
+        const m = inst.version.match(/v?(\d{4})\.(\d{2})\.(\d{2})/);
+        return m ? `v${m[2]}.${m[3]}.${m[1]}` : inst.version;
+      })()
+    : null;
+  const patchlineShort =
+    inst.patchline.charAt(0).toUpperCase() + inst.patchline.slice(1);
+
+  return (
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group transition-shadow",
+        isActive && "ring-2 ring-primary",
+        isDragging && "opacity-50"
+      )}
+    >
+      <CardContent className="space-y-3 pt-5">
+        <div
+          {...attributes}
+          {...listeners}
+          className="flex items-start justify-between gap-2 cursor-grab active:cursor-grabbing select-none"
+          title="Drag to reorder"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <p className="line-clamp-2 text-base font-semibold leading-tight" title={inst.name}>
+              {inst.name}
+            </p>
+          </div>
+          <StatusBadge
+            text={
+              !thisInstalled
+                ? "Not Installed"
+                : thisRunning
+                  ? "Running"
+                  : "Stopped"
+            }
+            variant={statusVariant}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span
+            className="text-sm text-muted-foreground"
+            title={thisInstalled ? inst.version : undefined}
+          >
+            {shortVersion ?? "—"}
+            {thisInstalled && (
+              <span className="ml-1 text-xs text-muted-foreground/80">
+                ({patchlineShort})
+              </span>
+            )}
+          </span>
+          {isActive && updateAvailable && (
+            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-medium text-amber-400">
+              Update available
+            </span>
+          )}
+        </div>
+
+        {isActive && thisInstalled && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {thisRunning ? (
+              <>
+                <span title="Uptime">
+                  {formatUptime(serverStatus?.uptime_seconds ?? null)}
+                </span>
+                {serverStatus?.ram_mb != null && (
+                  <span className="flex items-center gap-1" title="RAM">
+                    <HardDrive className="h-3 w-3" />
+                    {serverStatus.ram_mb} MB
+                  </span>
+                )}
+                {serverStatus?.cpu_percent != null && (
+                  <span className="flex items-center gap-1" title="CPU">
+                    <Cpu className="h-3 w-3" />
+                    {serverStatus.cpu_percent}%
+                  </span>
+                )}
+                {serverStatus?.players != null ? (
+                  <span className="flex items-center gap-1" title="Players">
+                    <Users className="h-3 w-3" />
+                    {serverStatus.players}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-muted-foreground/70" title="Player count requires a query plugin">
+                    <Users className="h-3 w-3" />
+                    —
+                  </span>
+                )}
+              </>
+            ) : (
+              serverStatus?.last_exit_code != null &&
+              serverStatus.last_exit_code !== 0 && (
+                <span className="text-amber-400" title="Last exit">
+                  Crashed {serverStatus.last_exit_time ? timeAgo(serverStatus.last_exit_time) : "recently"}
+                </span>
+              )
+            )}
+          </div>
+        )}
+
+        {isActive && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            Last backup:{" "}
+            {lastBackupAgo ? (
+              <span className={cn(backupStale && "text-amber-400")}>
+                {lastBackupAgo}
+                {backupStale && <AlertTriangle className="ml-1 inline h-3.5 w-3.5 align-middle" />}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-amber-400">
+                Never <AlertTriangle className="h-3.5 w-3.5" />
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {isActive ? (
+            thisInstalled ? (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (running) stopServer.mutate();
+                    else startServer.mutate(undefined, { onSuccess: () => onNavigate("server") });
+                  }}
+                  disabled={startServer.isPending || stopServer.isPending}
+                >
+                  {running ? "Stop" : "Start"}
+                </Button>
+                <div className="flex gap-1">
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onRestart} disabled={!running} title="Restart">
+                    <RotateCw className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onCreateBackup} disabled={createBackup.isPending} title="Backup now">
+                    <Archive className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onOpenLogs(inst.name)} title="Open logs">
+                    <FileText className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button size="sm" onClick={onInstall} className="gap-2">
+                <Download className="h-4 w-4" />
+                Install Server
+              </Button>
+            )
+          ) : (
+            <Button size="sm" variant="outline" onClick={onSelect}>
+              Select
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function useDashboardSensors() {
+  return useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    })
+  );
+}
+
 export function DashboardView({ onNavigate }: DashboardViewProps) {
   const { data: settings } = useSettings();
   const { data: instances } = useInstances();
@@ -45,8 +292,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const reorderInstances = useReorderInstances();
   const queryClient = useQueryClient();
   const [installOpen, setInstallOpen] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const dndSensors = useDashboardSensors();
 
   const running = serverStatus?.running ?? false;
   const activeInstance = settings?.active_instance || "None";
@@ -55,47 +302,17 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const lastBackupAgo = lastBackup?.created ? timeAgo(lastBackup.created) : null;
   const backupStale = lastBackup?.created ? isStale(lastBackup.created) : true;
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", index.toString());
-    e.dataTransfer.setData("application/json", JSON.stringify({ index }));
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = "move";
-    setDragOverIndex(index);
-  };
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setDragOverIndex(null);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const raw = e.dataTransfer.getData("text/plain");
-    const sourceIndex = raw ? parseInt(raw, 10) : draggedIndex;
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    if (sourceIndex === undefined || sourceIndex < 0 || !instances) return;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over || active.id === over.id || !instances) return;
+    const oldIndex = instances.findIndex((i) => i.name === active.id);
+    const newIndex = instances.findIndex((i) => i.name === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
     const newOrder = [...instances];
-    const [removed] = newOrder.splice(sourceIndex, 1);
-    newOrder.splice(dropIndex, 0, removed);
+    const [removed] = newOrder.splice(oldIndex, 1);
+    newOrder.splice(newIndex, 0, removed);
     reorderInstances.mutate(newOrder.map((i) => i.name));
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
   };
 
   const createBackup = useCreateBackup();
@@ -161,238 +378,95 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       <h2 className="text-xl font-bold">Dashboard</h2>
 
       {/* Instance blocks */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-        {instances?.length ? (
-          instances.map((inst, index) => {
-            const isActive = inst.name === activeInstance;
-            const thisInstalled = inst.installed;
-            const thisRunning = isActive && running;
-            const statusVariant = !thisInstalled
-              ? "warning"
-              : thisRunning
-                ? "ok"
-                : "neutral";
-            const shortVersion = thisInstalled
-              ? (() => {
-                  const m = inst.version.match(/v?(\d{4})\.(\d{2})\.(\d{2})/);
-                  return m ? `v${m[2]}.${m[3]}.${m[1]}` : inst.version;
-                })()
-              : null;
-            const patchlineShort =
-              inst.patchline.charAt(0).toUpperCase() + inst.patchline.slice(1);
-            return (
-              <Card
-                key={inst.name}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, index)}
-                className={cn(
-                  "group transition-shadow",
-                  isActive && "ring-2 ring-primary",
-                  draggedIndex === index && "opacity-50",
-                  dragOverIndex === index &&
-                    draggedIndex !== index &&
-                    "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                )}
-              >
-                <CardContent className="space-y-3 pt-5">
-                  {/* Header: name + status + grip (draggable) */}
-                  <div
-                    className="flex items-start justify-between gap-2 cursor-grab active:cursor-grabbing select-none"
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragEnd={handleDragEnd}
-                    title="Drag to reorder"
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <p
-                        className="line-clamp-2 text-base font-semibold leading-tight"
-                        title={inst.name}
-                      >
-                        {inst.name}
-                      </p>
-                    </div>
-                    <StatusBadge
-                      text={
-                        !thisInstalled
-                          ? "Not Installed"
-                          : thisRunning
-                            ? "Running"
-                            : "Stopped"
-                      }
-                      variant={statusVariant}
-                    />
-                  </div>
-
-                  {/* Version + update */}
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span
-                      className="text-sm text-muted-foreground"
-                      title={thisInstalled ? inst.version : undefined}
-                    >
-                      {shortVersion ?? "—"}
-                      {thisInstalled && (
-                        <span className="ml-1 text-xs text-muted-foreground/80">
-                          ({patchlineShort})
-                        </span>
-                      )}
-                    </span>
-                    {isActive &&
-                      checkUpdates.data?.update_available && (
-                        <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-medium text-amber-400">
-                          Update available
-                        </span>
-                      )}
-                  </div>
-
-                  {/* Metrics: uptime, crashed, RAM, CPU, players */}
-                  {isActive && thisInstalled && (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      {thisRunning ? (
-                        <>
-                          <span title="Uptime">
-                            {formatUptime(serverStatus?.uptime_seconds ?? null)}
-                          </span>
-                          {serverStatus?.ram_mb != null && (
-                            <span className="flex items-center gap-1" title="RAM">
-                              <HardDrive className="h-3 w-3" />
-                              {serverStatus.ram_mb} MB
-                            </span>
-                          )}
-                          {serverStatus?.cpu_percent != null && (
-                            <span className="flex items-center gap-1" title="CPU">
-                              <Cpu className="h-3 w-3" />
-                              {serverStatus.cpu_percent}%
-                            </span>
-                          )}
-                          {serverStatus?.players != null ? (
-                            <span className="flex items-center gap-1" title="Players">
-                              <Users className="h-3 w-3" />
-                              {serverStatus.players}
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-muted-foreground/70" title="Player count requires a query plugin (e.g. Nitrado)">
-                              <Users className="h-3 w-3" />
-                              —
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        serverStatus?.last_exit_code != null &&
-                        serverStatus.last_exit_code !== 0 && (
-                          <span className="text-amber-400" title="Last exit">
-                            Crashed {serverStatus.last_exit_time ? timeAgo(serverStatus.last_exit_time) : "recently"}
-                          </span>
-                        )
-                      )}
-                    </div>
-                  )}
-
-                  {/* Last backup */}
-                  {isActive && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      Last backup:{" "}
-                      {lastBackupAgo ? (
-                        <span className={cn(backupStale && "text-amber-400")}>
-                          {lastBackupAgo}
-                          {backupStale && (
-                            <AlertTriangle className="ml-1 inline h-3.5 w-3.5 align-middle" />
-                          )}
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-amber-400">
-                          Never <AlertTriangle className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {isActive ? (
-                      thisInstalled ? (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              if (running) {
-                                stopServer.mutate();
-                              } else {
-                                startServer.mutate(undefined, {
-                                  onSuccess: () => onNavigate("server"),
-                                });
-                              }
-                            }}
-                            disabled={startServer.isPending || stopServer.isPending}
-                          >
-                            {running ? "Stop" : "Start"}
-                          </Button>
-                          <div className="flex gap-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              onClick={handleRestart}
-                              disabled={!running}
-                              title="Restart"
-                            >
-                              <RotateCw className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              onClick={() => createBackup.mutate()}
-                              disabled={createBackup.isPending}
-                              title="Backup now"
-                            >
-                              <Archive className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              onClick={() => handleOpenLogs(inst.name)}
-                              title="Open logs"
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => setInstallOpen(true)}
-                          className="gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                          Install Server
-                        </Button>
-                      )
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setActive.mutate(inst.name)}
-                      >
-                        Select
-                      </Button>
-                    )}
-                  </div>
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={closestCenter}
+        onDragStart={({ active }) => setActiveId(active.id as string)}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={instances?.map((i) => i.name) ?? []}
+          strategy={rectSortingStrategy}
+        >
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+            {instances?.length ? (
+              instances.map((inst) => (
+                <SortableInstanceCard
+                  key={inst.name}
+                  inst={inst}
+                  activeInstance={activeInstance}
+                  running={running}
+                  serverStatus={serverStatus}
+                  lastBackupAgo={lastBackupAgo}
+                  backupStale={backupStale}
+                  updateAvailable={!!checkUpdates.data?.update_available}
+                  onNavigate={onNavigate}
+                  onRestart={handleRestart}
+                  onCreateBackup={() => createBackup.mutate()}
+                  onOpenLogs={handleOpenLogs}
+                  onInstall={() => setInstallOpen(true)}
+                  onSelect={() => setActive.mutate(inst.name)}
+                  startServer={startServer}
+                  stopServer={stopServer}
+                  createBackup={createBackup}
+                />
+              ))
+            ) : (
+              <Card className="col-span-full">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  No instances yet. Add or import one from the sidebar.
                 </CardContent>
               </Card>
-            );
-          })
-        ) : (
-          <Card className="col-span-full">
-            <CardContent className="py-12 text-center text-muted-foreground">
-              No instances yet. Add or import one from the sidebar.
-            </CardContent>
-          </Card>
-        )}
-      </div>
+            )}
+          </div>
+        </SortableContext>
+
+        <DragOverlay>
+          {activeId && instances ? (
+            (() => {
+              const inst = instances.find((i) => i.name === activeId);
+              if (!inst) return null;
+              const shortVersion = inst.installed
+                ? (() => {
+                    const m = inst.version.match(/v?(\d{4})\.(\d{2})\.(\d{2})/);
+                    return m ? `v${m[2]}.${m[3]}.${m[1]}` : inst.version;
+                  })()
+                : null;
+              const patchlineShort =
+                inst.patchline.charAt(0).toUpperCase() + inst.patchline.slice(1);
+              const statusVariant = !inst.installed ? "warning" : "neutral";
+              return (
+                <Card className="cursor-grabbing opacity-90 shadow-xl ring-2 ring-primary/50 rotate-2">
+                  <CardContent className="space-y-3 pt-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <p className="line-clamp-2 text-base font-semibold leading-tight">
+                          {inst.name}
+                        </p>
+                      </div>
+                      <StatusBadge
+                        text={!inst.installed ? "Not Installed" : "Stopped"}
+                        variant={statusVariant}
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="text-sm text-muted-foreground">
+                        {shortVersion ?? "—"}
+                        {inst.installed && (
+                          <span className="ml-1 text-xs text-muted-foreground/80">
+                            ({patchlineShort})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       <InstallServerDialog
         open={installOpen}

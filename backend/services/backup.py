@@ -234,6 +234,25 @@ def restore_backup(entry: BackupEntry) -> None:
             shutil.copy2(src, resolve_instance(name))
 
 
+def rename_backup(entry: BackupEntry, new_label: str) -> None:
+    """Update the backup's label in backup_info.json."""
+    meta_path = os.path.join(entry.path, _META_FILE)
+    data = {}
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            pass
+    data["label"] = new_label.strip() or "Manual backup"
+    if "type" not in data:
+        data["type"] = entry.backup_type
+    if "created" not in data and entry.created:
+        data["created"] = entry.created.isoformat()
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
 def delete_backup(entry: BackupEntry) -> None:
     if os.path.isdir(entry.path):
         shutil.rmtree(entry.path)

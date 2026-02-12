@@ -15,20 +15,24 @@ import {
   useBackups,
   useCreateBackup,
   useRestoreBackup,
+  useRenameBackup,
   useDeleteBackup,
 } from "@/api/hooks/useBackups";
 import type { Backup } from "@/api/types";
+import { Pencil } from "lucide-react";
 
 export function BackupView() {
   const { data: backups, isLoading } = useBackups();
   const createBackup = useCreateBackup();
   const restoreBackup = useRestoreBackup();
+  const renameBackup = useRenameBackup();
   const deleteBackup = useDeleteBackup();
 
   const [confirmDialog, setConfirmDialog] = useState<{
     type: "restore" | "delete";
     backup: Backup;
   } | null>(null);
+  const [renameDialog, setRenameDialog] = useState<{ backup: Backup; value: string } | null>(null);
 
   const handleConfirm = () => {
     if (!confirmDialog) return;
@@ -111,6 +115,17 @@ export function BackupView() {
                   <div className="flex gap-2 shrink-0">
                     <Button
                       size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() =>
+                        setRenameDialog({ backup, value: backup.display_title })
+                      }
+                      title="Rename"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
                       variant="outline"
                       onClick={() =>
                         setConfirmDialog({ type: "restore", backup })
@@ -134,6 +149,64 @@ export function BackupView() {
           ))}
         </div>
       </ScrollArea>
+
+      {/* Rename dialog */}
+      <Dialog
+        open={!!renameDialog}
+        onOpenChange={(open) => !open && setRenameDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Backup</DialogTitle>
+            <DialogDescription>
+              Enter a new label for this backup.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <input
+              type="text"
+              value={renameDialog?.value ?? ""}
+              onChange={(e) =>
+                setRenameDialog((p) =>
+                  p ? { ...p, value: e.target.value } : null
+                )
+              }
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+              placeholder="Backup label"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const d = renameDialog;
+                  if (d?.value.trim()) {
+                    renameBackup.mutate(
+                      { folderName: d.backup.folder_name, label: d.value.trim() },
+                      { onSuccess: () => setRenameDialog(null) }
+                    );
+                  }
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const d = renameDialog;
+                if (d?.value.trim()) {
+                  renameBackup.mutate(
+                    { folderName: d.backup.folder_name, label: d.value.trim() },
+                    { onSuccess: () => setRenameDialog(null) }
+                  );
+                }
+              }}
+              disabled={!renameDialog?.value.trim() || renameBackup.isPending}
+            >
+              {renameBackup.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm dialog */}
       <Dialog

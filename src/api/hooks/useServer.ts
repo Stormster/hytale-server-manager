@@ -1,12 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../client";
+import { useSettings } from "./useSettings";
 import type { ServerStatus } from "../types";
 
 export function useServerStatus() {
+  const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance;
   return useQuery<ServerStatus>({
-    queryKey: ["server", "status"],
+    queryKey: ["server", "status", activeInstance],
     queryFn: () => api("/api/server/status"),
     refetchInterval: 3000,
+    enabled: !!activeInstance,
   });
 }
 
