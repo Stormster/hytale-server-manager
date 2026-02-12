@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   LayoutDashboard,
+  ServerCog,
   Terminal,
   Download,
   Archive,
@@ -10,16 +11,17 @@ import {
   Plus,
   FolderInput,
   Server,
-  Trash2,
+  List,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { useInstances, useSetActiveInstance } from "@/api/hooks/useInstances";
 import { useSettings } from "@/api/hooks/useSettings";
-import { DeleteInstanceDialog } from "@/components/DeleteInstanceDialog";
 
 export type ViewName =
   | "dashboard"
+  | "instances"
+  | "instance-settings"
   | "server"
   | "updates"
   | "backups"
@@ -34,6 +36,8 @@ interface NavItem {
 
 const topNav: NavItem[] = [
   { name: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { name: "instances", label: "Instances", icon: List },
+  { name: "instance-settings", label: "Instance Settings", icon: ServerCog },
   { name: "server", label: "Server", icon: Terminal },
   { name: "updates", label: "Updates", icon: Download },
   { name: "backups", label: "Backups", icon: Archive },
@@ -62,17 +66,9 @@ export function AppSidebar({
   const setActive = useSetActiveInstance();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [instanceToDelete, setInstanceToDelete] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const activeInstance = settings?.active_instance || "";
-
-  const handleDeleteClick = (e: React.MouseEvent, name: string) => {
-    e?.stopPropagation?.();
-    setInstanceToDelete(name);
-    setDeleteDialogOpen(true);
-  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -130,37 +126,26 @@ export function AppSidebar({
             {instances && instances.length > 0 && (
               <div className="max-h-[200px] overflow-y-auto">
                 {instances.map((inst) => (
-                  <div
+                  <button
                     key={inst.name}
+                    onClick={() => handleSelectInstance(inst.name)}
                     className={cn(
-                      "group flex items-center gap-1 rounded-md px-2.5 py-2 transition-colors",
+                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
                       inst.name === activeInstance
                         ? "bg-accent text-accent-foreground"
                         : "text-popover-foreground hover:bg-accent/50"
                     )}
                   >
-                    <button
-                      onClick={() => handleSelectInstance(inst.name)}
-                      className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
-                    >
-                      <Server className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm">{inst.name}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {inst.installed
-                            ? `v${inst.version} (${inst.patchline})`
-                            : "Not installed"}
-                        </p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteClick(e, inst.name)}
-                      className="shrink-0 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      title="Remove instance"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                    <Server className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{inst.name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {inst.installed
+                          ? `v${inst.version} (${inst.patchline})`
+                          : "Not installed"}
+                      </p>
+                    </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -168,18 +153,6 @@ export function AppSidebar({
             {instances && instances.length > 0 && (
               <Separator className="my-1" />
             )}
-
-            {activeInstance && (
-              <button
-                onClick={(e) => handleDeleteClick(e, activeInstance)}
-                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Remove &quot;{activeInstance}&quot;
-              </button>
-            )}
-
-            {activeInstance && <Separator className="my-1" />}
 
             {/* Actions */}
             <button
@@ -234,15 +207,6 @@ export function AppSidebar({
           HytaleLife.com
         </p>
       </nav>
-
-      <DeleteInstanceDialog
-        open={deleteDialogOpen}
-        onOpenChange={(open) => {
-          setDeleteDialogOpen(open);
-          if (!open) setInstanceToDelete(null);
-        }}
-        instanceName={instanceToDelete}
-      />
     </aside>
   );
 }

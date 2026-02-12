@@ -110,7 +110,7 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="my-survival-server"
+                placeholder="My Survival Server"
                 className="w-full rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>

@@ -62,6 +62,24 @@ export function useImportInstance() {
   });
 }
 
+export function useRenameInstance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, newName }: { name: string; newName: string }) =>
+      api(`/api/instances/${encodeURIComponent(name)}/rename`, {
+        method: "PUT",
+        body: JSON.stringify({ new_name: newName }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["instances"] });
+      qc.invalidateQueries({ queryKey: ["settings"] });
+      qc.invalidateQueries({ queryKey: ["server-status"] });
+      qc.invalidateQueries({ queryKey: ["updater-local-status"] });
+      qc.invalidateQueries({ queryKey: ["backups"] });
+    },
+  });
+}
+
 export function useDeleteInstance() {
   const qc = useQueryClient();
   return useMutation({

@@ -1,11 +1,18 @@
 use std::sync::Arc;
 use tauri::Manager;
+use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 use tokio::sync::Mutex;
 
 /// Shared state holding the backend port once the sidecar reports ready.
 struct BackendState {
     port: Mutex<Option<u16>>,
+}
+
+/// Holds the backend sidecar process so we can kill it when the app exits.
+/// On Windows, child processes don't automatically terminate when the parent exits.
+struct BackendChild {
+    child: std::sync::Mutex<Option<CommandChild>>,
 }
 
 /// Tauri command: return the backend port (or 0 if not ready yet).
@@ -19,6 +26,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let state = Arc::new(BackendState {
                 port: Mutex::new(None),
@@ -31,7 +39,10 @@ pub fn run() {
                 .sidecar("server-manager-backend")
                 .expect("failed to create sidecar command");
 
-            let (mut rx, _child) = sidecar.spawn().expect("failed to spawn sidecar");
+            let (mut rx, child) = sidecar.spawn().expect("failed to spawn sidecar");
+            app.manage(BackendChild {
+                child: std::sync::Mutex::new(Some(child)),
+            });
 
             // Listen for the BACKEND_READY:<port> line on stdout
             let state_clone = state.clone();
@@ -54,6 +65,17 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![get_backend_port])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(backend) = app_handle.try_state::<BackendChild>() {
+                    if let Ok(mut guard) = backend.child.lock() {
+                        if let Some(child) = guard.take() {
+                            let _ = child.kill();
+                        }
+                    }
+                }
+            }
+        });
 }
