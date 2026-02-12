@@ -45,6 +45,20 @@ export function ModsView() {
     }
   };
 
+  const [fixingPerms, setFixingPerms] = useState(false);
+  const hasRequiredMods = !missingRequired;
+  const handleEnsureQueryPermissions = async () => {
+    setFixingPerms(true);
+    try {
+      await api<{ ok: boolean }>("/api/mods/ensure-query-permissions", {
+        method: "POST",
+        body: "{}",
+      });
+    } finally {
+      setFixingPerms(false);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col p-6">
       <div className="mb-2 flex items-start justify-between gap-4">
@@ -56,17 +70,30 @@ export function ModsView() {
               : "Toggle mods on or off. Disabled mods are moved to a subfolder and not loaded."}
           </p>
         </div>
-        {activeInstance && missingRequired && (
-          <Button
-            size="sm"
-            onClick={handleInstallRequired}
-            disabled={running || installing}
-            className="shrink-0 gap-2"
-          >
-            <Download className="h-4 w-4" />
-            {installing ? "Downloading..." : "Download required mods"}
-          </Button>
-        )}
+        <div className="flex shrink-0 gap-2">
+          {activeInstance && missingRequired && (
+            <Button
+              size="sm"
+              onClick={handleInstallRequired}
+              disabled={running || installing}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              {installing ? "Downloading..." : "Download required mods"}
+            </Button>
+          )}
+          {activeInstance && hasRequiredMods && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleEnsureQueryPermissions}
+              disabled={fixingPerms}
+              title="Add nitrado.query.web.read.basic to ANONYMOUS. Restart the server for changes to apply."
+            >
+              {fixingPerms ? "Updating..." : "Fix player count"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {!activeInstance ? (
