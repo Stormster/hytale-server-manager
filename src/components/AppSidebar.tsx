@@ -51,7 +51,7 @@ export function AppSidebar({
   onManageInstances,
 }: AppSidebarProps) {
   return (
-    <aside className="flex h-full w-[200px] flex-col border-r bg-card">
+    <aside className="relative z-20 flex h-full w-[200px] flex-col border-r border-white/10 bg-card/80 backdrop-blur-md">
       <InstanceSwitcher
         onAddServer={onAddServer}
         onImportServer={onImportServer}
@@ -81,7 +81,7 @@ export function AppSidebar({
           />
         ))}
         <p className="px-3 py-2 text-[11px] text-muted-foreground">
-          HytaleLife.com
+          HytaleManager.com
         </p>
       </nav>
     </aside>

@@ -24,8 +24,12 @@ export default function App() {
   // Show loading while settings are being fetched
   if (isLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading...</p>
+      <div className="relative flex h-screen w-screen items-center justify-center">
+        <div className="hytale-bg">
+          <div className="hytale-bg-image" />
+          <div className="hytale-bg-overlay" />
+        </div>
+        <p className="relative text-sm text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -40,7 +44,11 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden select-none">
+    <div className="relative flex h-screen w-screen overflow-hidden select-none">
+      <div className="hytale-bg">
+        <div className="hytale-bg-image" />
+        <div className="hytale-bg-overlay" />
+      </div>
       <AppSidebar
         active={activeView}
         onNavigate={handleNavigate}
@@ -48,7 +56,7 @@ export default function App() {
         onImportServer={() => setImportOpen(true)}
         onManageInstances={() => setManageInstancesOpen(true)}
       />
-      <main className="flex-1 overflow-y-auto">
+      <main className="relative z-0 flex-1 overflow-y-auto">
         {activeView === "dashboard" && (
           <DashboardView onNavigate={handleNavigate} />
         )}
