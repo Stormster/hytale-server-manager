@@ -58,26 +58,37 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const handleDragStart = (e: React.DragEvent, index: number) => {
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", index.toString());
+    e.dataTransfer.setData("application/json", JSON.stringify({ index }));
     setDraggedIndex(index);
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
     setDragOverIndex(index);
   };
 
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOverIndex(null);
+    }
   };
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
+    e.stopPropagation();
+    const raw = e.dataTransfer.getData("text/plain");
+    const sourceIndex = raw ? parseInt(raw, 10) : draggedIndex;
     setDraggedIndex(null);
     setDragOverIndex(null);
-    if (draggedIndex === null || !instances) return;
+    if (sourceIndex === undefined || sourceIndex < 0 || !instances) return;
     const newOrder = [...instances];
-    const [removed] = newOrder.splice(draggedIndex, 1);
+    const [removed] = newOrder.splice(sourceIndex, 1);
     newOrder.splice(dropIndex, 0, removed);
     reorderInstances.mutate(newOrder.map((i) => i.name));
   };
@@ -107,16 +118,22 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     }
   }, [activeInstance, serverStatus?.installed]);
 
-  const handleOpenLogs = (instanceName: string) => {
-    const path = rootDir ? `${rootDir.replace(/\\/g, "/")}/${instanceName}/Server/logs` : "";
-    if (!path) return;
-    import("@tauri-apps/plugin-opener")
-      .then(({ openPath }) => openPath(path))
-      .catch(() =>
-        import("@tauri-apps/plugin-shell")
-          .then(({ open }) => open(`file:///${path}`))
-          .catch(() => {})
-      );
+  const handleOpenLogs = async (instanceName: string) => {
+    if (!rootDir) return;
+    const sep = rootDir.includes("\\") ? "\\" : "/";
+    const path = [rootDir.replace(/[/\\]+$/, ""), instanceName, "Server", "logs"].join(sep);
+    try {
+      const { api } = await import("@/api/client");
+      await api<{ ok: boolean }>("/api/info/open-path", { method: "POST", body: JSON.stringify({ path }) });
+    } catch {
+      try {
+        const { openPath } = await import("@tauri-apps/plugin-opener");
+        await openPath(path);
+      } catch {
+        const { open } = await import("@tauri-apps/plugin-shell");
+        await open(`file:///${path.replace(/\\/g, "/")}`);
+      }
+    }
   };
 
   return (
@@ -156,7 +173,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                 ? "ok"
                 : "neutral";
             const shortVersion = thisInstalled
-              ? inst.version.replace(/^v?(\d{4}\.\d{2}\.\d{2}).*/, "v$1")
+              ? (() => {
+                  const m = inst.version.match(/v?(\d{4})\.(\d{2})\.(\d{2})/);
+                  return m ? `v${m[2]}.${m[3]}.${m[1]}` : inst.version;
+                })()
               : null;
             const patchlineShort =
               inst.patchline.charAt(0).toUpperCase() + inst.patchline.slice(1);
@@ -164,6 +184,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
               <Card
                 key={inst.name}
                 onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnter={handleDragEnter}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, index)}
                 className={cn(
@@ -176,18 +197,16 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                 )}
               >
                 <CardContent className="space-y-3 pt-5">
-                  {/* Header: name + status + grip */}
-                  <div className="flex items-start justify-between gap-2">
+                  {/* Header: name + status + grip (draggable) */}
+                  <div
+                    className="flex items-start justify-between gap-2 cursor-grab active:cursor-grabbing select-none"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnd={handleDragEnd}
+                    title="Drag to reorder"
+                  >
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragEnd={handleDragEnd}
-                        className="cursor-grab touch-none p-1 -m-1 rounded active:cursor-grabbing"
-                        title="Drag to reorder"
-                      >
-                        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      </div>
+                      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <p
                         className="line-clamp-2 text-base font-semibold leading-tight"
                         title={inst.name}
@@ -209,7 +228,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
                   {/* Version + update */}
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="text-sm text-muted-foreground">
+                    <span
+                      className="text-sm text-muted-foreground"
+                      title={thisInstalled ? inst.version : undefined}
+                    >
                       {shortVersion ?? "—"}
                       {thisInstalled && (
                         <span className="ml-1 text-xs text-muted-foreground/80">

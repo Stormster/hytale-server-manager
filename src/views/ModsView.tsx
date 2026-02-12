@@ -1,30 +1,72 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useMods, useToggleMod } from "@/api/hooks/useMods";
 import { useServerStatus } from "@/api/hooks/useServer";
 import { useSettings } from "@/api/hooks/useSettings";
-import { Lock } from "lucide-react";
+import { Lock, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/api/client";
+
+const REQUIRED_PREFIXES = ["nitrado-webserver", "nitrado-query"];
+
+function hasRequiredMods(mods: { name: string }[]): boolean {
+  const lower = (s: string) => s.toLowerCase();
+  return REQUIRED_PREFIXES.every(
+    (p) => mods.some((m) => lower(m.name).startsWith(p))
+  );
+}
 
 export function ModsView() {
   const { data: settings } = useSettings();
-  const { data: modsData, isLoading } = useMods();
+  const { data: modsData, isLoading, refetch } = useMods();
   const { data: serverStatus } = useServerStatus();
   const toggleMod = useToggleMod();
+  const [installing, setInstalling] = useState(false);
 
   const activeInstance = settings?.active_instance;
   const running = serverStatus?.running ?? false;
   const mods = modsData?.mods ?? [];
+  const missingRequired = !hasRequiredMods(mods);
+
+  const handleInstallRequired = async () => {
+    setInstalling(true);
+    try {
+      await api<{ ok: boolean }>("/api/mods/install-required", {
+        method: "POST",
+        body: "{}",
+      });
+      refetch();
+    } catch {
+      // Error shown via mutation
+    } finally {
+      setInstalling(false);
+    }
+  };
 
   return (
     <div className="flex h-full flex-col p-6">
-      <div className="mb-2">
-        <h2 className="text-xl font-bold">Mods</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {running
-            ? "Stop the server to enable or disable mods."
-            : "Toggle mods on or off. Disabled mods are moved to a subfolder and not loaded."}
-        </p>
+      <div className="mb-2 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold">Mods</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {running
+              ? "Stop the server to enable or disable mods."
+              : "Toggle mods on or off. Disabled mods are moved to a subfolder and not loaded."}
+          </p>
+        </div>
+        {activeInstance && missingRequired && (
+          <Button
+            size="sm"
+            onClick={handleInstallRequired}
+            disabled={running || installing}
+            className="shrink-0 gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {installing ? "Downloading..." : "Download required mods"}
+          </Button>
+        )}
       </div>
 
       {!activeInstance ? (
@@ -34,7 +76,15 @@ export function ModsView() {
       ) : mods.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            No mods found. Install a server to get the Nitrado WebServer and Query plugins.
+            No mods found. You can find them here:{" "}
+            <a
+              href="https://www.curseforge.com/hytale"
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary hover:underline"
+            >
+              https://www.curseforge.com/hytale
+            </a>
           </CardContent>
         </Card>
       ) : (
