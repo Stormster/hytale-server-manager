@@ -1,7 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LogConsole } from "@/components/LogConsole";
+import { AuthFlowDisplay } from "@/components/AuthFlowDisplay";
+import { parseAuthOutput } from "@/lib/authOutput";
 import { useInvalidateAuth } from "@/api/hooks/useAuth";
 import { subscribeSSE } from "@/api/client";
 import { LogIn } from "lucide-react";
@@ -12,9 +13,14 @@ export function AuthRequiredView() {
   const [authRunning, setAuthRunning] = useState(false);
   const [authLines, setAuthLines] = useState<string[]>([]);
 
+  const linesRef = useRef<string[]>([]);
+  const autoOpenedRef = useRef(false);
+
   const handleSignIn = useCallback(() => {
     setAuthRunning(true);
     setAuthLines([]);
+    linesRef.current = [];
+    autoOpenedRef.current = false;
 
     subscribeSSE(
       "/api/auth/refresh",
@@ -22,7 +28,23 @@ export function AuthRequiredView() {
         onEvent(event, data) {
           const d = data as Record<string, unknown>;
           if (event === "output") {
-            setAuthLines((prev) => [...prev, d.line as string]);
+            const line = d.line as string;
+            linesRef.current = [...linesRef.current, line];
+            setAuthLines(linesRef.current);
+            if (!autoOpenedRef.current) {
+              const { authUrl } = parseAuthOutput(linesRef.current);
+              if (authUrl) {
+                autoOpenedRef.current = true;
+                import("@tauri-apps/plugin-opener")
+                  .then(({ openUrl }) => openUrl(authUrl))
+                  .catch(() =>
+                    import("@tauri-apps/plugin-shell").then(({ open }) =>
+                      open(authUrl)
+                    )
+                  )
+                  .catch(() => {});
+              }
+            }
           } else if (event === "done") {
             const code = d.code as number;
             if (code === 0) {
@@ -73,7 +95,7 @@ export function AuthRequiredView() {
             {authRunning ? "Authenticating…" : "Sign in with Hytale"}
           </Button>
           {authLines.length > 0 && (
-            <LogConsole lines={authLines} className="h-[120px]" />
+            <AuthFlowDisplay lines={authLines} className="space-y-3" />
           )}
         </CardContent>
       </Card>
