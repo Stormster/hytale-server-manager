@@ -3,6 +3,9 @@ dist/
 build/
 *.spec.bak
 
+# ---- Node ----
+node_modules/
+
 # ---- Python ----
 __pycache__/
 *.py[cod]
@@ -10,10 +13,22 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+backend/dist/
+backend/build/
+
+# ---- Tauri / Rust ----
+src-tauri/target/
+src-tauri/binaries/
+
+# ---- Environment ----
+.env
+.env.local
+.env.*.local
 
 # ---- IDE / editor ----
 .vscode/
 .idea/
+.cursor/
 *.code-workspace
 
 # ---- Hytale runtime files (not source) ----
@@ -28,6 +43,7 @@ hytale-downloader-windows-amd64.exe
 temp_extract/
 temp_update.zip
 first_time_setup.zip
+updater/
 start.bat
 start.sh
 hytale-server-manager.bat
