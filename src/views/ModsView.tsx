@@ -46,7 +46,7 @@ export function ModsView() {
   };
 
   const [fixingPerms, setFixingPerms] = useState(false);
-  const hasRequiredMods = !missingRequired;
+  const requiredModsPresent = !missingRequired;
   const handleEnsureQueryPermissions = async () => {
     setFixingPerms(true);
     try {
@@ -82,7 +82,7 @@ export function ModsView() {
               {installing ? "Downloading..." : "Download required mods"}
             </Button>
           )}
-          {activeInstance && hasRequiredMods && (
+          {activeInstance && requiredModsPresent && (
             <Button
               size="sm"
               variant="outline"
@@ -126,10 +126,9 @@ export function ModsView() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate">{mod.name}</span>
                     {mod.required && (
-                      <Lock
-                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                        title="Required – cannot be disabled"
-                      />
+                      <span title="Required – cannot be disabled">
+                        <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      </span>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground">
