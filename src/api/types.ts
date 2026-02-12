@@ -17,6 +17,12 @@ export interface Instance {
 export interface ServerStatus {
   installed: boolean;
   running: boolean;
+  uptime_seconds: number | null;
+  last_exit_time: string | null;
+  last_exit_code: number | null;
+  ram_mb: number | null;
+  cpu_percent: number | null;
+  players: number | null;
 }
 
 // ---- Updater ----

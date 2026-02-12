@@ -32,6 +32,7 @@ a = Analysis(
         'requests',
         'packaging',
         'packaging.version',
+        'psutil',
     ],
     hookspath=[],
     hooksconfig={},
