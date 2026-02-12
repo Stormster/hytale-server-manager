@@ -76,11 +76,8 @@ export function InstanceSwitcher({
         >
           <Server className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium leading-tight">
+            <p className="line-clamp-3 text-sm font-medium leading-tight">
               {activeInstanceLabel}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              Hytale Server Manager
             </p>
           </div>
           {/* No chevron for single instance */}
@@ -127,11 +124,8 @@ export function InstanceSwitcher({
       >
         <Server className="h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium leading-tight">
+          <p className="line-clamp-3 text-sm font-medium leading-tight">
             {activeInstanceLabel}
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            Hytale Server Manager
           </p>
         </div>
         <ChevronDown
@@ -230,7 +224,7 @@ function InstancePopoverContent({
               >
                 <Server className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{inst.name}</p>
+                  <p className="line-clamp-3 font-medium">{inst.name}</p>
                   <p className="text-[10px] text-muted-foreground">
                     {status}
                     {inst.installed && ` · v${inst.version}`}

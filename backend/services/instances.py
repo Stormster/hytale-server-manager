@@ -29,7 +29,6 @@ def list_instances() -> list[dict]:
 
     ignored = set(settings.get_ignored_instances())
     order = settings.get_instance_order()
-    all_names = sorted(os.listdir(root))
 
     def sort_key(name: str) -> tuple[int, str]:
         try:
@@ -39,9 +38,11 @@ def list_instances() -> list[dict]:
             return (len(order), name)
 
     instances = []
+    all_names = [
+        n for n in os.listdir(root)
+        if n not in ignored and not n.startswith(".") and os.path.isdir(os.path.join(root, n))
+    ]
     for name in sorted(all_names, key=sort_key):
-        if name in ignored:
-            continue
         full = os.path.join(root, name)
         if not os.path.isdir(full) or name.startswith("."):
             continue
@@ -77,6 +78,22 @@ def list_instances() -> list[dict]:
     return instances
 
 
+def reorder_instances(names: list[str]) -> None:
+    """Update the display order of instances."""
+    root = settings.get_root_dir()
+    if not root or not os.path.isdir(root):
+        raise ValueError("Root directory not configured")
+    valid = set(
+        n for n in os.listdir(root)
+        if os.path.isdir(os.path.join(root, n)) and not n.startswith(".")
+    )
+    valid -= set(settings.get_ignored_instances())
+    for n in names:
+        if n not in valid:
+            raise ValueError(f"Instance '{n}' not found")
+    settings.set_instance_order(names)
+
+
 def create_instance(name: str) -> dict:
     """Create a new empty instance subfolder."""
     root = settings.get_root_dir()
@@ -89,6 +106,10 @@ def create_instance(name: str) -> dict:
         raise ValueError(f"Instance '{name}' already exists")
 
     os.makedirs(dest, exist_ok=True)
+    order = settings.get_instance_order()
+    if name not in order:
+        order = order + [name]
+        settings.set_instance_order(order)
     return {"name": name}
 
 
@@ -138,9 +159,15 @@ def import_instance(name: str, source_path: str) -> dict:
         path_name = source_rel
         if path_name and path_name.lower() == name.lower():
             settings.remove_ignored_instance(path_name)
+            if path_name not in settings.get_instance_order():
+                order = settings.get_instance_order() + [path_name]
+                settings.set_instance_order(order)
             return {"name": path_name, "copied": False}
     elif os.path.normpath(source_abs) == os.path.normpath(dest):
         settings.remove_ignored_instance(name)
+        if name not in settings.get_instance_order():
+            order = settings.get_instance_order() + [name]
+            settings.set_instance_order(order)
         return {"name": name, "copied": False}
 
     # Different location – copy to root
@@ -148,6 +175,9 @@ def import_instance(name: str, source_path: str) -> dict:
         raise ValueError(f"Instance '{name}' already exists")
 
     shutil.copytree(source_abs, dest)
+    if name not in settings.get_instance_order():
+        order = settings.get_instance_order() + [name]
+        settings.set_instance_order(order)
     return {"name": name, "copied": True}
 
 
@@ -166,6 +196,8 @@ def delete_instance(name: str, delete_files: bool = True) -> None:
 
     if delete_files:
         shutil.rmtree(dest)
+        order = [n for n in settings.get_instance_order() if n != name]
+        settings.set_instance_order(order)
     else:
         settings.add_ignored_instance(name)
 
@@ -193,5 +225,12 @@ def rename_instance(old_name: str, new_name: str) -> dict:
 
     # Remove old name from ignored list if present (renamed folder is now visible)
     settings.remove_ignored_instance(old_name)
+
+    # Update instance order
+    order = settings.get_instance_order()
+    if old_name in order:
+        settings.set_instance_order(
+            [new_name if n == old_name else n for n in order]
+        )
 
     return {"name": new_name}

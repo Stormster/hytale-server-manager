@@ -80,6 +80,20 @@ export function useRenameInstance() {
   });
 }
 
+export function useReorderInstances() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (names: string[]) =>
+      api("/api/instances/reorder", {
+        method: "PUT",
+        body: JSON.stringify({ names }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["instances"] });
+    },
+  });
+}
+
 export function useDeleteInstance() {
   const qc = useQueryClient();
   return useMutation({
