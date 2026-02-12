@@ -1,12 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../client";
+import { useSettings } from "./useSettings";
 import type { ConfigFileContent, LatestLog } from "../types";
 
 export function useConfigFile(filename: string | null) {
+  const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance;
   return useQuery<ConfigFileContent>({
-    queryKey: ["config", filename],
+    queryKey: ["config", activeInstance, filename],
     queryFn: () => api(`/api/config/${filename}`),
-    enabled: !!filename,
+    enabled: !!filename && !!activeInstance,
   });
 }
 
@@ -25,8 +28,10 @@ export function useSaveConfigFile() {
 }
 
 export function useLatestLog() {
+  const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance;
   return useQuery<LatestLog>({
-    queryKey: ["config", "latest-log"],
+    queryKey: ["config", "latest-log", activeInstance],
     queryFn: () => api("/api/config/latest-log"),
     enabled: false, // only fetch on demand
   });

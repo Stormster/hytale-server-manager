@@ -46,6 +46,22 @@ def restore_backup(folder_name: str):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+class RenameBackupRequest(BaseModel):
+    label: str
+
+
+@router.put("/{folder_name}/rename")
+def rename_backup(folder_name: str, body: RenameBackupRequest):
+    entry = bk.find_backup(folder_name)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    try:
+        bk.rename_backup(entry, body.label)
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.delete("/{folder_name}")
 def delete_backup(folder_name: str):
     entry = bk.find_backup(folder_name)
