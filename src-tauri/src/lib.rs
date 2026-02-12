@@ -76,12 +76,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![get_backend_port])
-        .on_window_event(|window, event| {
-            // Kill backend when user closes the window (fires before ExitRequested)
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                kill_backend_child(window);
-            }
-        })
+        // Don't kill backend on CloseRequested – frontend stops server first, then destroys.
+        // Backend is killed in RunEvent::ExitRequested when the app actually exits.
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
