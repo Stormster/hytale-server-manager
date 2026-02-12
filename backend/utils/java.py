@@ -3,6 +3,9 @@ Java detection utility.
 """
 
 import subprocess
+import sys
+
+_CREATION_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
 
 
 def check_java() -> tuple[bool, str]:
@@ -17,6 +20,7 @@ def check_java() -> tuple[bool, str]:
             stderr=subprocess.STDOUT,
             text=True,
             timeout=10,
+            creationflags=_CREATION_FLAGS,
         )
         output = result.stdout.strip() or "(no output)"
         if result.returncode == 0:
