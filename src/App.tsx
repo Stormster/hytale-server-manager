@@ -11,7 +11,6 @@ import { AuthRequiredView } from "@/views/AuthRequiredView";
 import { AddServerDialog } from "@/components/AddServerDialog";
 import { ImportServerDialog } from "@/components/ImportServerDialog";
 import { InstancesModal } from "@/components/InstancesModal";
-import { InstanceSettingsModal } from "@/components/InstanceSettingsModal";
 import { useSettings } from "@/api/hooks/useSettings";
 import { useAuthStatus } from "@/api/hooks/useAuth";
 
@@ -22,7 +21,6 @@ export default function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [manageInstancesOpen, setManageInstancesOpen] = useState(false);
-  const [manageInstanceOpen, setManageInstanceOpen] = useState(false);
 
   // Show loading while settings and auth are being fetched
   if (isLoading || authLoading) {
@@ -72,9 +70,7 @@ export default function App() {
         {activeView === "updates" && <UpdateView />}
         {activeView === "backups" && <BackupView />}
         {activeView === "config" && <ConfigView />}
-        {activeView === "settings" && (
-          <SettingsView onManageInstance={() => setManageInstanceOpen(true)} />
-        )}
+        {activeView === "settings" && <SettingsView />}
       </main>
 
       <AddServerDialog open={addOpen} onOpenChange={setAddOpen} />
@@ -84,10 +80,6 @@ export default function App() {
         onOpenChange={setManageInstancesOpen}
         onAddServer={() => setAddOpen(true)}
         onImportServer={() => setImportOpen(true)}
-      />
-      <InstanceSettingsModal
-        open={manageInstanceOpen}
-        onOpenChange={setManageInstanceOpen}
       />
     </div>
   );
