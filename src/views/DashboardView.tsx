@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
 import { InfoRow } from "@/components/InfoRow";
 import { InstallServerDialog } from "@/components/InstallServerDialog";
-import { useServerStatus, useStopServer } from "@/api/hooks/useServer";
+import { useServerStatus, useStartServer, useStopServer } from "@/api/hooks/useServer";
 import { useUpdaterLocalStatus } from "@/api/hooks/useUpdater";
 import { useAppInfo } from "@/api/hooks/useInfo";
 import { useManagerUpdate } from "@/api/hooks/useInfo";
@@ -24,6 +24,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const { data: updaterStatus } = useUpdaterLocalStatus();
   const { data: appInfo } = useAppInfo();
   const { data: managerUpdate } = useManagerUpdate();
+  const startServer = useStartServer();
   const stopServer = useStopServer();
   const queryClient = useQueryClient();
   const [installOpen, setInstallOpen] = useState(false);
@@ -105,7 +106,11 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       {installed && (
         <div className="flex gap-3">
           <Button
-            onClick={() => onNavigate("server")}
+            onClick={() => {
+              startServer.mutate(undefined, {
+                onSuccess: () => onNavigate("server"),
+              });
+            }}
             disabled={running}
           >
             Start Server

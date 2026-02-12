@@ -11,6 +11,7 @@ import {
 import { subscribeSSE } from "@/api/client";
 
 const AUTH_NEEDED = /no server tokens configured/i;
+const AUTH_ALREADY_LOADED = /token refresh scheduled|session service client initialized/i;
 
 export function ServerView() {
   const { data: status } = useServerStatus();
@@ -21,23 +22,54 @@ export function ServerView() {
   const [connected, setConnected] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const authShownRef = useRef(false);
+  const authPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const linesRef = useRef<string[]>([]);
   const abortRef = useRef<(() => void) | null>(null);
 
+  linesRef.current = lines;
   const running = status?.running ?? false;
   const installed = status?.installed ?? false;
 
-  // Detect "No server tokens configured" and show auth modal
+  // Detect "No server tokens configured" - only show modal if credentials aren't already loaded.
+  // Server may output "No server tokens" briefly during boot before loading encrypted store.
   useEffect(() => {
     if (!running || authShownRef.current) return;
-    const hasAuthNeeded = lines.some((l) => AUTH_NEEDED.test(l));
-    if (hasAuthNeeded) {
+    const allText = lines.join("\n");
+    if (!AUTH_NEEDED.test(allText)) return;
+    if (AUTH_ALREADY_LOADED.test(allText)) {
+      // Credentials loaded - cancel any pending modal
+      if (authPendingRef.current) {
+        clearTimeout(authPendingRef.current);
+        authPendingRef.current = null;
+      }
+      return;
+    }
+
+    // Delay 2.5s before showing - give server time to load credentials from disk
+    if (authPendingRef.current) return;
+    authPendingRef.current = setTimeout(() => {
+      authPendingRef.current = null;
+      const text = linesRef.current.join("\n");
+      if (AUTH_ALREADY_LOADED.test(text)) return;
       authShownRef.current = true;
       setAuthModalOpen(true);
-    }
+    }, 2500);
+    return () => {
+      if (authPendingRef.current) {
+        clearTimeout(authPendingRef.current);
+        authPendingRef.current = null;
+      }
+    };
   }, [running, lines]);
 
   useEffect(() => {
-    if (!running) authShownRef.current = false;
+    if (!running) {
+      authShownRef.current = false;
+      if (authPendingRef.current) {
+        clearTimeout(authPendingRef.current);
+        authPendingRef.current = null;
+      }
+    }
   }, [running]);
 
   // Connect to the console SSE stream when server is running

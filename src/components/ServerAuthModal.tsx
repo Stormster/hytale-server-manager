@@ -14,7 +14,8 @@ import { api } from "@/api/client";
 const AUTH_NEEDED = /no server tokens configured/i;
 const OAUTH_URL_RE = /https:\/\/oauth\.accounts\.hytale\.com\/[^\s<>"{}|\\^`[\]]+/;
 const AUTH_SUCCESS = /authentication successful/i;
-const PERSISTENCE_DONE = /credential storage changed to:\s*\w+/i;
+const PERSISTENCE_DONE =
+  /credential storage changed to:\s*\w+|swapped credential store to:\s*\w+/i;
 
 interface ServerAuthModalProps {
   open: boolean;
@@ -95,7 +96,7 @@ export function ServerAuthModal({
     navigator.clipboard.writeText(oauthUrl);
   };
 
-  const canClose = persistenceDone;
+  const canClose = persistenceDone || authSuccess;
 
   return (
     <Dialog
@@ -106,7 +107,8 @@ export function ServerAuthModal({
       }}
     >
       <DialogContent
-        className="sm:max-w-lg"
+        className="sm:max-w-lg overflow-hidden"
+        hideClose
         onPointerDownOutside={(e) => {
           if (!canClose) e.preventDefault();
         }}
@@ -127,27 +129,37 @@ export function ServerAuthModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 min-w-0 overflow-hidden">
           {oauthUrl && !persistenceDone && (
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <p className="text-sm font-medium">Sign in via browser:</p>
               <div className="flex gap-2">
+                <div className="flex-1 min-w-0 overflow-hidden rounded-md border border-input bg-background px-3 py-2 flex items-center">
+                  <span
+                    className="text-sm font-mono text-foreground truncate block"
+                    title={oauthUrl}
+                  >
+                    {oauthUrl}
+                  </span>
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 justify-start gap-2 font-normal text-left truncate min-w-0"
+                  className="shrink-0 gap-1.5"
                   onClick={handleOpenUrl}
+                  title="Open in browser"
                 >
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{oauthUrl}</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open
                 </Button>
                 <Button
                   variant="outline"
-                  size="icon"
+                  size="sm"
+                  className="shrink-0"
                   onClick={handleCopyUrl}
                   title="Copy link"
                 >
-                  <Copy className="h-4 w-4" />
+                  <Copy className="h-3.5 w-3.5" />
                 </Button>
               </div>
               {!authSuccess && (
