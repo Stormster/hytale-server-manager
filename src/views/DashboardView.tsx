@@ -153,16 +153,39 @@ function SortableInstanceCard({
               {inst.name}
             </p>
           </div>
-          <StatusBadge
-            text={
-              !thisInstalled
-                ? "Not Installed"
-                : thisRunning
-                  ? "Running"
-                  : "Stopped"
-            }
-            variant={statusVariant}
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            {thisRunning && (() => {
+              const runInfo = runningInstances.find((r) => r.name === inst.name);
+              const ram = runInfo?.ram_mb ?? serverStatus?.ram_mb;
+              const cpu = runInfo?.cpu_percent ?? serverStatus?.cpu_percent;
+              return (ram != null || cpu != null) ? (
+                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {ram != null && (
+                    <span className="flex items-center gap-0.5" title="RAM">
+                      <HardDrive className="h-3 w-3" />
+                      {ram} MB
+                    </span>
+                  )}
+                  {cpu != null && (
+                    <span className="flex items-center gap-0.5" title="CPU">
+                      <Cpu className="h-3 w-3" />
+                      {cpu}%
+                    </span>
+                  )}
+                </span>
+              ) : null;
+            })()}
+            <StatusBadge
+              text={
+                !thisInstalled
+                  ? "Not Installed"
+                  : thisRunning
+                    ? "Running"
+                    : "Stopped"
+              }
+              variant={statusVariant}
+            />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -267,7 +290,7 @@ function SortableInstanceCard({
                 size="sm"
                 onClick={() => {
                   if (thisRunning) stopServer.mutate(inst.name);
-                  else startServer.mutate(inst.name, { onSuccess: () => onNavigate("server") });
+                  else startServer.mutate(inst.name);
                 }}
                 disabled={startServer.isPending || stopServer.isPending}
               >

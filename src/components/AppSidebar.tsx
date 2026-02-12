@@ -27,7 +27,7 @@ interface NavItem {
 
 const topNav: NavItem[] = [
   { name: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { name: "server", label: "Server", icon: Terminal },
+  { name: "server", label: "Console", icon: Terminal },
   { name: "updates", label: "Updates", icon: Download },
   { name: "backups", label: "Backups", icon: Archive },
   { name: "mods", label: "Mods", icon: Package },
