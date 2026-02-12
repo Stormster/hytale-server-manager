@@ -1,10 +1,15 @@
 """
 Manages the Hytale downloader executable – downloading it, extracting it,
 and invoking it for auth / version checks / server downloads.
+
+The downloader lives next to the backend exe (program dir), not in the user's
+servers folder, so it survives across root_dir changes and is shared by the app.
+Credentials stay in root_dir (user's servers folder) as the downloader uses cwd.
 """
 
 import os
 import io
+import sys
 import zipfile
 import threading
 from typing import Callable, Optional
@@ -20,7 +25,18 @@ from utils.paths import resolve_root
 from utils.process import run_capture, run_in_thread
 
 
+def _program_dir() -> str:
+    """Directory containing the backend exe (program installation dir). When frozen (PyInstaller), use exe dir; else dev mode uses backend folder."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def downloader_path() -> str:
+    """Path to the downloader exe. Prefer program dir (bundled/fetched), else root_dir (legacy)."""
+    prog = os.path.join(_program_dir(), DOWNLOADER_EXE)
+    if os.path.isfile(prog):
+        return prog
     return resolve_root(DOWNLOADER_EXE)
 
 
@@ -71,7 +87,10 @@ def fetch_downloader(
                         on_done(False, "Could not find downloader exe in zip.")
                     return
 
-                with zf.open(exe_name) as src, open(downloader_path(), "wb") as dst:
+                dest_dir = _program_dir()
+                os.makedirs(dest_dir, exist_ok=True)
+                dest_path = os.path.join(dest_dir, DOWNLOADER_EXE)
+                with zf.open(exe_name) as src, open(dest_path, "wb") as dst:
                     dst.write(src.read())
 
             if on_done:

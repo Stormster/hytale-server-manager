@@ -1,15 +1,18 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
 import { InfoRow } from "@/components/InfoRow";
+import { InstallServerDialog } from "@/components/InstallServerDialog";
 import { useServerStatus, useStopServer } from "@/api/hooks/useServer";
 import { useUpdaterLocalStatus } from "@/api/hooks/useUpdater";
 import { useAppInfo } from "@/api/hooks/useInfo";
 import { useManagerUpdate } from "@/api/hooks/useInfo";
 import { useSettings } from "@/api/hooks/useSettings";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ViewName } from "@/components/AppSidebar";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Download } from "lucide-react";
 
 interface DashboardViewProps {
   onNavigate: (view: ViewName) => void;
@@ -22,6 +25,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const { data: appInfo } = useAppInfo();
   const { data: managerUpdate } = useManagerUpdate();
   const stopServer = useStopServer();
+  const queryClient = useQueryClient();
+  const [installOpen, setInstallOpen] = useState(false);
 
   const installed = serverStatus?.installed ?? false;
   const running = serverStatus?.running ?? false;
@@ -115,25 +120,35 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         </div>
       )}
 
-      {/* Not installed hint */}
-      {!installed && (
+      {/* Install server when instance exists but nothing installed */}
+      {!installed && activeInstance !== "None" && (
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-6 space-y-4">
             <p className="text-sm text-muted-foreground">
-              This instance doesn't have a server installed yet. Click your
-              instance name in the sidebar to{" "}
-              <strong>Add Server</strong> or go to{" "}
-              <button
-                onClick={() => onNavigate("updates")}
-                className="text-blue-400 hover:underline font-medium"
-              >
-                Updates
-              </button>{" "}
-              to install one.
+              This instance doesn't have a server installed yet. Install the
+              Hytale server to get started.
             </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setInstallOpen(true)}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Install Server
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
+
+      <InstallServerDialog
+        open={installOpen}
+        onOpenChange={setInstallOpen}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["server", "status"] });
+          queryClient.invalidateQueries({ queryKey: ["updater", "local-status"] });
+        }}
+      />
 
       <p className="text-xs text-muted-foreground">
         Report issues: {appInfo?.report_url ?? "https://HytaleManager.com/issues"}
