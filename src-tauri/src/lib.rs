@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use tauri::Manager;
+use tauri_plugin_shell::ShellExt;
 use tokio::sync::Mutex;
 
 /// Shared state holding the backend port once the sidecar reports ready.
@@ -27,7 +28,7 @@ pub fn run() {
             // Spawn the Python sidecar backend
             let shell = app.shell();
             let sidecar = shell
-                .sidecar("binaries/server-manager-backend")
+                .sidecar("server-manager-backend")
                 .expect("failed to create sidecar command");
 
             let (mut rx, _child) = sidecar.spawn().expect("failed to spawn sidecar");

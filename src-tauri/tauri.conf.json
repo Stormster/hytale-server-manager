@@ -36,19 +36,12 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/server-manager-backend"
+      "server-manager-backend"
     ]
   },
   "plugins": {
     "shell": {
-      "sidecar": true,
-      "scope": [
-        {
-          "name": "binaries/server-manager-backend",
-          "sidecar": true,
-          "args": true
-        }
-      ]
+      "open": true
     }
   }
 }

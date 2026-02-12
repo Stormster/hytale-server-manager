@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FolderOpen } from "lucide-react";
 import { useImportInstance } from "@/api/hooks/useInstances";
+import { useSettings } from "@/api/hooks/useSettings";
 
 interface Props {
   open: boolean;
@@ -21,6 +22,11 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
   const [name, setName] = useState("");
   const [sourcePath, setSourcePath] = useState("");
   const importInstance = useImportInstance();
+  const { data: settings } = useSettings();
+  const destPath =
+    settings?.root_dir && name.trim()
+      ? `${settings.root_dir.replace(/[/\\]+$/, "")}\\${name.trim()}`
+      : "";
 
   const handleBrowse = async () => {
     try {
@@ -30,7 +36,9 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
         setSourcePath(selected as string);
         // Auto-fill name from folder name if empty
         if (!name) {
-          const parts = (selected as string).replace(/[\\/]+$/, "").split(/[\\/]/);
+          const parts = (selected as string)
+            .replace(/[\\/]+$/, "")
+            .split(/[\\/]/);
           setName(parts[parts.length - 1] || "");
         }
       }
@@ -77,7 +85,7 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="my-imported-server"
+              placeholder="My Imported Server"
               className="w-full rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
@@ -109,6 +117,13 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
             </p>
           )}
 
+          {importInstance.isPending && destPath && (
+            <p className="text-sm text-muted-foreground">
+              Copying to{" "}
+              <span className="font-medium text-foreground">{destPath}</span>
+            </p>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={handleClose}>
               Cancel
@@ -121,7 +136,7 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
                 importInstance.isPending
               }
             >
-              {importInstance.isPending ? "Importing..." : "Import"}
+              {importInstance.isPending ? "Copying…" : "Import"}
             </Button>
           </DialogFooter>
         </div>

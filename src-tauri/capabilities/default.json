@@ -12,7 +12,7 @@
       "identifier": "shell:allow-execute",
       "allow": [
         {
-          "name": "binaries/server-manager-backend",
+          "name": "server-manager-backend",
           "sidecar": true,
           "args": true
         }
@@ -22,7 +22,7 @@
       "identifier": "shell:allow-spawn",
       "allow": [
         {
-          "name": "binaries/server-manager-backend",
+          "name": "server-manager-backend",
           "sidecar": true,
           "args": true
         }

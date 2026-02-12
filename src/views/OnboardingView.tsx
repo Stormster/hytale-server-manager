@@ -1,13 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FolderOpen } from "lucide-react";
-import { useUpdateSettings } from "@/api/hooks/useSettings";
+import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
+
+const DEFAULT_PLACEHOLDER = "Documents\\Hytale Servers";
 
 export function OnboardingView() {
-  const [rootDir, setRootDir] = useState("");
+  const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
+  const defaultPath = settings?.default_root_dir ?? "";
+  const [rootDir, setRootDir] = useState("");
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (defaultPath && !initialized.current) {
+      setRootDir(defaultPath);
+      initialized.current = true;
+    }
+  }, [defaultPath]);
 
   const handleBrowse = async () => {
     try {
@@ -23,8 +35,9 @@ export function OnboardingView() {
   };
 
   const handleSubmit = () => {
-    if (!rootDir.trim()) return;
-    updateSettings.mutate({ root_dir: rootDir.trim() });
+    const path = rootDir.trim() || defaultPath;
+    if (!path) return;
+    updateSettings.mutate({ root_dir: path });
   };
 
   return (
@@ -48,7 +61,7 @@ export function OnboardingView() {
                 type="text"
                 value={rootDir}
                 onChange={(e) => setRootDir(e.target.value)}
-                placeholder="C:\Users\Storm\Desktop\Servers"
+                placeholder={DEFAULT_PLACEHOLDER}
                 className="flex-1 rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <Button variant="outline" size="icon" onClick={handleBrowse}>
@@ -63,7 +76,7 @@ export function OnboardingView() {
 
           <Button
             onClick={handleSubmit}
-            disabled={!rootDir.trim() || updateSettings.isPending}
+            disabled={(!rootDir.trim() && !defaultPath) || updateSettings.isPending}
             className="w-full"
           >
             {updateSettings.isPending ? "Setting up..." : "Get Started"}

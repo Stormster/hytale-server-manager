@@ -45,7 +45,7 @@ def create_instance(body: CreateInstanceRequest):
 def import_instance(body: ImportInstanceRequest):
     try:
         result = inst_svc.import_instance(body.name, body.source_path)
-        settings.set_active_instance(body.name)
+        settings.set_active_instance(result["name"])
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
