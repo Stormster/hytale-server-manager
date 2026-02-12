@@ -11,13 +11,24 @@ export interface Instance {
   installed: boolean;
   version: string;
   patchline: string;
+  game_port?: number;
+  webserver_port?: number;
 }
 
 // ---- Server ----
+export interface RunningInstanceInfo {
+  name: string;
+  game_port: number | null;
+  uptime_seconds: number | null;
+  ram_mb: number | null;
+  cpu_percent: number | null;
+}
+
 export interface ServerStatus {
   installed: boolean;
   running: boolean;
   running_instance: string | null;
+  running_instances: RunningInstanceInfo[];
   uptime_seconds: number | null;
   last_exit_time: string | null;
   last_exit_code: number | null;

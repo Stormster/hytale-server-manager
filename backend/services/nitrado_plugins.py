@@ -12,10 +12,9 @@ from typing import Callable, Optional
 
 import requests
 
-# WebServer default is game_port+3 (5523), which conflicts when multiple
-# instances run. We use 7003+ to assign a unique port per instance.
-WEBSERVER_PORT_BASE = 7003
-WEBSERVER_PORT_MAX = 7999
+# Nitrado WebServer = game_port + 100. When game port unknown, use 5620-5720.
+WEBSERVER_PORT_BASE = 5620  # 5520 + 100
+WEBSERVER_PORT_MAX = 5720
 
 PLUGINS = [
     ("nitrado/hytale-plugin-webserver", "nitrado-webserver", ".jar"),
@@ -79,11 +78,33 @@ def _pick_unique_webserver_port(server_dir: str) -> int:
     return WEBSERVER_PORT_BASE
 
 
-def _ensure_webserver_config(server_dir: str, *, force_unique: bool = False) -> None:
+NITRADO_OFFSET = 100  # webserver port = game_port + 100
+
+
+def set_webserver_port_from_game(server_dir: str, game_port: int) -> None:
+    """Set Nitrado WebServer BindPort to game_port + 100."""
+    ws_dir = os.path.join(server_dir, "mods", "Nitrado_WebServer")
+    if not os.path.isdir(ws_dir):
+        return
+    path = os.path.join(ws_dir, "config.json")
+    data = {}
+    if os.path.isfile(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            pass
+    data["BindPort"] = game_port + NITRADO_OFFSET
+    data.setdefault("BindHost", "0.0.0.0")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def _ensure_webserver_config(server_dir: str, *, force_unique: bool = False, game_port: Optional[int] = None) -> None:
     """
-    Ensure Nitrado_WebServer/config.json has a unique BindPort for this instance.
-    When force_unique=False (default): only set port if config is missing or has no BindPort.
-    When force_unique=True: always assign a unique port (for "Fix port conflict" action).
+    Ensure Nitrado_WebServer/config.json has BindPort.
+    When game_port given: use game_port + 100.
+    Else: pick unique in 5620-5720 (100 ports away from default game 5520).
     """
     ws_dir = os.path.join(server_dir, "mods", "Nitrado_WebServer")
     os.makedirs(ws_dir, exist_ok=True)
@@ -95,8 +116,9 @@ def _ensure_webserver_config(server_dir: str, *, force_unique: bool = False) -> 
                 data = json.load(f)
         except Exception:
             pass
-    if force_unique or data.get("BindPort") is None:
-        data["BindPort"] = _pick_unique_webserver_port(server_dir)
+    if force_unique or data.get("BindPort") is None or game_port is not None:
+        port = (game_port + NITRADO_OFFSET) if game_port is not None else _pick_unique_webserver_port(server_dir)
+        data["BindPort"] = port
         data.setdefault("BindHost", "0.0.0.0")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
