@@ -15,6 +15,7 @@ import time
 from typing import Callable, Optional
 
 from config import SERVER_DIR, SERVER_JAR
+from services.settings import get_active_instance
 from utils.paths import resolve_instance
 
 
@@ -23,6 +24,7 @@ _server_thread: Optional[threading.Thread] = None
 _server_start_time: Optional[float] = None
 _last_exit_time: Optional[float] = None
 _last_exit_code: Optional[int] = None
+_running_instance: Optional[str] = None  # instance name when server was started
 
 
 def is_installed() -> bool:
@@ -43,6 +45,11 @@ def get_uptime_seconds() -> Optional[float]:
 def get_last_exit_info() -> tuple[Optional[float], Optional[int]]:
     """(timestamp_float, exit_code) of the last server exit, or (None, None)."""
     return (_last_exit_time, _last_exit_code)
+
+
+def get_running_instance() -> Optional[str]:
+    """Instance name of the currently running server, or None if not running."""
+    return _running_instance if is_running() else None
 
 
 def get_resource_usage() -> tuple[Optional[float], Optional[float]]:
@@ -141,7 +148,7 @@ def start(
     on_output: Optional[Callable[[str], None]] = None,
     on_done: Optional[Callable[[int], None]] = None,
 ) -> Optional[threading.Thread]:
-    global _server_process, _server_thread
+    global _server_process, _server_thread, _running_instance
 
     if is_running():
         if on_output:
@@ -167,8 +174,10 @@ def start(
             on_done(-1)
         return None
 
+    _running_instance = get_active_instance() or None
+
     def _worker():
-        global _server_process, _server_start_time, _last_exit_time, _last_exit_code
+        global _server_process, _server_start_time, _last_exit_time, _last_exit_code, _running_instance
         rc = 0
 
         while True:
@@ -225,6 +234,7 @@ def start(
         _last_exit_time = time.time()
         _last_exit_code = rc
         _server_process = None
+        _running_instance = None
         if on_done:
             on_done(rc)
 

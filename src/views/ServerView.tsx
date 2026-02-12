@@ -8,15 +8,22 @@ import {
   useStartServer,
   useStopServer,
 } from "@/api/hooks/useServer";
+import { useSettings } from "@/api/hooks/useSettings";
 import { subscribeSSE } from "@/api/client";
 
 const AUTH_NEEDED = /no server tokens configured/i;
 const AUTH_ALREADY_LOADED = /token refresh scheduled|session service client initialized/i;
 
 export function ServerView() {
+  const { data: settings } = useSettings();
   const { data: status } = useServerStatus();
   const startServer = useStartServer();
   const stopServer = useStopServer();
+
+  const activeInstance = settings?.active_instance ?? "";
+  const runningInstance = status?.running_instance ?? null;
+  const viewingRunningInstance =
+    !!activeInstance && activeInstance === runningInstance;
 
   const [lines, setLines] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
@@ -99,12 +106,19 @@ export function ServerView() {
     });
   }, []);
 
-  // Auto-connect when server becomes running
+  // When switching instances: disconnect and clear console
   useEffect(() => {
-    if (running && !connected) {
+    if (abortRef.current) abortRef.current();
+    setLines([]);
+    setConnected(false);
+  }, [activeInstance]);
+
+  // Auto-connect when viewing the running instance and server is running
+  useEffect(() => {
+    if (viewingRunningInstance && running && !connected) {
       connectConsole();
     }
-  }, [running, connected, connectConsole]);
+  }, [viewingRunningInstance, running, connected, connectConsole]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -139,6 +153,13 @@ export function ServerView() {
         />
       </div>
 
+      {running && !viewingRunningInstance && runningInstance && (
+        <p className="mb-4 rounded-md bg-muted px-4 py-2 text-sm text-muted-foreground">
+          Instance <strong>{runningInstance}</strong> is running. Switch to it in
+          the sidebar to view its console.
+        </p>
+      )}
+
       {/* Controls */}
       <div className="flex gap-3 mb-4">
         <Button
@@ -165,7 +186,7 @@ export function ServerView() {
       {/* Console */}
       <ServerConsole
         lines={lines}
-        running={running}
+        running={viewingRunningInstance && running}
         className="flex-1 min-h-0"
       />
 
