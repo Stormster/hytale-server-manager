@@ -23,6 +23,7 @@ export function useCreateBackup() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["backups"] });
+      qc.invalidateQueries({ queryKey: ["instances"] });
     },
   });
 }
@@ -59,6 +60,7 @@ export function useDeleteBackup() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["backups"] });
+      qc.invalidateQueries({ queryKey: ["instances"] });
     },
   });
 }

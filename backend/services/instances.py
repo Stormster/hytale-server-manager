@@ -2,9 +2,12 @@
 Server instance management – list, create, import, delete.
 """
 
+import json
 import os
 import re
 import shutil
+from datetime import datetime
+
 from services import settings
 
 
@@ -85,6 +88,69 @@ def list_instances() -> list[dict]:
         except Exception:
             pass
 
+        # Last backup: most recent from manager (instance/backups) or Hytale native (Server/backups/*.zip)
+        last_backup_created = None
+        best_created = None
+
+        # 1) Manager backups: instance/backups/ folders with backup_info.json or folder ctime
+        manager_backup_dir = os.path.join(full, "backups")
+        if os.path.isdir(manager_backup_dir):
+            meta_file = "backup_info.json"
+            for sub in os.listdir(manager_backup_dir):
+                sub_path = os.path.join(manager_backup_dir, sub)
+                if not os.path.isdir(sub_path):
+                    continue
+                meta = os.path.join(sub_path, meta_file)
+                try:
+                    if os.path.isfile(meta):
+                        with open(meta, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        ts = data.get("created")
+                        if ts is not None:
+                            try:
+                                if isinstance(ts, (int, float)):
+                                    dt = datetime.fromtimestamp(ts)
+                                else:
+                                    s = str(ts).strip()
+                                    dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+                                if best_created is None or dt > best_created:
+                                    best_created = dt
+                            except (ValueError, OSError):
+                                pass
+                    else:
+                        ctime = os.path.getctime(sub_path)
+                        dt = datetime.fromtimestamp(ctime)
+                        if best_created is None or dt > best_created:
+                            best_created = dt
+                except Exception:
+                    pass
+
+        # 2) Hytale native backups: Server/backups/*.zip and Server/backups/archive/*.zip
+        def scan_zip_backups(dir_path: str) -> None:
+            nonlocal best_created
+            if not os.path.isdir(dir_path):
+                return
+            for name in os.listdir(dir_path):
+                if not name.endswith(".zip"):
+                    continue
+                zip_path = os.path.join(dir_path, name)
+                if not os.path.isfile(zip_path):
+                    continue
+                try:
+                    mtime = os.path.getmtime(zip_path)
+                    dt = datetime.fromtimestamp(mtime)
+                    if best_created is None or dt > best_created:
+                        best_created = dt
+                except Exception:
+                    pass
+
+        server_backup_dir = os.path.join(full, "Server", "backups")
+        scan_zip_backups(server_backup_dir)
+        scan_zip_backups(os.path.join(server_backup_dir, "archive"))
+
+        if best_created:
+            last_backup_created = best_created.isoformat()
+
         instances.append({
             "name": name,
             "installed": installed,
@@ -92,6 +158,7 @@ def list_instances() -> list[dict]:
             "patchline": patchline,
             "game_port": game_port,
             "webserver_port": webserver_port,
+            "last_backup_created": last_backup_created,
         })
 
     return instances

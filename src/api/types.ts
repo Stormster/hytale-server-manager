@@ -13,6 +13,7 @@ export interface Instance {
   patchline: string;
   game_port?: number;
   webserver_port?: number;
+  last_backup_created?: string | null;
 }
 
 // ---- Server ----

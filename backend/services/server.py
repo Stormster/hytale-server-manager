@@ -361,6 +361,12 @@ def send_command(text: str, instance_name: Optional[str] = None) -> bool:
         return False
 
 
+def stop_all() -> None:
+    """Stop all running server instances."""
+    for name in list(get_running_instances()):
+        stop(instance_name=name)
+
+
 def stop(instance_name: Optional[str] = None) -> None:
     """Stop server. If instance_name None, stop active instance's server."""
     inst = instance_name or get_active_instance()
