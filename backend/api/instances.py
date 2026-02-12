@@ -29,6 +29,10 @@ class RenameInstanceRequest(BaseModel):
     new_name: str
 
 
+class ReorderInstancesRequest(BaseModel):
+    names: list[str]
+
+
 @router.get("")
 def list_instances():
     return inst_svc.list_instances()
@@ -68,6 +72,16 @@ def delete_instance(name: str, delete_files: bool = True):
 def rename_instance(name: str, body: RenameInstanceRequest):
     try:
         return inst_svc.rename_instance(name, body.new_name.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.put("/reorder")
+def reorder_instances(body: ReorderInstancesRequest):
+    """Set the display order of instances."""
+    try:
+        inst_svc.reorder_instances(body.names)
+        return {"ok": True}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

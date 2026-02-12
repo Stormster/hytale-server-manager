@@ -51,7 +51,7 @@ export function AppSidebar({
   onManageInstances,
 }: AppSidebarProps) {
   return (
-    <aside className="relative z-20 flex h-full w-[200px] flex-col border-r border-white/10 bg-card/80 backdrop-blur-md">
+    <aside className="relative z-20 flex h-full w-[260px] flex-col border-r border-white/10 bg-card/80 backdrop-blur-md">
       <InstanceSwitcher
         onAddServer={onAddServer}
         onImportServer={onImportServer}
