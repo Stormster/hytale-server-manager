@@ -4,8 +4,12 @@ output back through callbacks.
 """
 
 import subprocess
+import sys
 import threading
 from typing import Callable, Optional
+
+# Hide console window on Windows when spawning child processes (e.g. Hytale downloader)
+_CREATION_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
 
 
 def run_in_thread(
@@ -15,8 +19,10 @@ def run_in_thread(
     on_done: Optional[Callable[[int], None]] = None,
     *,
     shell: bool = False,
-    creationflags: int = 0,
+    creationflags: int | None = None,
 ) -> threading.Thread:
+    flags = creationflags if creationflags is not None else _CREATION_FLAGS
+
     def _worker():
         try:
             proc = subprocess.Popen(
@@ -26,7 +32,7 @@ def run_in_thread(
                 stderr=subprocess.STDOUT,
                 text=True,
                 shell=shell,
-                creationflags=creationflags,
+                creationflags=flags,
             )
             if on_output and proc.stdout:
                 for line in proc.stdout:
@@ -64,6 +70,7 @@ def run_capture(
             text=True,
             timeout=timeout,
             shell=shell,
+            creationflags=_CREATION_FLAGS,
         )
         return result.returncode, result.stdout.strip()
     except subprocess.TimeoutExpired:

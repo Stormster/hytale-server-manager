@@ -1,15 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { LogConsole } from "@/components/LogConsole";
+import { AuthFlowDisplay } from "@/components/AuthFlowDisplay";
 import { InfoRow } from "@/components/InfoRow";
 import { FolderOpen, ServerCog } from "lucide-react";
 import { useAuthStatus, useInvalidateAuth } from "@/api/hooks/useAuth";
 import { useAppInfo, useManagerUpdate } from "@/api/hooks/useInfo";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 import { subscribeSSE } from "@/api/client";
+import { parseAuthOutput } from "@/lib/authOutput";
 
 interface SettingsViewProps {
   onManageInstance?: () => void;
@@ -25,6 +26,8 @@ export function SettingsView({ onManageInstance }: SettingsViewProps) {
 
   const [authRunning, setAuthRunning] = useState(false);
   const [authLines, setAuthLines] = useState<string[]>([]);
+  const authLinesRef = useRef<string[]>([]);
+  const autoOpenedRef = useRef(false);
   const [rootDir, setRootDir] = useState("");
 
   // Initialize rootDir from settings
@@ -36,6 +39,8 @@ export function SettingsView({ onManageInstance }: SettingsViewProps) {
   const handleRefreshAuth = useCallback(() => {
     setAuthRunning(true);
     setAuthLines([]);
+    authLinesRef.current = [];
+    autoOpenedRef.current = false;
 
     subscribeSSE(
       "/api/auth/refresh",
@@ -43,7 +48,23 @@ export function SettingsView({ onManageInstance }: SettingsViewProps) {
         onEvent(event, data) {
           const d = data as Record<string, unknown>;
           if (event === "output") {
-            setAuthLines((prev) => [...prev, d.line as string]);
+            const line = d.line as string;
+            authLinesRef.current = [...authLinesRef.current, line];
+            setAuthLines(authLinesRef.current);
+            if (!autoOpenedRef.current) {
+              const { authUrl } = parseAuthOutput(authLinesRef.current);
+              if (authUrl) {
+                autoOpenedRef.current = true;
+                import("@tauri-apps/plugin-opener")
+                  .then(({ openUrl }) => openUrl(authUrl))
+                  .catch(() =>
+                    import("@tauri-apps/plugin-shell").then(({ open }) =>
+                      open(authUrl)
+                    )
+                  )
+                  .catch(() => {});
+              }
+            }
           } else if (event === "done") {
             const code = d.code as number;
             if (code === 0) {
@@ -174,7 +195,7 @@ export function SettingsView({ onManageInstance }: SettingsViewProps) {
             {authRunning ? "Authenticating..." : "Refresh Auth"}
           </Button>
           {authLines.length > 0 && (
-            <LogConsole lines={authLines} className="h-[140px]" />
+            <AuthFlowDisplay lines={authLines} className="space-y-3" />
           )}
         </CardContent>
       </Card>
