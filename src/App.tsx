@@ -64,7 +64,16 @@ export default function App() {
           } catch {
             // Backend unreachable or not ready – close anyway
           }
-          await win.destroy();
+          try {
+            await win.destroy();
+          } catch {
+            // destroy() failed – try close() as fallback
+            try {
+              await win.close();
+            } catch {
+              // Give up; Tauri RunEvent::ExitRequested will clean up
+            }
+          }
         });
       } catch {
         // Not in Tauri (browser dev)
