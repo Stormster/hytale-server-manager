@@ -4,10 +4,14 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-destroy",
+    "core:window:allow-close",
     "dialog:default",
     "dialog:allow-open",
     "shell:allow-open",
-    "shell:default","opener:allow-open-path","opener:allow-open-url",
+    "shell:default",
+    "opener:allow-open-path",
+    "opener:allow-open-url",
     {
       "identifier": "shell:allow-execute",
       "allow": [
