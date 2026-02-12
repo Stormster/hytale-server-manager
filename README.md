@@ -1,6 +1,6 @@
 # Hytale Server Manager
 
-A modern desktop application for managing your Hytale dedicated server. Built by HytaleLife.com.
+A modern desktop application for managing your Hytale dedicated server. Built by HytaleManager.com.
 
 ## Architecture
 
@@ -95,4 +95,4 @@ npm run tauri build
 ## Support
 
 - Report issues on GitHub Issues
-- https://HytaleLife.com/issues
+- https://HytaleManager.com/issues

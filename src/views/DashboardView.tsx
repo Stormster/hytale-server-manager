@@ -136,7 +136,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       )}
 
       <p className="text-xs text-muted-foreground">
-        Report issues: {appInfo?.report_url ?? "https://HytaleLife.com/issues"}
+        Report issues: {appInfo?.report_url ?? "https://HytaleManager.com/issues"}
       </p>
     </div>
   );

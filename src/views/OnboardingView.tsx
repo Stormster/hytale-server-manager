@@ -41,8 +41,12 @@ export function OnboardingView() {
   };
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-lg">
+    <div className="relative flex h-screen w-screen items-center justify-center p-6">
+      <div className="hytale-bg">
+        <div className="hytale-bg-image" />
+        <div className="hytale-bg-overlay" />
+      </div>
+      <Card className="relative w-full max-w-lg">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">
             Welcome to Hytale Server Manager
