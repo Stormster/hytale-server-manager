@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { AppSidebar, type ViewName } from "@/components/AppSidebar";
 import { DashboardView } from "@/views/DashboardView";
-import { InstancesView } from "@/views/InstancesView";
-import { InstanceSettingsView } from "@/views/InstanceSettingsView";
 import { ServerView } from "@/views/ServerView";
 import { UpdateView } from "@/views/UpdateView";
 import { BackupView } from "@/views/BackupView";
@@ -11,6 +9,8 @@ import { SettingsView } from "@/views/SettingsView";
 import { OnboardingView } from "@/views/OnboardingView";
 import { AddServerDialog } from "@/components/AddServerDialog";
 import { ImportServerDialog } from "@/components/ImportServerDialog";
+import { InstancesModal } from "@/components/InstancesModal";
+import { InstanceSettingsModal } from "@/components/InstanceSettingsModal";
 import { useSettings } from "@/api/hooks/useSettings";
 
 export default function App() {
@@ -18,6 +18,8 @@ export default function App() {
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [manageInstancesOpen, setManageInstancesOpen] = useState(false);
+  const [manageInstanceOpen, setManageInstanceOpen] = useState(false);
 
   // Show loading while settings are being fetched
   if (isLoading) {
@@ -44,27 +46,33 @@ export default function App() {
         onNavigate={handleNavigate}
         onAddServer={() => setAddOpen(true)}
         onImportServer={() => setImportOpen(true)}
+        onManageInstances={() => setManageInstancesOpen(true)}
       />
       <main className="flex-1 overflow-y-auto">
         {activeView === "dashboard" && (
           <DashboardView onNavigate={handleNavigate} />
         )}
-        {activeView === "instances" && (
-          <InstancesView
-            onAddServer={() => setAddOpen(true)}
-            onImportServer={() => setImportOpen(true)}
-          />
-        )}
-        {activeView === "instance-settings" && <InstanceSettingsView />}
         {activeView === "server" && <ServerView />}
         {activeView === "updates" && <UpdateView />}
         {activeView === "backups" && <BackupView />}
         {activeView === "config" && <ConfigView />}
-        {activeView === "settings" && <SettingsView />}
+        {activeView === "settings" && (
+          <SettingsView onManageInstance={() => setManageInstanceOpen(true)} />
+        )}
       </main>
 
       <AddServerDialog open={addOpen} onOpenChange={setAddOpen} />
       <ImportServerDialog open={importOpen} onOpenChange={setImportOpen} />
+      <InstancesModal
+        open={manageInstancesOpen}
+        onOpenChange={setManageInstancesOpen}
+        onAddServer={() => setAddOpen(true)}
+        onImportServer={() => setImportOpen(true)}
+      />
+      <InstanceSettingsModal
+        open={manageInstanceOpen}
+        onOpenChange={setManageInstanceOpen}
+      />
     </div>
   );
 }

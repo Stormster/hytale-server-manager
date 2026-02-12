@@ -5,13 +5,17 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { LogConsole } from "@/components/LogConsole";
 import { InfoRow } from "@/components/InfoRow";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, ServerCog } from "lucide-react";
 import { useAuthStatus, useInvalidateAuth } from "@/api/hooks/useAuth";
 import { useAppInfo, useManagerUpdate } from "@/api/hooks/useInfo";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 import { subscribeSSE } from "@/api/client";
 
-export function SettingsView() {
+interface SettingsViewProps {
+  onManageInstance?: () => void;
+}
+
+export function SettingsView({ onManageInstance }: SettingsViewProps) {
   const { data: authStatus } = useAuthStatus();
   const { data: appInfo } = useAppInfo();
   const { data: managerUpdate } = useManagerUpdate();
@@ -87,6 +91,24 @@ export function SettingsView() {
   return (
     <div className="p-6 space-y-6 max-w-3xl">
       <h2 className="text-xl font-bold">Settings</h2>
+
+      {/* Manage instance card */}
+      {onManageInstance && settings?.active_instance && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Current Instance</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Rename, view location, or manage the active server instance.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={onManageInstance}>
+              <ServerCog className="mr-2 h-4 w-4" />
+              Manage instance
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Root directory card */}
       <Card>
