@@ -25,6 +25,14 @@ export interface ServerStatus {
   players: number | null;
 }
 
+// ---- Mods ----
+export interface Mod {
+  name: string;
+  path: string;
+  enabled: boolean;
+  required: boolean;
+}
+
 // ---- Updater ----
 export interface UpdaterLocalStatus {
   installed_version: string;

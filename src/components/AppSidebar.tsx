@@ -5,6 +5,7 @@ import {
   Archive,
   Settings,
   FileText,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InstanceSwitcher } from "@/components/InstanceSwitcher";
@@ -14,6 +15,7 @@ export type ViewName =
   | "server"
   | "updates"
   | "backups"
+  | "mods"
   | "config"
   | "settings";
 
@@ -28,6 +30,7 @@ const topNav: NavItem[] = [
   { name: "server", label: "Server", icon: Terminal },
   { name: "updates", label: "Updates", icon: Download },
   { name: "backups", label: "Backups", icon: Archive },
+  { name: "mods", label: "Mods", icon: Package },
   { name: "config", label: "Configuration", icon: FileText },
 ];
 

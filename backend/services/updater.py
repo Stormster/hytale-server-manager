@@ -17,6 +17,7 @@ from config import (
 from utils.paths import resolve_instance
 from services import downloader as dl
 from services import backup as bk
+from services import nitrado_plugins as nitrado
 
 
 def read_installed_version() -> str:
@@ -163,6 +164,8 @@ def perform_update(
                 on_status("Extracting update...")
             _extract_server_zip(zip_path, server_dir)
 
+            nitrado.install_nitrado_plugins(server_dir, on_status=on_status)
+
             _save_version(new_ver, patchline)
 
             if os.path.isfile(zip_path):
@@ -236,6 +239,8 @@ def perform_first_time_setup(
             server_dir = resolve_instance(SERVER_DIR)
             os.makedirs(server_dir, exist_ok=True)
             _extract_server_zip(zip_path, server_dir)
+
+            nitrado.install_nitrado_plugins(server_dir, on_status=on_status)
 
             _save_version(new_ver, patchline)
 

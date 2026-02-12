@@ -4,6 +4,7 @@ import { DashboardView } from "@/views/DashboardView";
 import { ServerView } from "@/views/ServerView";
 import { UpdateView } from "@/views/UpdateView";
 import { BackupView } from "@/views/BackupView";
+import { ModsView } from "@/views/ModsView";
 import { ConfigView } from "@/views/ConfigView";
 import { SettingsView } from "@/views/SettingsView";
 import { OnboardingView } from "@/views/OnboardingView";
@@ -69,6 +70,7 @@ export default function App() {
         {activeView === "server" && <ServerView />}
         {activeView === "updates" && <UpdateView />}
         {activeView === "backups" && <BackupView />}
+        {activeView === "mods" && <ModsView />}
         {activeView === "config" && <ConfigView />}
         {activeView === "settings" && <SettingsView />}
       </main>
