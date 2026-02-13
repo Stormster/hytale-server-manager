@@ -243,7 +243,7 @@ function SortableInstanceCard({
                         {serverStatus.players}
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1 text-muted-foreground/70" title="Player count from Nitrado Query. Ensure nitrado.query.web.read.basic is in ANONYMOUS (mods/Nitrado_WebServer/permissions.json)">
+                      <span className="flex items-center gap-1 text-muted-foreground/70" title="Player count from Nitrado Query. Not showing? Run Mods → Fix player count, or ensure Nitrado WebServer + Query plugins are installed.">
                         <Users className="h-3 w-3" />
                         —
                       </span>

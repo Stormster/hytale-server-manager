@@ -125,24 +125,28 @@ def _ensure_webserver_config(server_dir: str, *, force_unique: bool = False, gam
 
 
 def _ensure_query_permissions(server_dir: str) -> None:
-    """Create or merge permissions.json so ANONYMOUS can read Nitrado Query basic info."""
-    ws_dir = os.path.join(server_dir, "mods", "Nitrado_WebServer")
-    os.makedirs(ws_dir, exist_ok=True)
-    path = os.path.join(ws_dir, "permissions.json")
-    data = {"Groups": {}}
+    """Add nitrado.query.web.read.basic to ANONYMOUS in the Hytale server permissions.json.
+
+    The Hytale server stores permissions at ``server_dir/permissions.json`` (lowercase
+    ``"groups"`` key).  The Nitrado WebServer plugin checks the Hytale PermissionsModule
+    at runtime, so the permission must live here – not in the plugin's own folder.
+    """
+    path = os.path.join(server_dir, "permissions.json")
+    data: dict = {}
     if os.path.isfile(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception:
             pass
-    groups = data.setdefault("Groups", {})
-    anon = groups.setdefault("ANONYMOUS", [])
+
+    groups = data.setdefault("groups", {})
+    anon: list = groups.setdefault("ANONYMOUS", [])
     needed = "nitrado.query.web.read.basic"
     if needed not in anon:
         anon.append(needed)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
 
 
 def install_nitrado_plugins(
