@@ -3,7 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FolderOpen } from "lucide-react";
 import { useConfigFile, useSaveConfigFile, useLatestLog } from "@/api/hooks/useConfigFiles";
+import { useSettings } from "@/api/hooks/useSettings";
 
 const CONFIG_FILES = ["config.json", "whitelist.json", "bans.json"] as const;
 
@@ -12,6 +14,7 @@ export function ConfigView() {
   const [editorContent, setEditorContent] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
 
+  const { data: settings } = useSettings();
   const { data: fileData, isError, error } = useConfigFile(activeFile);
   const saveConfig = useSaveConfigFile();
   const latestLog = useLatestLog();
@@ -41,6 +44,27 @@ export function ConfigView() {
     );
   };
 
+  const activeInstance = settings?.active_instance;
+  const rootDir = (settings?.root_dir || "").replace(/[/\\]+$/, "");
+  const sep = rootDir.includes("\\") ? "\\" : "/";
+  const serverPath = activeInstance && rootDir ? [rootDir, activeInstance, "Server"].join(sep) : "";
+
+  const handleOpenFolder = async () => {
+    if (!serverPath) return;
+    try {
+      const { api } = await import("@/api/client");
+      await api<{ ok: boolean }>("/api/info/open-path", { method: "POST", body: JSON.stringify({ path: serverPath }) });
+    } catch {
+      try {
+        const { openPath } = await import("@tauri-apps/plugin-opener");
+        await openPath(serverPath);
+      } catch {
+        const { open } = await import("@tauri-apps/plugin-shell");
+        await open(`file:///${serverPath.replace(/\\/g, "/")}`);
+      }
+    }
+  };
+
   const handleViewLog = () => {
     latestLog.refetch().then(({ data }) => {
       if (data) {
@@ -55,7 +79,20 @@ export function ConfigView() {
 
   return (
     <div className="flex h-full flex-col p-6">
-      <h2 className="text-xl font-bold mb-4">Configuration</h2>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <h2 className="text-xl font-bold">Configuration</h2>
+        {serverPath && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-9 w-9 shrink-0"
+            onClick={handleOpenFolder}
+            title="Open Server folder in File Explorer"
+          >
+            <FolderOpen className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
 
       {/* Tab bar */}
       <div className="flex items-center justify-between mb-4">

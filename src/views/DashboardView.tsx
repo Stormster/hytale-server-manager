@@ -36,6 +36,7 @@ import {
   RotateCw,
   Archive,
   FileText,
+  FolderOpen,
   AlertTriangle,
   Cpu,
   HardDrive,
@@ -58,6 +59,7 @@ interface SortableInstanceCardProps {
   onRestart: (instanceName: string) => void;
   onCreateBackup: (instanceName: string) => void;
   onOpenLogs: (name: string) => void;
+  onOpenFolder: (name: string) => void;
   onInstall: () => void;
   onSelect: () => void;
   startServer: ReturnType<typeof useStartServer>;
@@ -76,6 +78,7 @@ function SortableInstanceCard({
   onRestart,
   onCreateBackup,
   onOpenLogs,
+  onOpenFolder,
   onInstall,
   onSelect,
   startServer,
@@ -280,6 +283,9 @@ function SortableInstanceCard({
                 <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onCreateBackup(inst.name)} disabled={createBackup.isPending} title="Backup now">
                   <Archive className="h-3.5 w-3.5" />
                 </Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onOpenFolder(inst.name)} title="Open in File Explorer">
+                  <FolderOpen className="h-3.5 w-3.5" />
+                </Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onOpenLogs(inst.name)} title="Open logs">
                   <FileText className="h-3.5 w-3.5" />
                 </Button>
@@ -370,6 +376,24 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     }
   }, [activeInstance, serverStatus?.installed]);
 
+  const handleOpenFolder = async (instanceName: string) => {
+    if (!rootDir) return;
+    const sep = rootDir.includes("\\") ? "\\" : "/";
+    const path = [rootDir.replace(/[/\\]+$/, ""), instanceName].join(sep);
+    try {
+      const { api } = await import("@/api/client");
+      await api<{ ok: boolean }>("/api/info/open-path", { method: "POST", body: JSON.stringify({ path }) });
+    } catch {
+      try {
+        const { openPath } = await import("@tauri-apps/plugin-opener");
+        await openPath(path);
+      } catch {
+        const { open } = await import("@tauri-apps/plugin-shell");
+        await open(`file:///${path.replace(/\\/g, "/")}`);
+      }
+    }
+  };
+
   const handleOpenLogs = async (instanceName: string) => {
     if (!rootDir) return;
     const sep = rootDir.includes("\\") ? "\\" : "/";
@@ -438,6 +462,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   onRestart={handleRestart}
                   onCreateBackup={handleCreateBackup}
                   onOpenLogs={handleOpenLogs}
+                  onOpenFolder={handleOpenFolder}
                   onInstall={() => setInstallOpen(true)}
                   onSelect={() => setActive.mutate(inst.name)}
                   startServer={startServer}

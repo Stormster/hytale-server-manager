@@ -218,6 +218,7 @@ def _build_java_cmd(instance_name: str, game_port: int) -> Optional[list[str]]:
         "-jar", "HytaleServer.jar",
         "--assets", "../Assets.zip",
         "--bind", f"0.0.0.0:{game_port}",
+        "--accept-early-plugins",
     ])
     return args
 
