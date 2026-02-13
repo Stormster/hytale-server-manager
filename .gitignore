@@ -54,3 +54,4 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 server info/config.json
+server info/output.txt
