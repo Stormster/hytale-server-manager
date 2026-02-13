@@ -12,12 +12,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { FolderOpen, Pencil, Folder } from "lucide-react";
+import { FolderOpen, Pencil, Folder, Wrench } from "lucide-react";
 import { useAuthStatus, useInvalidateAuth } from "@/api/hooks/useAuth";
 import { useAppInfo, useManagerUpdate } from "@/api/hooks/useInfo";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 import { useInstances, useRenameInstance } from "@/api/hooks/useInstances";
-import { subscribeSSE } from "@/api/client";
+import { useServerStatus } from "@/api/hooks/useServer";
+import { useQueryClient } from "@tanstack/react-query";
+import { subscribeSSE, api } from "@/api/client";
 import { parseAuthOutput } from "@/lib/authOutput";
 
 export function SettingsView() {
@@ -26,6 +28,8 @@ export function SettingsView() {
   const { data: managerUpdate } = useManagerUpdate();
   const { data: settings } = useSettings();
   const { data: instances } = useInstances();
+  const { data: serverStatus } = useServerStatus();
+  const queryClient = useQueryClient();
   const updateSettings = useUpdateSettings();
   const renameInstance = useRenameInstance();
   const invalidateAuth = useInvalidateAuth();
@@ -37,6 +41,10 @@ export function SettingsView() {
   const [rootDir, setRootDir] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+  const [fixingPerms, setFixingPerms] = useState(false);
+  const [fixingPort, setFixingPort] = useState(false);
+
+  const running = serverStatus?.running ?? false;
 
   const activeInstance = settings?.active_instance || "";
   const instance = instances?.find((i) => i.name === activeInstance);
@@ -143,6 +151,31 @@ export function SettingsView() {
   const handleRenameClick = () => {
     setRenameValue(activeInstance);
     setRenameOpen(true);
+  };
+
+  const handleEnsureQueryPermissions = async () => {
+    setFixingPerms(true);
+    try {
+      await api<{ ok: boolean }>("/api/mods/ensure-query-permissions", {
+        method: "POST",
+        body: "{}",
+      });
+    } finally {
+      setFixingPerms(false);
+    }
+  };
+
+  const handleEnsureWebserverPort = async () => {
+    setFixingPort(true);
+    try {
+      await api<{ ok: boolean }>("/api/mods/ensure-webserver-port", {
+        method: "POST",
+        body: "{}",
+      });
+      queryClient.invalidateQueries({ queryKey: ["mods"] });
+    } finally {
+      setFixingPort(false);
+    }
   };
 
   const handleRenameSubmit = () => {
@@ -269,6 +302,41 @@ export function SettingsView() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Nitrado plugins troubleshooting */}
+      {activeInstance && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Nitrado Plugins</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Fix common issues with Nitrado WebServer and Query plugins.
+            </p>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleEnsureWebserverPort}
+              disabled={running || fixingPort}
+              className="gap-2"
+              title="Assign a unique WebServer port. Use when switching instances to avoid port conflicts."
+            >
+              <Wrench className="h-4 w-4" />
+              {fixingPort ? "Updating..." : "Fix port conflict"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleEnsureQueryPermissions}
+              disabled={fixingPerms}
+              className="gap-2"
+              title="Add nitrado.query.web.read.basic to ANONYMOUS. Restart the server for changes to apply."
+            >
+              {fixingPerms ? "Updating..." : "Fix player count"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Auth card */}
       <Card>
