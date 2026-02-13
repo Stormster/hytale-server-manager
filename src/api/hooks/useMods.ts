@@ -14,6 +14,7 @@ export function useMods() {
     queryKey: ["mods", activeInstance],
     queryFn: () => api<ModsResponse>("/api/mods"),
     enabled: !!activeInstance,
+    refetchInterval: 5000, // Auto-refresh when mods are added/removed from folder
   });
 }
 

@@ -41,6 +41,12 @@ export interface ServerStatus {
 // ---- Mods ----
 export interface Mod {
   name: string;
+  /** Human-readable title from manifest.json (Group Name Version), fallback to filename */
+  displayName?: string;
+  /** Plugin data folder (Group_Name convention), e.g. Nitrado_WebServer */
+  dataFolder?: string;
+  /** Whether the data folder exists on disk (plugin has created it) */
+  dataFolderExists?: boolean;
   path: string;
   enabled: boolean;
   required: boolean;

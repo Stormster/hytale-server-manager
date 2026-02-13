@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { useMods, useToggleMod } from "@/api/hooks/useMods";
 import { useServerStatus } from "@/api/hooks/useServer";
 import { useSettings } from "@/api/hooks/useSettings";
-import { Lock, Download } from "lucide-react";
+import { Lock, Download, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
 
@@ -26,7 +26,34 @@ export function ModsView() {
   const [installing, setInstalling] = useState(false);
 
   const activeInstance = settings?.active_instance;
+  const rootDir = (settings?.root_dir || "").replace(/[/\\]+$/, "");
+  const sep = rootDir.includes("\\") ? "\\" : "/";
+  const modsPath = activeInstance && rootDir ? [rootDir, activeInstance, "Server", "mods"].join(sep) : "";
   const running = serverStatus?.running ?? false;
+
+  const openPathInExplorer = async (path: string) => {
+    if (!path) return;
+    try {
+      await api<{ ok: boolean }>("/api/info/open-path", { method: "POST", body: JSON.stringify({ path }) });
+    } catch {
+      try {
+        const { openPath } = await import("@tauri-apps/plugin-opener");
+        await openPath(path);
+      } catch {
+        const { open } = await import("@tauri-apps/plugin-shell");
+        await open(`file:///${path.replace(/\\/g, "/")}`);
+      }
+    }
+  };
+
+  const handleOpenFolder = () => openPathInExplorer(modsPath);
+
+  const getModFolderPath = (modPath: string) => {
+    if (!activeInstance || !rootDir) return "";
+    const dirPart = modPath.includes("/") ? modPath.replace(/\/[^/]*$/, "") : "mods";
+    const parts = dirPart.split("/");
+    return [rootDir, activeInstance, "Server", ...parts].join(sep);
+  };
   const mods = modsData?.mods ?? [];
   const missingRequired = !hasRequiredMods(mods);
 
@@ -56,7 +83,18 @@ export function ModsView() {
               : "Toggle mods on or off. Disabled mods are moved to a subfolder and not loaded."}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {activeInstance && modsPath && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9"
+              onClick={handleOpenFolder}
+              title="Open mods folder in File Explorer"
+            >
+              <FolderOpen className="h-4 w-4" />
+            </Button>
+          )}
           {activeInstance && missingRequired && (
             <Button
               size="sm"
@@ -99,7 +137,7 @@ export function ModsView() {
               <CardContent className="flex items-center justify-between gap-4 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium truncate">{mod.name}</span>
+                    <span className="font-medium truncate" title={mod.name}>{mod.displayName ?? mod.name}</span>
                     {mod.required && (
                       <span title="Required – cannot be disabled">
                         <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -108,23 +146,43 @@ export function ModsView() {
                   </div>
                   <span className="text-xs text-muted-foreground">
                     {mod.enabled ? "Enabled" : "Disabled"}
+                    {mod.dataFolder != null && (
+                      <>
+                        {" · "}
+                        <span title={mod.dataFolderExists ? "Folder exists" : "Plugin has not created this folder yet"}>
+                          mods/{mod.dataFolder}
+                          {!mod.dataFolderExists && " (—)"}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </div>
-                <Switch
-                  checked={mod.enabled}
-                  disabled={mod.required || running || toggleMod.isPending}
-                  onCheckedChange={(checked) => {
-                    if (mod.required) return;
-                    toggleMod.mutate({ path: mod.path, enabled: checked });
-                  }}
-                  title={
-                    mod.required
-                      ? "Required mod – cannot be disabled"
-                      : running
-                        ? "Stop the server first"
-                        : undefined
-                  }
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => openPathInExplorer(getModFolderPath(mod.path))}
+                    title="Open folder in File Explorer"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </Button>
+                  <Switch
+                    checked={mod.enabled}
+                    disabled={mod.required || running || toggleMod.isPending}
+                    onCheckedChange={(checked) => {
+                      if (mod.required) return;
+                      toggleMod.mutate({ path: mod.path, enabled: checked });
+                    }}
+                    title={
+                      mod.required
+                        ? "Required mod – cannot be disabled"
+                        : running
+                          ? "Stop the server first"
+                          : undefined
+                    }
+                  />
+                </div>
               </CardContent>
             </Card>
           ))}
