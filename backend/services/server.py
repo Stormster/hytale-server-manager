@@ -166,7 +166,6 @@ def get_resource_usage(instance_name: Optional[str] = None) -> tuple[Optional[fl
         mem = p.memory_info()
         ram_mb = (mem.rss or 0) / (1024 * 1024)
         cpu = p.cpu_percent(interval=None)
-        # Also sum children (Java may fork the JVM)
         try:
             for child in p.children(recursive=True):
                 try:
@@ -175,7 +174,10 @@ def get_resource_usage(instance_name: Optional[str] = None) -> tuple[Optional[fl
                     pass
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
-        return (round(ram_mb, 1), round(cpu, 1))
+        # Normalize: psutil reports 100% per core, so divide by core count for 0-100 scale
+        cores = psutil.cpu_count() or 1
+        cpu_normalized = min(100, round(cpu / cores))
+        return (int(round(ram_mb)), int(cpu_normalized))
     except (psutil.NoSuchProcess, psutil.AccessDenied, AttributeError):
         pass
     return (None, None)

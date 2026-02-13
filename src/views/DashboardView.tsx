@@ -153,39 +153,16 @@ function SortableInstanceCard({
               {inst.name}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {thisRunning && (() => {
-              const runInfo = runningInstances.find((r) => r.name === inst.name);
-              const ram = runInfo?.ram_mb ?? serverStatus?.ram_mb;
-              const cpu = runInfo?.cpu_percent ?? serverStatus?.cpu_percent;
-              return (ram != null || cpu != null) ? (
-                <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {ram != null && (
-                    <span className="flex items-center gap-0.5" title="RAM">
-                      <HardDrive className="h-3 w-3" />
-                      {ram} MB
-                    </span>
-                  )}
-                  {cpu != null && (
-                    <span className="flex items-center gap-0.5" title="CPU">
-                      <Cpu className="h-3 w-3" />
-                      {cpu}%
-                    </span>
-                  )}
-                </span>
-              ) : null;
-            })()}
-            <StatusBadge
-              text={
-                !thisInstalled
-                  ? "Not Installed"
-                  : thisRunning
-                    ? "Running"
-                    : "Stopped"
-              }
-              variant={statusVariant}
-            />
-          </div>
+          <StatusBadge
+            text={
+              !thisInstalled
+                ? "Not Installed"
+                : thisRunning
+                  ? "Running"
+                  : "Stopped"
+            }
+            variant={statusVariant}
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -542,7 +519,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           rel="noreferrer"
           className="text-foreground hover:underline"
         >
-          {appInfo?.report_url ?? "https://HytaleManager.com/issues"}
+          {(appInfo?.report_url ?? "https://HytaleManager.com/issues").replace(/^https?:\/\//, "")}
         </a>
       </p>
     </div>
