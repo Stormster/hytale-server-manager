@@ -2,8 +2,10 @@
 List and toggle mods/plugins. Disabled mods are moved to a 'disabled' subfolder.
 """
 
+import json
 import os
-from typing import Callable, Optional
+import zipfile
+from typing import Optional
 
 from config import SERVER_DIR
 from utils.paths import resolve_instance
@@ -11,6 +13,38 @@ from utils.paths import resolve_instance
 MODS_SUBFOLDERS = ("mods",)
 DISABLED_SUBFOLDER = "disabled"
 REQUIRED_PREFIXES = ("nitrado-webserver", "nitrado-query")
+
+
+def _get_manifest_meta(jar_path: str, filename: str) -> tuple[str, Optional[str]]:
+    """
+    Extract display name and data folder from manifest.json in the JAR.
+    Returns (display_name, data_folder).
+    - display_name: "Name Version by Group" (Group = author) or filename without .jar
+    - data_folder: "Group_Name" (Hytale convention for plugin data dirs) or None if no manifest
+    """
+    fallback = filename[:-4] if filename.lower().endswith(".jar") else filename
+    data_folder: Optional[str] = None
+    display_name = fallback
+    try:
+        with zipfile.ZipFile(jar_path, "r") as zf:
+            for candidate in ("manifest.json", "hytale-plugin.json", "mod.json"):
+                try:
+                    data = zf.read(candidate)
+                    manifest = json.loads(data.decode("utf-8"))
+                    group = manifest.get("Group", "").strip()
+                    name_val = manifest.get("Name", "").strip()
+                    version = manifest.get("Version", "").strip()
+                    if name_val:
+                        lead = f"{name_val} {version}".strip()
+                        display_name = f"{lead} by {group}" if group else lead
+                    if group and name_val:
+                        data_folder = f"{group}_{name_val}"
+                    break
+                except (KeyError, json.JSONDecodeError, UnicodeDecodeError):
+                    continue
+    except (zipfile.BadZipFile, OSError):
+        pass
+    return display_name, data_folder
 
 
 def _is_required(filename: str) -> bool:
@@ -41,24 +75,26 @@ def list_mods(server_dir: Optional[str] = None) -> list[dict]:
             full = os.path.join(base, name)
             if not os.path.isfile(full) or not name.lower().endswith(".jar"):
                 continue
-            result.append({
-                "name": name,
-                "path": os.path.join(sub, name),
-                "enabled": True,
-                "required": _is_required(name),
-            })
+            display_name, data_folder = _get_manifest_meta(full, name)
+            entry: dict = {"name": name, "displayName": display_name, "path": os.path.join(sub, name), "enabled": True, "required": _is_required(name)}
+            if data_folder is not None:
+                entry["dataFolder"] = data_folder
+                mods_dir = os.path.join(server_dir, "mods")
+                entry["dataFolderExists"] = os.path.isdir(os.path.join(mods_dir, data_folder))
+            result.append(entry)
 
         if os.path.isdir(disabled_dir):
             for name in os.listdir(disabled_dir):
                 full = os.path.join(disabled_dir, name)
                 if not os.path.isfile(full) or not name.lower().endswith(".jar"):
                     continue
-                result.append({
-                    "name": name,
-                    "path": os.path.join(sub, DISABLED_SUBFOLDER, name),
-                    "enabled": False,
-                                   "required": _is_required(name),
-                })
+                display_name, data_folder = _get_manifest_meta(full, name)
+                entry = {"name": name, "displayName": display_name, "path": os.path.join(sub, DISABLED_SUBFOLDER, name), "enabled": False, "required": _is_required(name)}
+                if data_folder is not None:
+                    entry["dataFolder"] = data_folder
+                    mods_dir = os.path.join(server_dir, "mods")
+                    entry["dataFolderExists"] = os.path.isdir(os.path.join(mods_dir, data_folder))
+                result.append(entry)
 
     result.sort(key=lambda m: (not m["enabled"], m["name"].lower()))
     return result
