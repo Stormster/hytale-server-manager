@@ -415,10 +415,14 @@ export function SettingsView() {
           <Separator className="my-3" />
 
           <p className="text-xs text-muted-foreground">
-            GitHub: github.com/{appInfo?.github_repo ?? "..."}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Issues: {appInfo?.report_url ?? "..."}
+            <a
+              href="https://github.com/Stormster/hytale-server-manager/issues"
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground hover:underline"
+            >
+              Report issues on GitHub
+            </a>
           </p>
         </CardContent>
       </Card>
