@@ -106,6 +106,8 @@ export interface AppInfo {
   has_downloader: boolean;
   github_repo: string;
   report_url: string;
+  /** True if Pro plugin loaded (plugins/pro_plugin.whl or .pyz present) */
+  pro_loaded?: boolean;
 }
 
 export interface ManagerUpdateInfo {

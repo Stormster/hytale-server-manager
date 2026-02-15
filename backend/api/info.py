@@ -23,6 +23,10 @@ router = APIRouter()
 @router.get("/info")
 def info():
     java_ok, java_version = check_java()
+    try:
+        from plugin_loader import pro_loaded
+    except ImportError:
+        pro_loaded = False
     return {
         "manager_version": MANAGER_VERSION,
         "java_ok": java_ok,
@@ -30,6 +34,7 @@ def info():
         "has_downloader": dl.has_downloader(),
         "github_repo": GITHUB_REPO,
         "report_url": REPORT_URL,
+        "pro_loaded": pro_loaded,
     }
 
 
