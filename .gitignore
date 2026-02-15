@@ -32,6 +32,13 @@ src-tauri/server-manager-backend-*.exe
 .cursor/
 *.code-workspace
 
+# ---- Pro plugin (private repo: hytale-server-manager-pro) ----
+# Never commit Pro implementation to public repo.
+backend/plugins/*.whl
+backend/plugins/*.pyz
+backend/pro_plugin/
+pro_plugin/
+
 # ---- Hytale runtime files (not source) ----
 Server/
 backups/
