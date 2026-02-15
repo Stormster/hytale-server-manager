@@ -2,9 +2,11 @@
 Info API routes – manager metadata, Java status, manager update check.
 """
 
+import json as _json
 import os
 import subprocess
 import sys
+import urllib.request
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -29,6 +31,17 @@ def info():
         "github_repo": GITHUB_REPO,
         "report_url": REPORT_URL,
     }
+
+
+@router.get("/info/public-ip")
+def public_ip():
+    """Fetch the machine's public IPv4 address (for server connection strings)."""
+    try:
+        with urllib.request.urlopen("https://api.ipify.org?format=json", timeout=5) as r:
+            data = _json.loads(r.read().decode())
+            return {"ip": data.get("ip", ""), "ok": True}
+    except Exception as e:
+        return {"ip": None, "ok": False, "error": str(e)}
 
 
 @router.get("/info/manager-update")
