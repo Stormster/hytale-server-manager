@@ -148,3 +148,17 @@ def set_instance_port(instance_name: str, game_port: int, webserver_port: int) -
     ports[instance_name] = {"game": game_port, "webserver": webserver_port}
     s["instance_ports"] = ports
     _save(s)
+
+
+# -- Pro / Patreon license ----------------------------------------------------
+
+def get_pro_license_key() -> str:
+    """Return the Pro plugin license key (from Patreon), or empty string."""
+    return load().get("pro_license_key", "")
+
+
+def set_pro_license_key(key: str) -> None:
+    """Store the Pro plugin license key. Restart app for plugin to pick it up."""
+    s = load()
+    s["pro_license_key"] = (key or "").strip()
+    _save(s)

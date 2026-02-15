@@ -20,6 +20,7 @@ def get_default_root_dir() -> str:
 
 class UpdateSettingsRequest(BaseModel):
     root_dir: Optional[str] = None
+    pro_license_key: Optional[str] = None
 
 
 @router.get("/settings")
@@ -35,4 +36,6 @@ def update_settings(body: UpdateSettingsRequest):
         path = os.path.abspath(body.root_dir)
         os.makedirs(path, exist_ok=True)
         settings.set_root_dir(path)
+    if body.pro_license_key is not None:
+        settings.set_pro_license_key(body.pro_license_key)
     return settings.get_all()
