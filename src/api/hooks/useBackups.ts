@@ -29,11 +29,16 @@ export function useCreateBackup() {
 }
 
 export function useRestoreBackup() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (folderName: string) =>
       api<{ ok: boolean }>(`/api/backups/${encodeURIComponent(folderName)}/restore`, {
         method: "POST",
       }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["backups"] });
+      qc.invalidateQueries({ queryKey: ["instances"] });
+    },
   });
 }
 

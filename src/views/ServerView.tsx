@@ -181,48 +181,16 @@ export function ServerView() {
   return (
     <div className="flex h-full flex-col p-6">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold">Server Console</h2>
-        <div className="flex flex-col items-end gap-2">
-          <StatusBadge
-            text={running ? "Running" : "Stopped"}
-            variant={running ? "ok" : "neutral"}
-          />
-          {installed && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-card/60 px-3 py-2 text-sm">
-              <span title="Uptime">
-                {formatUptime(displayRunInfo?.uptime_seconds ?? status?.uptime_seconds ?? null)}
-              </span>
-              <span className="flex items-center gap-1" title="RAM">
-                <HardDrive className="h-4 w-4" />
-                {displayRunInfo?.ram_mb ?? status?.ram_mb ?? 0} MB
-              </span>
-              <span className="flex items-center gap-1" title="CPU">
-                <Cpu className="h-4 w-4" />
-                {displayRunInfo?.cpu_percent ?? status?.cpu_percent ?? 0}%
-              </span>
-              <span className="flex items-center gap-1" title="Players">
-                <Users className="h-4 w-4" />
-                {status?.players ?? 0}
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1 px-2"
-                onClick={copyIp}
-                disabled={!publicIpData?.ip}
-                title="Copy public IP and port"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                Copy IP
-              </Button>
-            </div>
-          )}
-        </div>
+        <StatusBadge
+          text={running ? "Running" : "Stopped"}
+          variant={running ? "ok" : "neutral"}
+        />
       </div>
 
-      {/* Controls */}
-      <div className="flex gap-3 mb-4">
+      {/* Controls and stats on same row */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
         <Button
           onClick={handleStart}
           disabled={isActiveInstanceRunning || !installed}
@@ -242,6 +210,36 @@ export function ServerView() {
         >
           Clear Log
         </Button>
+        {installed && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-card/60 px-3 py-2 text-sm ml-auto">
+            <span title="Uptime">
+              {formatUptime(displayRunInfo?.uptime_seconds ?? status?.uptime_seconds ?? null)}
+            </span>
+            <span className="flex items-center gap-1" title="RAM">
+              <HardDrive className="h-4 w-4" />
+              {displayRunInfo?.ram_mb ?? status?.ram_mb ?? 0} MB
+            </span>
+            <span className="flex items-center gap-1" title="CPU">
+              <Cpu className="h-4 w-4" />
+              {displayRunInfo?.cpu_percent ?? status?.cpu_percent ?? 0}%
+            </span>
+            <span className="flex items-center gap-1" title="Players">
+              <Users className="h-4 w-4" />
+              {status?.players ?? 0}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 px-2"
+              onClick={copyIp}
+              disabled={!publicIpData?.ip}
+              title="Copy public IP and port"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy IP
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Console */}
