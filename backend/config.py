@@ -14,7 +14,7 @@ import os
 MANAGER_VERSION = "2.0.0"
 APP_NAME = "Hytale Server Manager"
 GITHUB_REPO = "Stormster/hytale-server-manager"
-REPORT_URL = "https://HytaleManager.com/issues"
+REPORT_URL = "https://github.com/Stormster/hytale-server-manager/issues"
 
 # ---------------------------------------------------------------------------
 # Hytale downloader / server paths (relative names only)

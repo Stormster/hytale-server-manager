@@ -83,9 +83,14 @@ export function AppSidebar({
             onClick={() => onNavigate(item.name)}
           />
         ))}
-        <p className="px-3 py-2 text-[11px] text-muted-foreground">
-          HytaleManager.com
-        </p>
+        <a
+          href="https://github.com/Stormster/hytale-server-manager/issues"
+          target="_blank"
+          rel="noreferrer"
+          className="block px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+        >
+          Report issues
+        </a>
       </nav>
     </aside>
   );
