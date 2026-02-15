@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/sync-version.js && tsc -b && vite build",
+    "version:sync": "node scripts/sync-version.js",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
