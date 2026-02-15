@@ -22,7 +22,7 @@ import { useServerStatus, useStartServer, useStopServer } from "@/api/hooks/useS
 import { useInstances, useSetActiveInstance, useReorderInstances } from "@/api/hooks/useInstances";
 import { useCreateBackup } from "@/api/hooks/useBackups";
 import { useCheckUpdates } from "@/api/hooks/useUpdater";
-import { useAppInfo } from "@/api/hooks/useInfo";
+import { useAppInfo, usePublicIp } from "@/api/hooks/useInfo";
 import { useManagerUpdate } from "@/api/hooks/useInfo";
 import { useSettings } from "@/api/hooks/useSettings";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,8 +35,8 @@ import {
   GripVertical,
   RotateCw,
   Archive,
-  FileText,
   FolderOpen,
+  Copy,
   AlertTriangle,
   Cpu,
   HardDrive,
@@ -58,8 +58,8 @@ interface SortableInstanceCardProps {
   onNavigate: (view: ViewName) => void;
   onRestart: (instanceName: string) => void;
   onCreateBackup: (instanceName: string) => void;
-  onOpenLogs: (name: string) => void;
   onOpenFolder: (name: string) => void;
+  onCopyIp?: (gamePort: number) => void;
   onInstall: () => void;
   onSelect: () => void;
   startServer: ReturnType<typeof useStartServer>;
@@ -77,8 +77,8 @@ function SortableInstanceCard({
   onNavigate,
   onRestart,
   onCreateBackup,
-  onOpenLogs,
   onOpenFolder,
+  onCopyIp,
   onInstall,
   onSelect,
   startServer,
@@ -197,47 +197,36 @@ function SortableInstanceCard({
 
         {thisInstalled && (
           <div className="flex min-h-5 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {(isActive || thisRunning) && thisRunning ? (
-              (() => {
-                const runInfo = runningInstances.find((r) => r.name === inst.name);
-                return (
-                  <>
-                    <span title="Uptime">
-                      {formatUptime(runInfo?.uptime_seconds ?? serverStatus?.uptime_seconds ?? null)}
-                    </span>
-                    {(runInfo?.ram_mb ?? serverStatus?.ram_mb) != null && (
-                      <span className="flex items-center gap-1" title="RAM">
-                        <HardDrive className="h-3 w-3" />
-                        {runInfo?.ram_mb ?? serverStatus?.ram_mb} MB
-                      </span>
-                    )}
-                    {(runInfo?.cpu_percent ?? serverStatus?.cpu_percent) != null && (
-                      <span className="flex items-center gap-1" title="CPU">
-                        <Cpu className="h-3 w-3" />
-                        {runInfo?.cpu_percent ?? serverStatus?.cpu_percent}%
-                      </span>
-                    )}
-                    {serverStatus?.players != null ? (
-                      <span className="flex items-center gap-1" title="Players">
-                        <Users className="h-3 w-3" />
-                        {serverStatus.players}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-muted-foreground/70" title="Player count from Nitrado Query. Not showing? Run Mods → Fix player count, or ensure Nitrado WebServer + Query plugins are installed.">
-                        <Users className="h-3 w-3" />
-                        —
-                      </span>
-                    )}
-                  </>
-                );
-              })()
-            ) : (isActive || thisRunning) &&
-              serverStatus?.last_exit_code != null &&
-              serverStatus.last_exit_code !== 0 ? (
+            {(isActive || thisRunning) && serverStatus?.last_exit_code != null && serverStatus.last_exit_code !== 0 && !thisRunning ? (
               <span className="text-amber-400" title="Last exit">
                 Crashed {serverStatus.last_exit_time ? timeAgo(serverStatus.last_exit_time) : "recently"}
               </span>
-            ) : null}
+            ) : (
+              (() => {
+                const runInfo = runningInstances.find((r) => r.name === inst.name);
+                const uptime = runInfo?.uptime_seconds ?? serverStatus?.uptime_seconds;
+                const ram = runInfo?.ram_mb ?? serverStatus?.ram_mb;
+                const cpu = runInfo?.cpu_percent ?? serverStatus?.cpu_percent;
+                const players = thisRunning ? (serverStatus?.players ?? 0) : 0;
+                return (
+                  <>
+                    <span title="Uptime">{formatUptime(uptime ?? null)}</span>
+                    <span className="flex items-center gap-1" title="RAM">
+                      <HardDrive className="h-3 w-3" />
+                      {ram ?? 0} MB
+                    </span>
+                    <span className="flex items-center gap-1" title="CPU">
+                      <Cpu className="h-3 w-3" />
+                      {cpu ?? 0}%
+                    </span>
+                    <span className="flex items-center gap-1" title="Players">
+                      <Users className="h-3 w-3" />
+                      {players}
+                    </span>
+                  </>
+                );
+              })()
+            )}
           </div>
         )}
 
@@ -286,9 +275,17 @@ function SortableInstanceCard({
                 <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onOpenFolder(inst.name)} title="Open in File Explorer">
                   <FolderOpen className="h-3.5 w-3.5" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onOpenLogs(inst.name)} title="Open logs">
-                  <FileText className="h-3.5 w-3.5" />
-                </Button>
+                {thisRunning && onCopyIp && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => onCopyIp(runningInstances.find((r) => r.name === inst.name)?.game_port ?? inst.game_port ?? 5520)}
+                    title="Copy public IP and port"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
             </>
           ) : (
@@ -332,6 +329,23 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const running = serverStatus?.running ?? false;
   const activeInstance = settings?.active_instance || "None";
   const rootDir = (settings?.root_dir || "").replace(/[/\\]+$/, "");
+  const { data: publicIpData } = usePublicIp(running);
+
+  const handleCopyIp = async (gamePort: number) => {
+    const ip = publicIpData?.ip;
+    if (!ip) return;
+    const text = `${ip}:${gamePort}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -380,24 +394,6 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     if (!rootDir) return;
     const sep = rootDir.includes("\\") ? "\\" : "/";
     const path = [rootDir.replace(/[/\\]+$/, ""), instanceName].join(sep);
-    try {
-      const { api } = await import("@/api/client");
-      await api<{ ok: boolean }>("/api/info/open-path", { method: "POST", body: JSON.stringify({ path }) });
-    } catch {
-      try {
-        const { openPath } = await import("@tauri-apps/plugin-opener");
-        await openPath(path);
-      } catch {
-        const { open } = await import("@tauri-apps/plugin-shell");
-        await open(`file:///${path.replace(/\\/g, "/")}`);
-      }
-    }
-  };
-
-  const handleOpenLogs = async (instanceName: string) => {
-    if (!rootDir) return;
-    const sep = rootDir.includes("\\") ? "\\" : "/";
-    const path = [rootDir.replace(/[/\\]+$/, ""), instanceName, "Server", "logs"].join(sep);
     try {
       const { api } = await import("@/api/client");
       await api<{ ok: boolean }>("/api/info/open-path", { method: "POST", body: JSON.stringify({ path }) });
@@ -461,8 +457,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   onNavigate={onNavigate}
                   onRestart={handleRestart}
                   onCreateBackup={handleCreateBackup}
-                  onOpenLogs={handleOpenLogs}
                   onOpenFolder={handleOpenFolder}
+                  onCopyIp={handleCopyIp}
                   onInstall={() => setInstallOpen(true)}
                   onSelect={() => setActive.mutate(inst.name)}
                   startServer={startServer}
