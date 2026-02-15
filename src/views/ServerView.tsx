@@ -9,8 +9,10 @@ import {
   useStopServer,
 } from "@/api/hooks/useServer";
 import { useSettings } from "@/api/hooks/useSettings";
+import { usePublicIp } from "@/api/hooks/useInfo";
 import { subscribeSSE } from "@/api/client";
-import { HardDrive, Cpu } from "lucide-react";
+import { formatUptime } from "@/lib/timeAgo";
+import { HardDrive, Cpu, Users, Copy } from "lucide-react";
 
 const AUTH_NEEDED = /no server tokens configured/i;
 const AUTH_ALREADY_LOADED = /token refresh scheduled|session service client initialized/i;
@@ -40,6 +42,7 @@ export function ServerView() {
   linesRef.current = lines;
   const running = status?.running ?? false;
   const installed = status?.installed ?? false;
+  const { data: publicIpData } = usePublicIp(installed);
   const displayRunInfo = running
     ? runningInstances.find((r) => r.name === (viewingRunningInstance ? activeInstance : runningInstance))
     : null;
@@ -157,32 +160,64 @@ export function ServerView() {
     stopServer.mutate(toStop ?? undefined);
   };
 
+  const gamePort = displayRunInfo?.game_port ?? status?.running_instances?.[0]?.game_port ?? 5520;
+  const copyIp = async () => {
+    const ip = publicIpData?.ip;
+    if (!ip) return;
+    const text = `${ip}:${gamePort}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for non-HTTPS
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start justify-between mb-4">
         <h2 className="text-xl font-bold">Server Console</h2>
-        <div className="flex items-center gap-2">
-          {running && displayRunInfo && (
-            <>
-              {(displayRunInfo.ram_mb ?? status?.ram_mb) != null && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground" title="RAM">
-                  <HardDrive className="h-3.5 w-3.5" />
-                  {displayRunInfo.ram_mb ?? status?.ram_mb} MB
-                </span>
-              )}
-              {(displayRunInfo.cpu_percent ?? status?.cpu_percent) != null && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground" title="CPU">
-                  <Cpu className="h-3.5 w-3.5" />
-                  {displayRunInfo.cpu_percent ?? status?.cpu_percent}%
-                </span>
-              )}
-            </>
-          )}
+        <div className="flex flex-col items-end gap-2">
           <StatusBadge
             text={running ? "Running" : "Stopped"}
             variant={running ? "ok" : "neutral"}
           />
+          {installed && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-card/60 px-3 py-2 text-sm">
+              <span title="Uptime">
+                {formatUptime(displayRunInfo?.uptime_seconds ?? status?.uptime_seconds ?? null)}
+              </span>
+              <span className="flex items-center gap-1" title="RAM">
+                <HardDrive className="h-4 w-4" />
+                {displayRunInfo?.ram_mb ?? status?.ram_mb ?? 0} MB
+              </span>
+              <span className="flex items-center gap-1" title="CPU">
+                <Cpu className="h-4 w-4" />
+                {displayRunInfo?.cpu_percent ?? status?.cpu_percent ?? 0}%
+              </span>
+              <span className="flex items-center gap-1" title="Players">
+                <Users className="h-4 w-4" />
+                {status?.players ?? 0}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 px-2"
+                onClick={copyIp}
+                disabled={!publicIpData?.ip}
+                title="Copy public IP and port"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Copy IP
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
