@@ -533,14 +533,13 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       />
 
       <p className="text-xs text-muted-foreground">
-        Report issues:{" "}
         <a
-          href={appInfo?.report_url ?? "https://github.com/Stormster/hytale-server-manager/issues"}
+          href="https://github.com/Stormster/hytale-server-manager/issues"
           target="_blank"
           rel="noreferrer"
           className="text-foreground hover:underline"
         >
-          {(appInfo?.report_url ?? "https://github.com/Stormster/hytale-server-manager/issues").replace(/^https?:\/\//, "")}
+          Report issues on GitHub
         </a>
       </p>
     </div>
