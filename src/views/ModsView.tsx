@@ -86,13 +86,14 @@ export function ModsView() {
         <div className="flex shrink-0 items-center gap-2">
           {activeInstance && modsPath && (
             <Button
-              size="icon"
-              variant="ghost"
-              className="h-9 w-9"
+              size="sm"
+              variant="outline"
+              className="gap-2"
               onClick={handleOpenFolder}
               title="Open mods folder in File Explorer"
             >
               <FolderOpen className="h-4 w-4" />
+              View Mods Folder
             </Button>
           )}
           {activeInstance && missingRequired && (

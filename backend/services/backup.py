@@ -225,6 +225,7 @@ def restore_backup(entry: BackupEntry) -> None:
 
     server_dir = resolve_instance(SERVER_DIR)
     if os.path.isdir(server_dir):
+        create_backup(label="Pre-restore backup")
         shutil.rmtree(server_dir)
     shutil.copytree(os.path.join(entry.path, "Server"), server_dir)
 
