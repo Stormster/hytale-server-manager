@@ -3,21 +3,41 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FolderOpen } from "lucide-react";
-import { useConfigFile, useSaveConfigFile, useLatestLog } from "@/api/hooks/useConfigFiles";
+import { FolderOpen, Code, FormInput } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useConfigFile, useSaveConfigFile } from "@/api/hooks/useConfigFiles";
 import { useSettings } from "@/api/hooks/useSettings";
+import { ConfigEditor } from "@/components/config/ConfigEditor";
+import { WhitelistEditor } from "@/components/config/WhitelistEditor";
+import { BansEditor } from "@/components/config/BansEditor";
 
 const CONFIG_FILES = ["config.json", "whitelist.json", "bans.json"] as const;
+const TAB_LABELS: Record<string, string> = {
+  "config.json": "Config",
+  "whitelist.json": "Whitelist",
+  "bans.json": "Bans",
+};
+const FORM_EDITABLE_FILES = new Set(CONFIG_FILES);
 
 export function ConfigView() {
   const [activeFile, setActiveFile] = useState<string>("config.json");
   const [editorContent, setEditorContent] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
+  const [rawMode, setRawMode] = useState(false);
 
   const { data: settings } = useSettings();
-  const { data: fileData, isError, error } = useConfigFile(activeFile);
+  const { data: fileData, isError, error } = useConfigFile(activeFile || null);
   const saveConfig = useSaveConfigFile();
-  const latestLog = useLatestLog();
+
+  const isLogView = !activeFile;
+  const showFormEditor =
+    !isLogView &&
+    FORM_EDITABLE_FILES.has(activeFile as (typeof CONFIG_FILES)[number]) &&
+    !rawMode;
 
   // Sync editor when file data loads
   useEffect(() => {
@@ -35,6 +55,7 @@ export function ConfigView() {
   }, [isError, error, activeFile]);
 
   const handleSave = () => {
+    if (!activeFile) return;
     saveConfig.mutate(
       { filename: activeFile, content: editorContent },
       {
@@ -65,78 +86,119 @@ export function ConfigView() {
     }
   };
 
-  const handleViewLog = () => {
-    latestLog.refetch().then(({ data }) => {
-      if (data) {
-        setActiveFile(""); // deselect config tabs
-        setEditorContent(data.content);
-        setStatusMsg(`Viewing: ${data.filename}`);
-      }
-    }).catch((err) => {
-      setStatusMsg(`Error: ${err.message}`);
-    });
-  };
-
   return (
-    <div className="flex h-full flex-col p-6">
+    <div className="flex flex-col p-6">
       <div className="mb-4 flex items-start justify-between gap-4">
         <h2 className="text-xl font-bold">Configuration</h2>
         {serverPath && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-9 w-9 shrink-0"
-            onClick={handleOpenFolder}
-            title="Open Server folder in File Explorer"
-          >
-            <FolderOpen className="h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-9 w-9 shrink-0"
+                onClick={handleOpenFolder}
+              >
+                <FolderOpen className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Open Server folder in File Explorer</TooltipContent>
+          </Tooltip>
         )}
       </div>
 
       {/* Tab bar */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
         <Tabs
-          value={activeFile}
-          onValueChange={(v) => setActiveFile(v)}
+          value={activeFile || "none"}
+          onValueChange={(v) => v !== "none" && setActiveFile(v)}
         >
           <TabsList>
             {CONFIG_FILES.map((f) => (
               <TabsTrigger key={f} value={f}>
-                {f}
+                {TAB_LABELS[f] ?? f}
               </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
-        <Button variant="outline" size="sm" onClick={handleViewLog}>
-          View Latest Log
-        </Button>
+        <div className="flex items-center gap-2">
+          {!isLogView && FORM_EDITABLE_FILES.has(activeFile as (typeof CONFIG_FILES)[number]) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={rawMode ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setRawMode(!rawMode)}
+                >
+                  {rawMode ? <FormInput className="h-4 w-4 mr-1" /> : <Code className="h-4 w-4 mr-1" />}
+                  {rawMode ? "Form" : "Raw JSON"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{rawMode ? "Switch to form view" : "Edit as raw JSON"}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
       {/* Editor */}
-      <Card className="flex-1 min-h-0 flex flex-col">
-        <CardContent className="flex-1 flex flex-col pt-4 pb-4 gap-3">
-          <p className="text-xs text-muted-foreground">
-            {activeFile
-              ? `Editing: Server/${activeFile}`
-              : statusMsg || "Select a file above to edit"}
-          </p>
-          <Textarea
-            value={editorContent}
-            onChange={(e) => setEditorContent(e.target.value)}
-            className="flex-1 min-h-0 font-mono text-sm resize-none"
-            spellCheck={false}
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{statusMsg}</span>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={!activeFile || saveConfig.isPending}
-            >
-              {saveConfig.isPending ? "Saving..." : "Save"}
-            </Button>
-          </div>
+      <Card>
+        <CardContent className="flex flex-col pt-4 pb-4 gap-3">
+          {!activeFile && statusMsg && (
+            <p className="text-xs text-muted-foreground shrink-0">{statusMsg}</p>
+          )}
+
+          {showFormEditor ? (
+            <div>
+              {activeFile === "config.json" && (
+                <ConfigEditor
+                  content={editorContent}
+                  onChange={setEditorContent}
+                  statusMsg={statusMsg}
+                  onSave={handleSave}
+                  isSaving={saveConfig.isPending}
+                />
+              )}
+              {activeFile === "whitelist.json" && (
+                <WhitelistEditor
+                  content={editorContent}
+                  onChange={setEditorContent}
+                  statusMsg={statusMsg}
+                  onSave={handleSave}
+                  isSaving={saveConfig.isPending}
+                />
+              )}
+              {activeFile === "bans.json" && (
+                <BansEditor
+                  content={editorContent}
+                  onChange={setEditorContent}
+                  statusMsg={statusMsg}
+                  onSave={handleSave}
+                  isSaving={saveConfig.isPending}
+                />
+              )}
+            </div>
+          ) : (
+            <>
+              <Textarea
+                value={editorContent}
+                onChange={(e) => setEditorContent(e.target.value)}
+                className="min-h-48 font-mono text-sm resize-y"
+                spellCheck={false}
+              />
+              <div className="flex items-center justify-between shrink-0">
+                <span className="text-xs text-muted-foreground">{statusMsg}</span>
+                {!isLogView && (
+                  <Button
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={!activeFile || saveConfig.isPending}
+                  >
+                    {saveConfig.isPending ? "Saving..." : "Save"}
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

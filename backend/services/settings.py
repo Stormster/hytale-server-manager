@@ -7,6 +7,7 @@ This module intentionally has ZERO project imports to avoid circular dependencie
 
 import json
 import os
+from typing import Optional
 
 _SETTINGS_DIR = os.path.join(
     os.environ.get("APPDATA", os.path.expanduser("~")),
@@ -161,4 +162,46 @@ def set_pro_license_key(key: str) -> None:
     """Store the Pro plugin license key. Restart app for plugin to pick it up."""
     s = load()
     s["pro_license_key"] = (key or "").strip()
+    _save(s)
+
+
+# -- Instance server settings (RAM limits, startup args) ---------------------------------
+
+def get_instance_server_settings() -> dict:
+    """Return { instance_name: { ram_min_gb?, ram_max_gb?, startup_args? } }."""
+    return dict(load().get("instance_server_settings", {}))
+
+
+def get_instance_server_settings_for(instance_name: str) -> dict:
+    """Return server settings for one instance."""
+    all_settings = get_instance_server_settings()
+    return dict(all_settings.get(instance_name, {}))
+
+
+def set_instance_server_settings(instance_name: str, data: dict) -> None:
+    """Update server settings for an instance. Merges with existing."""
+    if not instance_name:
+        return
+    s = load()
+    all_settings = dict(s.get("instance_server_settings", {}))
+    current = dict(all_settings.get(instance_name, {}))
+
+    def _parse_gb(v) -> Optional[int]:
+        if v is None or v == "":
+            return None
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return None
+
+    if "ram_min_gb" in data:
+        current["ram_min_gb"] = _parse_gb(data["ram_min_gb"])
+    if "ram_max_gb" in data:
+        current["ram_max_gb"] = _parse_gb(data["ram_max_gb"])
+    if "startup_args" in data:
+        args = data["startup_args"]
+        current["startup_args"] = [str(a).strip() for a in (args or []) if str(a).strip()]
+
+    all_settings[instance_name] = current
+    s["instance_server_settings"] = all_settings
     _save(s)
