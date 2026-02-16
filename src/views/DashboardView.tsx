@@ -43,6 +43,11 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface DashboardViewProps {
   onNavigate: (view: ViewName) => void;
@@ -181,10 +186,23 @@ function SortableInstanceCard({
             )}
           </span>
           {thisInstalled && (
-            <span className="text-xs text-muted-foreground/80" title="Game port · Nitrado WebServer port">
-              Port {inst.game_port ?? 5520}
+            <span className="text-xs text-muted-foreground/80">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="cursor-default">Port {inst.game_port ?? 5520}</span>
+                </TooltipTrigger>
+                <TooltipContent>Game port</TooltipContent>
+              </Tooltip>
               {inst.webserver_port != null && (
-                <> · Web {inst.webserver_port}</>
+                <>
+                  <span className="text-muted-foreground/60"> · </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-default">Web {inst.webserver_port}</span>
+                    </TooltipTrigger>
+                    <TooltipContent>Nitrado WebServer port</TooltipContent>
+                  </Tooltip>
+                </>
               )}
             </span>
           )}
@@ -198,9 +216,14 @@ function SortableInstanceCard({
         {thisInstalled && (
           <div className="flex min-h-5 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {(isActive || thisRunning) && serverStatus?.last_exit_code != null && serverStatus.last_exit_code !== 0 && !thisRunning ? (
-              <span className="text-amber-400" title="Last exit">
-                Crashed {serverStatus.last_exit_time ? timeAgo(serverStatus.last_exit_time) : "recently"}
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-amber-400 cursor-default">
+                    Crashed {serverStatus.last_exit_time ? timeAgo(serverStatus.last_exit_time) : "recently"}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Last exit</TooltipContent>
+              </Tooltip>
             ) : (
               (() => {
                 const runInfo = runningInstances.find((r) => r.name === inst.name);
@@ -210,19 +233,37 @@ function SortableInstanceCard({
                 const players = thisRunning ? (serverStatus?.players ?? 0) : 0;
                 return (
                   <>
-                    <span title="Uptime">{formatUptime(uptime ?? null)}</span>
-                    <span className="flex items-center gap-1" title="RAM">
-                      <HardDrive className="h-3 w-3" />
-                      {ram ?? 0} MB
-                    </span>
-                    <span className="flex items-center gap-1" title="CPU">
-                      <Cpu className="h-3 w-3" />
-                      {cpu ?? 0}%
-                    </span>
-                    <span className="flex items-center gap-1" title="Players">
-                      <Users className="h-3 w-3" />
-                      {players}
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild><span className="cursor-default">{formatUptime(uptime ?? null)}</span></TooltipTrigger>
+                      <TooltipContent>Uptime</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex items-center gap-1 cursor-default">
+                          <HardDrive className="h-3 w-3" />
+                          {ram ?? 0} MB
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>RAM</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex items-center gap-1 cursor-default">
+                          <Cpu className="h-3 w-3" />
+                          {cpu ?? 0}%
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>CPU</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex items-center gap-1 cursor-default">
+                          <Users className="h-3 w-3" />
+                          {players}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>Players</TooltipContent>
+                    </Tooltip>
                   </>
                 );
               })()
@@ -266,25 +307,44 @@ function SortableInstanceCard({
                 {thisRunning ? "Stop" : "Start"}
               </Button>
               <div className="flex gap-1">
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onRestart(inst.name)} disabled={!thisRunning} title="Restart">
-                  <RotateCw className="h-3.5 w-3.5" />
-                </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onCreateBackup(inst.name)} disabled={createBackup.isPending} title="Backup now">
-                  <Archive className="h-3.5 w-3.5" />
-                </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onOpenFolder(inst.name)} title="Open in File Explorer">
-                  <FolderOpen className="h-3.5 w-3.5" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onRestart(inst.name)} disabled={!thisRunning}>
+                      <RotateCw className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Restart</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onCreateBackup(inst.name)} disabled={createBackup.isPending}>
+                      <Archive className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Backup now</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onOpenFolder(inst.name)}>
+                      <FolderOpen className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Open in File Explorer</TooltipContent>
+                </Tooltip>
                 {thisRunning && onCopyIp && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={() => onCopyIp(runningInstances.find((r) => r.name === inst.name)?.game_port ?? inst.game_port ?? 5520)}
-                    title="Copy public IP and port"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => onCopyIp(runningInstances.find((r) => r.name === inst.name)?.game_port ?? inst.game_port ?? 5520)}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copy public IP and port</TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             </>

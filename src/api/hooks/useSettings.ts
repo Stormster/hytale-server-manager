@@ -12,7 +12,11 @@ export function useSettings() {
 export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { root_dir?: string }) =>
+    mutationFn: (body: {
+      root_dir?: string;
+      instance_name?: string;
+      instance_server_settings?: Record<string, unknown>;
+    }) =>
       api<AppSettings>("/api/settings", {
         method: "PUT",
         body: JSON.stringify(body),

@@ -1,8 +1,15 @@
 // ---- Settings ----
+export interface InstanceServerSettings {
+  ram_min_gb?: number | null;
+  ram_max_gb?: number | null;
+  startup_args?: string[];
+}
+
 export interface AppSettings {
   root_dir: string;
   active_instance: string;
   default_root_dir?: string;
+  instance_server_settings?: Record<string, InstanceServerSettings>;
 }
 
 // ---- Instances ----
