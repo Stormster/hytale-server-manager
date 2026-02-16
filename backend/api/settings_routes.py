@@ -5,7 +5,7 @@ Settings API routes – read/write persistent app settings.
 import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 
 from services import settings
 
@@ -21,6 +21,8 @@ def get_default_root_dir() -> str:
 class UpdateSettingsRequest(BaseModel):
     root_dir: Optional[str] = None
     pro_license_key: Optional[str] = None
+    instance_name: Optional[str] = None
+    instance_server_settings: Optional[dict[str, Any]] = None
 
 
 @router.get("/settings")
@@ -38,4 +40,6 @@ def update_settings(body: UpdateSettingsRequest):
         settings.set_root_dir(path)
     if body.pro_license_key is not None:
         settings.set_pro_license_key(body.pro_license_key)
+    if body.instance_name and body.instance_server_settings is not None:
+        settings.set_instance_server_settings(body.instance_name, body.instance_server_settings)
     return settings.get_all()

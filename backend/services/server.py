@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from config import SERVER_DIR, SERVER_JAR
-from services.settings import get_active_instance
+from services.settings import get_active_instance, get_instance_server_settings_for
 from utils.paths import resolve_instance, resolve_instance_by_name
 
 
@@ -198,6 +198,7 @@ def get_players() -> Optional[int]:
 def _build_java_cmd(instance_name: str, game_port: int) -> Optional[list[str]]:
     """
     Build java command with --bind for the given instance and port.
+    Uses instance server settings for RAM limits and startup args if configured.
     Returns None if jar/assets not found.
     """
     from services.settings import get_root_dir
@@ -210,16 +211,30 @@ def _build_java_cmd(instance_name: str, game_port: int) -> Optional[list[str]]:
     assets_path = os.path.join(instance_dir, "Assets.zip")
     if not os.path.isfile(jar_path) or not os.path.isfile(assets_path):
         return None
+
+    svc = get_instance_server_settings_for(instance_name)
+    ram_min = svc.get("ram_min_gb")
+    ram_max = svc.get("ram_max_gb")
+    startup_args = list(svc.get("startup_args", []))
+
     aot = os.path.join(server_dir, "HytaleServer.aot")
     args = ["java"]
+
+    if ram_min is not None and ram_min > 0:
+        args.extend([f"-Xms{ram_min}G"])
+    if ram_max is not None and ram_max > 0:
+        args.extend([f"-Xmx{ram_max}G"])
+
     if os.path.isfile(aot):
         args.extend(["-XX:AOTCache=HytaleServer.aot"])
-    args.extend([
-        "-jar", "HytaleServer.jar",
-        "--assets", "../Assets.zip",
-        "--bind", f"0.0.0.0:{game_port}",
-        "--accept-early-plugins",
-    ])
+    args.extend(["-jar", "HytaleServer.jar"])
+    if "--assets" not in startup_args:
+        args.extend(["--assets", "../Assets.zip"])
+    args.extend(["--bind", f"0.0.0.0:{game_port}", "--accept-early-plugins"])
+
+    for a in startup_args:
+        if a:
+            args.extend(a.split())
     return args
 
 
