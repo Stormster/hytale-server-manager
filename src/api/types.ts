@@ -10,6 +10,7 @@ export interface AppSettings {
   active_instance: string;
   default_root_dir?: string;
   instance_server_settings?: Record<string, InstanceServerSettings>;
+  instance_ports?: Record<string, { game?: number; webserver?: number }>;
 }
 
 // ---- Instances ----

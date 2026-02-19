@@ -302,7 +302,7 @@ def start(
     game_port, webserver_port = assign_port_for_instance(inst)
     root = get_root_dir()
     server_dir = os.path.join(root, inst, "Server") if root else resolve_instance(SERVER_DIR)
-    set_webserver_port_from_game(server_dir, game_port)
+    set_webserver_port_from_game(server_dir, game_port, webserver_port)
 
     start_cmd = _build_java_cmd(inst, game_port)
     if not start_cmd:
