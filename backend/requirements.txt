@@ -4,3 +4,4 @@ requests>=2.31.0
 packaging>=23.0
 pyinstaller>=6.0.0
 psutil>=6.0.0
+miniupnpc>=2.2.0

@@ -56,6 +56,7 @@ def create_app():
     from api.auth import router as auth_router
     from api.info import router as info_router
     from api.settings_routes import router as settings_router
+    from api.upnp_routes import router as upnp_router
     from api.instances import router as instances_router
     from api.mods import router as mods_router
 
@@ -76,6 +77,7 @@ def create_app():
     app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
     app.include_router(info_router, prefix="/api", tags=["info"])
     app.include_router(settings_router, prefix="/api", tags=["settings"])
+    app.include_router(upnp_router, prefix="/api/upnp", tags=["upnp"])
     app.include_router(instances_router, prefix="/api/instances", tags=["instances"])
     app.include_router(mods_router, prefix="/api/mods", tags=["mods"])
 

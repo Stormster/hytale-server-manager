@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInstances } from "@/api/hooks/useInstances";
 import { api } from "@/api/client";
-import { Copy, Shield, Globe, Terminal, RefreshCw } from "lucide-react";
+import { Copy, Shield, Globe, Terminal, RefreshCw, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const GAME_PORT_DEFAULT = 5520;
@@ -43,6 +43,8 @@ export function PortForwardingView() {
   const { data: instances, isLoading } = useInstances();
   const [firewallStatus, setFirewallStatus] = useState<Record<string, boolean>>({});
   const [firewallChecking, setFirewallChecking] = useState(false);
+  const [upnpRunning, setUpnpRunning] = useState(false);
+  const [upnpResult, setUpnpResult] = useState<{ results: Record<string, boolean>; discovery_ok: boolean } | null>(null);
 
   const instancesWithPorts = (instances ?? []).map((inst) => ({
     name: inst.name,
@@ -76,6 +78,27 @@ export function PortForwardingView() {
 
   const isAllowed = (port: number, protocol: string) => firewallStatus[`${port}:${protocol}`] === true;
 
+  const tryUpnp = async () => {
+    if (instancesWithPorts.length === 0) return;
+    const ports = instancesWithPorts.flatMap((i) => [
+      { port: i.gamePort, protocol: "UDP" as const },
+      { port: i.webserverPort, protocol: "TCP" as const },
+    ]);
+    setUpnpRunning(true);
+    setUpnpResult(null);
+    try {
+      const res = await api<{ results: Record<string, boolean>; discovery_ok: boolean }>("/api/upnp/forward", {
+        method: "POST",
+        body: JSON.stringify({ ports }),
+      });
+      setUpnpResult(res);
+    } catch {
+      setUpnpResult({ results: {}, discovery_ok: false });
+    } finally {
+      setUpnpRunning(false);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col p-6">
       <div className="mb-6">
@@ -104,13 +127,62 @@ export function PortForwardingView() {
                   <strong className="text-foreground">Game port (UDP)</strong> — Players connect here. Hytale uses QUIC over UDP.
                 </li>
                 <li>
-                  <strong className="text-foreground">Nitrado web port (TCP)</strong> — Optional. Web admin panel.
+                  <strong className="text-foreground">Nitrado web port (TCP)</strong> — Optional web admin panel. Required for player counts and other stats.
                 </li>
               </ul>
               <p className="text-muted-foreground">
                 Forward both internal and external ports to the same numbers. Use your local IP (<code className="rounded bg-muted px-1">ipconfig</code> on Windows).
               </p>
             </CardContent>
+          </Card>
+
+          {/* UPnP automatic */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Zap className="h-4 w-4" />
+                  Try UPnP (automatic)
+                </CardTitle>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={tryUpnp}
+                  disabled={upnpRunning || instancesWithPorts.length === 0}
+                >
+                  {upnpRunning ? "Trying…" : "Try UPnP"}
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Ask your router to forward ports automatically via UPnP. Works only if UPnP is enabled on your router.
+              </p>
+            </CardHeader>
+            {upnpResult && (
+              <CardContent className="pt-0">
+                {upnpResult.discovery_ok ? (
+                  <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 p-3 text-sm">
+                    <p className="font-medium text-foreground mb-1">Router port forwarding added:</p>
+                    <ul className="text-muted-foreground space-y-0.5">
+                      {Object.entries(upnpResult.results)
+                        .filter(([, ok]) => ok)
+                        .map(([key]) => (
+                          <li key={key}>{key}</li>
+                        ))}
+                    </ul>
+                    {Object.entries(upnpResult.results).some(([, ok]) => !ok) && (
+                      <p className="mt-2 text-amber-500 text-xs">Some ports could not be added (may already be mapped).</p>
+                    )}
+                    <p className="mt-2 text-muted-foreground text-xs">
+                      You still need to allow these ports in Windows Firewall — see the commands below.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-600 dark:text-amber-400">
+                    No UPnP device found, or router rejected the request. Enable UPnP in your router settings, or use manual port forwarding below.
+                  </div>
+                )}
+              </CardContent>
+            )}
           </Card>
 
           {/* Instance ports */}
@@ -263,7 +335,7 @@ export function PortForwardingView() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Terminal className="h-4 w-4" />
-                Router port forwarding
+                Router port forwarding (manual)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
