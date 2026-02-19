@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInstances } from "@/api/hooks/useInstances";
-import { Copy, Shield, Globe, Terminal } from "lucide-react";
+import { api } from "@/api/client";
+import { Copy, Shield, Globe, Terminal, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const GAME_PORT_DEFAULT = 5520;
@@ -39,12 +41,40 @@ function Copyable({ text, children, className }: { text: string; children: React
 
 export function PortForwardingView() {
   const { data: instances, isLoading } = useInstances();
+  const [firewallStatus, setFirewallStatus] = useState<Record<string, boolean>>({});
+  const [firewallChecking, setFirewallChecking] = useState(false);
 
   const instancesWithPorts = (instances ?? []).map((inst) => ({
     name: inst.name,
     gamePort: inst.game_port ?? GAME_PORT_DEFAULT,
     webserverPort: inst.webserver_port ?? (inst.game_port ?? GAME_PORT_DEFAULT) + NITRADO_OFFSET,
   }));
+
+  const checkFirewall = async () => {
+    if (instancesWithPorts.length === 0) return;
+    const portsParam = instancesWithPorts
+      .flatMap((i) => [`${i.gamePort}:UDP`, `${i.webserverPort}:TCP`])
+      .join(",");
+    setFirewallChecking(true);
+    try {
+      const status = await api<Record<string, boolean>>(`/api/firewall-status?ports=${encodeURIComponent(portsParam)}`);
+      setFirewallStatus(status);
+    } catch {
+      setFirewallStatus({});
+    } finally {
+      setFirewallChecking(false);
+    }
+  };
+
+  const portsKey = instances
+    ?.map((i) => `${i.name}-${i.game_port ?? GAME_PORT_DEFAULT}-${i.webserver_port ?? (i.game_port ?? GAME_PORT_DEFAULT) + NITRADO_OFFSET}`)
+    .join("|") ?? "";
+  useEffect(() => {
+    if (instancesWithPorts.length > 0) checkFirewall();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- checkFirewall uses instancesWithPorts from closure
+  }, [portsKey]);
+
+  const isAllowed = (port: number, protocol: string) => firewallStatus[`${port}:${protocol}`] === true;
 
   return (
     <div className="flex h-full flex-col p-6">
@@ -112,6 +142,9 @@ export function PortForwardingView() {
                               {inst.gamePort}
                             </code>
                           </Copyable>
+                          {isAllowed(inst.gamePort, "UDP") && (
+                            <span className="text-[10px] text-emerald-500 font-medium">Allowed</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-muted-foreground">Nitrado web (TCP):</span>
@@ -120,6 +153,9 @@ export function PortForwardingView() {
                               {inst.webserverPort}
                             </code>
                           </Copyable>
+                          {isAllowed(inst.webserverPort, "TCP") && (
+                            <span className="text-[10px] text-emerald-500 font-medium">Allowed</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -132,10 +168,21 @@ export function PortForwardingView() {
           {/* Firewall commands */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Windows Firewall commands
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Windows Firewall commands
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={checkFirewall}
+                  disabled={firewallChecking || instancesWithPorts.length === 0}
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", firewallChecking && "animate-spin")} />
+                  Check firewall
+                </Button>
+              </div>
               <p className="text-sm text-muted-foreground">
                 Run PowerShell or Terminal <strong className="text-amber-500">as Administrator</strong>. Paste each command to allow the ports.
               </p>
@@ -150,19 +197,35 @@ export function PortForwardingView() {
                   return (
                     <div key={inst.name} className="space-y-2">
                       <h4 className="font-medium text-sm">{inst.name}</h4>
-                      <div className="space-y-2">
-                        <Copyable text={gameRule} className="block">
-                          <pre className="relative overflow-x-auto rounded-md bg-muted/80 px-3 py-2 pr-9 text-xs font-mono cursor-pointer hover:bg-muted">
-                            {gameRule}
-                            <Copy className="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-60" />
-                          </pre>
-                        </Copyable>
-                        <Copyable text={webRule} className="block">
-                          <pre className="relative overflow-x-auto rounded-md bg-muted/80 px-3 py-2 pr-9 text-xs font-mono cursor-pointer hover:bg-muted">
-                            {webRule}
-                            <Copy className="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-60" />
-                          </pre>
-                        </Copyable>
+                      <div className="space-y-3">
+                        <div>
+                          <Copyable text={gameRule} className="block">
+                            <pre className={cn(
+                              "relative overflow-x-auto rounded-md bg-muted/80 px-3 py-2 pr-9 text-xs font-mono cursor-pointer hover:bg-muted",
+                              isAllowed(inst.gamePort, "UDP") && "ring-1 ring-emerald-500/30"
+                            )}>
+                              {gameRule}
+                              <Copy className="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-60" />
+                            </pre>
+                          </Copyable>
+                          {isAllowed(inst.gamePort, "UDP") && (
+                            <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400/80">Already allowed</p>
+                          )}
+                        </div>
+                        <div>
+                          <Copyable text={webRule} className="block">
+                            <pre className={cn(
+                              "relative overflow-x-auto rounded-md bg-muted/80 px-3 py-2 pr-9 text-xs font-mono cursor-pointer hover:bg-muted",
+                              isAllowed(inst.webserverPort, "TCP") && "ring-1 ring-emerald-500/30"
+                            )}>
+                              {webRule}
+                              <Copy className="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-60" />
+                            </pre>
+                          </Copyable>
+                          {isAllowed(inst.webserverPort, "TCP") && (
+                            <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400/80">Already allowed</p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
