@@ -6,6 +6,7 @@ import { UpdateView } from "@/views/UpdateView";
 import { BackupView } from "@/views/BackupView";
 import { ModsView } from "@/views/ModsView";
 import { ConfigView } from "@/views/ConfigView";
+import { PortForwardingView } from "@/views/PortForwardingView";
 import { SettingsView } from "@/views/SettingsView";
 import { OnboardingView } from "@/views/OnboardingView";
 import { AuthRequiredView } from "@/views/AuthRequiredView";
@@ -131,6 +132,7 @@ export default function App() {
         {activeView === "backups" && <BackupView />}
         {activeView === "mods" && <ModsView />}
         {activeView === "config" && <ConfigView />}
+        {activeView === "port-forwarding" && <PortForwardingView />}
         {activeView === "settings" && <SettingsView />}
       </main>
 

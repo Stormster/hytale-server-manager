@@ -6,6 +6,7 @@ import {
   Settings,
   FileText,
   Package,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InstanceSwitcher } from "@/components/InstanceSwitcher";
@@ -17,6 +18,7 @@ export type ViewName =
   | "backups"
   | "mods"
   | "config"
+  | "port-forwarding"
   | "settings";
 
 interface NavItem {
@@ -32,6 +34,7 @@ const topNav: NavItem[] = [
   { name: "backups", label: "Backups", icon: Archive },
   { name: "mods", label: "Mods", icon: Package },
   { name: "config", label: "Configuration", icon: FileText },
+  { name: "port-forwarding", label: "Port Forwarding", icon: Shield },
 ];
 
 const bottomNav: NavItem[] = [
