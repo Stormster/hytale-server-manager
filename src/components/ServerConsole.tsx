@@ -1,39 +1,53 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
-import { List, ChevronDown, ChevronRight } from "lucide-react";
+import { List, ChevronDown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
 import { parseAnsi } from "@/lib/ansiParser";
-
-interface ConsoleCommand {
-  command: string;
-  hint?: string;
-  subCommands?: { command: string; hint?: string }[];
-}
-
-const CONSOLE_COMMANDS: ConsoleCommand[] = [
-  { command: "/ban ", hint: "(username)" },
-  { command: "/unban ", hint: "(username)" },
-  { command: "/kick ", hint: "(username)" },
-  { command: "/op ", hint: "(username)" },
-  { command: "/deop ", hint: "(username)" },
-  {
-    command: "/whitelist",
-    subCommands: [
-      { command: "/whitelist add ", hint: "(username)" },
-      { command: "/whitelist remove ", hint: "(username)" },
-      { command: "/whitelist enable" },
-      { command: "/whitelist disable" },
-      { command: "/whitelist list" },
-    ],
-  },
-  { command: "/mute ", hint: "(username)" },
-  { command: "/unmute ", hint: "(username)" },
-  { command: "/save" },
-  { command: "/stop" },
-];
+import { getAllCommandsSorted } from "@/lib/consoleCommands";
+import { useConsoleFavorites } from "@/lib/useConsoleFavorites";
 
 const URL_RE = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
 const SCROLL_AT_BOTTOM_THRESHOLD = 120;
+
+function CommandRow({
+  command,
+  hint,
+  isFavorite,
+  onInsert,
+  onToggleFavorite,
+}: {
+  command: string;
+  hint?: string;
+  isFavorite: boolean;
+  onInsert: () => void;
+  onToggleFavorite: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        className="shrink-0 p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-amber-400 transition-colors"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite();
+        }}
+        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+      >
+        <Star
+          className={cn("h-3.5 w-3.5", isFavorite && "fill-amber-500 text-amber-500")}
+        />
+      </button>
+      <button
+        type="button"
+        className="flex-1 min-w-0 px-2 py-1.5 text-left font-mono text-sm hover:bg-zinc-800"
+        onClick={onInsert}
+      >
+        {command.trim()}
+        {hint && <span className="text-zinc-500 ml-1">{hint}</span>}
+      </button>
+    </div>
+  );
+}
 
 function parseLineWithLinks(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
@@ -113,7 +127,7 @@ export function ServerConsole({
   const [command, setCommand] = useState("");
   const [helperText, setHelperText] = useState<string | null>(null);
   const [commandsOpen, setCommandsOpen] = useState(false);
-  const [hoveredParent, setHoveredParent] = useState<string | null>(null);
+  const { toggleFavorite, isFavorite } = useConsoleFavorites();
   const [sending, setSending] = useState(false);
   const userScrolledUpRef = useRef(false);
   const programmaticScrollRef = useRef(false);
@@ -149,7 +163,6 @@ export function ServerConsole({
     setCommand(cmd);
     setHelperText(hint ?? null);
     setCommandsOpen(false);
-    setHoveredParent(null);
     requestAnimationFrame(() => {
       const input = inputRef.current;
       if (input) {
@@ -168,7 +181,6 @@ export function ServerConsole({
     function handleClickOutside(e: MouseEvent) {
       if (commandsRef.current && !commandsRef.current.contains(e.target as Node)) {
         setCommandsOpen(false);
-        setHoveredParent(null);
       }
     }
     if (commandsOpen) {
@@ -245,64 +257,43 @@ export function ServerConsole({
                   className={cn("h-3 w-3 transition-transform", commandsOpen && "rotate-180")}
                 />
               </button>
-              {commandsOpen && (
-                <div
-                  className="absolute left-0 bottom-full mb-1 flex rounded-md border border-white/20 bg-zinc-900 shadow-lg z-50"
-                  onMouseLeave={() => setHoveredParent(null)}
-                >
-                  <div className="w-48 max-h-64 overflow-y-auto py-1 border-r border-white/10">
+              {commandsOpen && (() => {
+                const all = getAllCommandsSorted();
+                const favoritesList = all.filter((c) => isFavorite(c.command));
+                const restList = all.filter((c) => !isFavorite(c.command));
+                return (
+                  <div className="absolute left-0 bottom-full mb-1 w-56 max-h-72 overflow-y-auto rounded-md border border-white/20 bg-zinc-900 shadow-lg py-1 z-50">
                     <div className="px-2 py-1.5 text-xs text-zinc-500 uppercase tracking-wider">
-                      Commands
+                      Click to insert
                     </div>
-                    {CONSOLE_COMMANDS.map((item) =>
-                      item.subCommands ? (
-                        <div
-                          key={item.command}
-                          className={cn(
-                            "flex items-center justify-between gap-2 px-3 py-1.5 font-mono text-sm cursor-pointer",
-                            hoveredParent === item.command ? "bg-zinc-800" : "hover:bg-zinc-800"
-                          )}
-                          onMouseEnter={() => setHoveredParent(item.command)}
-                          onClick={() => insertCommand(item.command + " ")}
-                        >
-                          <span>{item.command}</span>
-                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-                        </div>
-                      ) : (
-                        <button
-                          key={item.command}
-                          type="button"
-                          className="w-full px-3 py-1.5 text-left font-mono text-sm hover:bg-zinc-800"
-                          onClick={() => insertCommand(item.command, item.hint)}
-                        >
-                          {item.command.trim()}
-                          {item.hint && <span className="text-zinc-500 ml-1">{item.hint}</span>}
-                        </button>
-                      )
-                    )}
-                  </div>
-                  {hoveredParent && (
-                    <div className="w-56 max-h-64 overflow-y-auto py-1">
-                      <div className="px-2 py-1.5 text-xs text-zinc-500 uppercase tracking-wider">
-                        Sub-commands
-                      </div>
-                      {CONSOLE_COMMANDS.find((c) => c.command === hoveredParent)?.subCommands?.map(
-                        ({ command: cmd, hint }) => (
-                          <button
+                    {favoritesList.length > 0 && (
+                      <>
+                        {favoritesList.map(({ command: cmd, hint }) => (
+                          <CommandRow
                             key={cmd}
-                            type="button"
-                            className="w-full px-3 py-1.5 text-left font-mono text-sm hover:bg-zinc-800"
-                            onClick={() => insertCommand(cmd, hint)}
-                          >
-                            {cmd.trim()}
-                            {hint && <span className="text-zinc-500 ml-1">{hint}</span>}
-                          </button>
-                        )
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+                            command={cmd}
+                            hint={hint}
+                            isFavorite={true}
+                            onInsert={() => insertCommand(cmd, hint)}
+                            onToggleFavorite={() => toggleFavorite(cmd)}
+                          />
+                        ))}
+                        <div className="my-1 border-t border-white/10" aria-hidden />
+                      </>
+                    )}
+                    {restList.map(({ command: cmd, hint }) => (
+                      <CommandRow
+                        key={cmd}
+                        command={cmd}
+                        hint={hint}
+                        isFavorite={false}
+                        onInsert={() => insertCommand(cmd, hint)}
+                        onToggleFavorite={() => toggleFavorite(cmd)}
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
           <div className="relative flex-1 flex min-w-0">
