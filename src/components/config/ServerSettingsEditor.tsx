@@ -23,12 +23,17 @@ type ParsedArgs = {
   allowOp: boolean;
   assetsPath: string;
   authMode: "" | "authenticated" | "offline" | "insecure";
+  ownerName: string;
+  ownerUuid: string;
+  sessionToken: string;
+  identityToken: string;
   backup: boolean;
   backupDir: string;
   backupFrequency: string;
   backupMaxCount: string;
   backupArchiveMaxCount: string;
   bare: boolean;
+  help: boolean;
   bootCommand: string;
   disableAssetCompare: boolean;
   disableCpbBuild: boolean;
@@ -55,12 +60,17 @@ function parseStartupArgs(args: string[]): ParsedArgs {
     allowOp: false,
     assetsPath: "",
     authMode: "",
+    ownerName: "",
+    ownerUuid: "",
+    sessionToken: "",
+    identityToken: "",
     backup: false,
     backupDir: "",
     backupFrequency: "30",
     backupMaxCount: "5",
     backupArchiveMaxCount: "5",
     bare: false,
+    help: false,
     bootCommand: "",
     disableAssetCompare: false,
     disableCpbBuild: false,
@@ -91,12 +101,17 @@ function parseStartupArgs(args: string[]): ParsedArgs {
   result.assetsPath = extractVal("--assets") ?? "";
   const am = extractVal("--auth-mode");
   if (am === "authenticated" || am === "offline" || am === "insecure") result.authMode = am;
+  result.ownerName = extractVal("--owner-name") ?? "";
+  result.ownerUuid = extractVal("--owner-uuid") ?? "";
+  result.sessionToken = extractVal("--session-token") ?? "";
+  result.identityToken = extractVal("--identity-token") ?? "";
   result.backup = hasFlag("--backup");
   result.backupDir = extractVal("--backup-dir") ?? "";
   result.backupFrequency = extractVal("--backup-frequency") ?? "30";
   result.backupMaxCount = extractVal("--backup-max-count") ?? "5";
   result.backupArchiveMaxCount = extractVal("--backup-archive-max-count") ?? "5";
   result.bare = hasFlag("--bare");
+  result.help = hasFlag("--help");
   result.bootCommand = extractVal("--boot-command") ?? "";
   result.disableAssetCompare = hasFlag("--disable-asset-compare");
   result.disableCpbBuild = hasFlag("--disable-cpb-build");
@@ -117,7 +132,8 @@ function parseStartupArgs(args: string[]): ParsedArgs {
 
   // Collect unrecognized args into customRaw
   const knownWithValue = new Set([
-    "--assets", "--auth-mode", "--backup-dir", "--backup-frequency", "--backup-max-count",
+    "--assets", "--auth-mode", "--owner-name", "--owner-uuid", "--session-token", "--identity-token",
+    "--backup-dir", "--backup-frequency", "--backup-max-count",
     "--backup-archive-max-count", "--boot-command", "--early-plugins", "--force-network-flush",
     "-t", "--transport", "--mods", "--universe", "--world-gen",
   ]);
@@ -127,7 +143,7 @@ function parseStartupArgs(args: string[]): ParsedArgs {
     if (knownWithValue.has(a)) {
       i++; // skip value
     } else if (
-      a === "--allow-op" || a === "--backup" || a === "--bare" || a === "--disable-asset-compare" ||
+      a === "--allow-op" || a === "--backup" || a === "--bare" || a === "--help" || a === "--disable-asset-compare" ||
       a === "--disable-cpb-build" || a === "--disable-file-watcher" || a === "--disable-sentry" ||
       a === "--event-debug" || a === "--singleplayer" || a === "--skip-mod-validation" ||
       a === "--validate-assets" || a === "--validate-prefabs" || a === "--validate-world-gen"
@@ -150,12 +166,19 @@ function buildStartupArgs(p: ParsedArgs): string[] {
   if (p.allowOp) out.push("--allow-op");
   if (p.assetsPath.trim()) out.push("--assets", p.assetsPath.trim());
   if (p.authMode) out.push("--auth-mode", p.authMode);
-  if (p.backup) out.push("--backup");
-  if (p.backupDir.trim()) out.push("--backup-dir", p.backupDir.trim());
-  if (p.backupFrequency.trim()) out.push("--backup-frequency", p.backupFrequency.trim());
-  if (p.backupMaxCount.trim()) out.push("--backup-max-count", p.backupMaxCount.trim());
-  if (p.backupArchiveMaxCount.trim()) out.push("--backup-archive-max-count", p.backupArchiveMaxCount.trim());
+  if (p.ownerName.trim()) out.push("--owner-name", p.ownerName.trim());
+  if (p.ownerUuid.trim()) out.push("--owner-uuid", p.ownerUuid.trim());
+  if (p.sessionToken.trim()) out.push("--session-token", p.sessionToken.trim());
+  if (p.identityToken.trim()) out.push("--identity-token", p.identityToken.trim());
+  if (p.backup) {
+    out.push("--backup");
+    if (p.backupDir.trim()) out.push("--backup-dir", p.backupDir.trim());
+    if (p.backupFrequency.trim() && p.backupFrequency !== "30") out.push("--backup-frequency", p.backupFrequency.trim());
+    if (p.backupMaxCount.trim() && p.backupMaxCount !== "5") out.push("--backup-max-count", p.backupMaxCount.trim());
+    if (p.backupArchiveMaxCount.trim() && p.backupArchiveMaxCount !== "5") out.push("--backup-archive-max-count", p.backupArchiveMaxCount.trim());
+  }
   if (p.bare) out.push("--bare");
+  if (p.help) out.push("--help");
   if (p.bootCommand.trim()) out.push("--boot-command", p.bootCommand.trim());
   if (p.disableAssetCompare) out.push("--disable-asset-compare");
   if (p.disableCpbBuild) out.push("--disable-cpb-build");
@@ -402,6 +425,22 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-1.5 sm:col-span-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Label htmlFor="owner-name" className="text-xs cursor-help">--owner-name</Label>
+              </TooltipTrigger>
+              <TooltipContent>Server owner&apos;s display name for identification</TooltipContent>
+            </Tooltip>
+            <Input
+              id="owner-name"
+              value={form.ownerName}
+              onChange={(e) => update({ ownerName: e.target.value })}
+              placeholder="Owner name (optional)"
+              className="h-8 font-mono text-xs"
+            />
+          </div>
         </div>
 
         <div className="space-y-3 rounded-md border border-border/60 p-3">
@@ -463,6 +502,66 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
           <div className="space-y-3 rounded-md border border-border/60 p-3">
             <p className="text-xs text-muted-foreground">Rarely used options. Changes apply after restart.</p>
             <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="text-xs font-medium">Token passthrough (automated auth)</Label>
+                <p className="text-xs text-muted-foreground -mt-1">For headless/automated deployments. Use all three together to skip manual OAuth.</p>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="owner-uuid" className="text-xs cursor-help">--owner-uuid</Label>
+                  </TooltipTrigger>
+                  <TooltipContent>Owner&apos;s profile UUID. Must match the profile that created the tokens.</TooltipContent>
+                </Tooltip>
+                <Input
+                  id="owner-uuid"
+                  value={form.ownerUuid}
+                  onChange={(e) => update({ ownerUuid: e.target.value })}
+                  placeholder="Profile UUID, e.g. 39ba683d-f53e-43df-82ee-ee104690ee05"
+                  className="h-8 font-mono text-xs"
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="session-token" className="text-xs cursor-help">--session-token</Label>
+                  </TooltipTrigger>
+                  <TooltipContent>Pre-generated game session token for automated auth</TooltipContent>
+                </Tooltip>
+                <Input
+                  id="session-token"
+                  type="password"
+                  value={form.sessionToken}
+                  onChange={(e) => update({ sessionToken: e.target.value })}
+                  placeholder="Session token"
+                  className="h-8 font-mono text-xs"
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="identity-token" className="text-xs cursor-help">--identity-token</Label>
+                  </TooltipTrigger>
+                  <TooltipContent>Pre-generated identity token from sessions.hytale.com</TooltipContent>
+                </Tooltip>
+                <Input
+                  id="identity-token"
+                  type="password"
+                  value={form.identityToken}
+                  onChange={(e) => update({ identityToken: e.target.value })}
+                  placeholder="Identity token"
+                  className="h-8 font-mono text-xs"
+                />
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-normal cursor-help">--help</Label>
+                    <Switch checked={form.help} onCheckedChange={(c) => update({ help: c })} />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>Print help and exit (useful for viewing all options)</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center justify-between">
@@ -614,7 +713,7 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
                 id="custom-args"
                 value={form.customRaw}
                 onChange={(e) => update({ customRaw: e.target.value })}
-                placeholder="e.g. --identity-token <token> --owner-name <name>"
+                placeholder="e.g. --some-arg value"
                 className="h-8 font-mono text-xs"
               />
             </div>
