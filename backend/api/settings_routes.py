@@ -3,6 +3,9 @@ Settings API routes – read/write persistent app settings.
 """
 
 import os
+import re
+import subprocess
+import sys
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Any
@@ -10,6 +13,63 @@ from typing import Optional, Any
 from services import settings
 
 router = APIRouter()
+
+
+def _get_firewall_rules_for_ports(port_protocols: list[tuple[int, str]]) -> dict[str, bool]:
+    """Check which (port, protocol) pairs have an inbound Allow rule. Returns { "port:protocol": bool }. Windows only."""
+    result: dict[str, bool] = {}
+    for port, protocol in port_protocols:
+        result[f"{port}:{protocol}"] = False
+
+    if sys.platform != "win32":
+        return result
+
+    try:
+        proc = subprocess.run(
+            ["netsh", "advfirewall", "firewall", "show", "rule", "name=all"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        if proc.returncode != 0:
+            return result
+        output = proc.stdout or ""
+    except Exception:
+        return result
+
+    # Parse rule blocks: each has Rule Name, LocalPort, Protocol, Direction, Action
+    blocks = re.split(r"\n(?=Rule Name:)", output)
+    port_proto_allowed: set[tuple[int, str]] = set()
+    for block in blocks:
+        if "Rule Name:" not in block:
+            continue
+        direction = _extract(block, "Direction")
+        action = _extract(block, "Action")
+        if direction != "In" or action != "Allow":
+            continue
+        proto = _extract(block, "Protocol")
+        local_port = _extract(block, "LocalPort")
+        # Skip rules with LocalPort=Any: they are application-based (e.g. Hytale Client/JRE)
+        # and only allow that specific executable, not our server's ports globally.
+        if local_port == "Any":
+            continue
+        try:
+            port_num = int(local_port)
+        except ValueError:
+            continue
+        for port, protocol in port_protocols:
+            if port == port_num and proto in ("Any", protocol.upper()):
+                port_proto_allowed.add((port, protocol))
+
+    for port, protocol in port_protocols:
+        result[f"{port}:{protocol}"] = (port, protocol) in port_proto_allowed
+    return result
+
+
+def _extract(block: str, key: str) -> str:
+    m = re.search(rf"^\s*{re.escape(key)}:\s*(.+)$", block, re.MULTILINE)
+    return m.group(1).strip() if m else ""
 
 
 def get_default_root_dir() -> str:
@@ -59,6 +119,27 @@ def port_check(port: int, exclude_instance: Optional[str] = None):
     except OSError:
         return {"in_use": True, "conflict_with": "Another application"}
     return {"in_use": False}
+
+
+@router.get("/firewall-status")
+def firewall_status(ports: str):
+    """
+    Check which ports have Windows Firewall inbound Allow rules.
+    ports: comma-separated "port:protocol" e.g. "5520:UDP,5620:TCP"
+    Returns { "5520:UDP": true, "5620:TCP": false, ... }
+    """
+    port_protocols: list[tuple[int, str]] = []
+    for part in ports.split(","):
+        part = part.strip()
+        if ":" in part:
+            p, proto = part.split(":", 1)
+            try:
+                port_protocols.append((int(p.strip()), proto.strip().upper()))
+            except ValueError:
+                pass
+    if not port_protocols:
+        return {}
+    return _get_firewall_rules_for_ports(port_protocols)
 
 
 @router.get("/settings")
