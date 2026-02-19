@@ -75,20 +75,29 @@ def _get_console(instance_name: str) -> _ConsoleManager:
 def status():
     running_instance = server_svc.get_running_instance()
     running_instances = []
+    # Cache resource usage per instance so we don't call get_resource_usage
+    # twice for the same process (the second call resets the CPU delta).
+    usage_cache: dict[str, tuple] = {}
     for name in server_svc.get_running_instances():
         uptime = server_svc.get_uptime_seconds(name)
-        ram_mb, cpu_percent = server_svc.get_resource_usage(name)
+        usage = server_svc.get_resource_usage(name)
+        usage_cache[name] = usage
+        ram_mb, cpu_pct = usage
         game_port = server_svc.get_running_game_port(name)
         running_instances.append({
             "name": name,
             "game_port": game_port,
             "uptime_seconds": round(uptime, 1) if uptime is not None else None,
             "ram_mb": ram_mb,
-            "cpu_percent": cpu_percent,
+            "cpu_percent": cpu_pct,
         })
-    # For active instance or single running
     uptime = server_svc.get_uptime_seconds(running_instance) if running_instance else None
-    ram_mb, cpu_percent = server_svc.get_resource_usage(running_instance) if running_instance else server_svc.get_resource_usage()
+    if running_instance and running_instance in usage_cache:
+        ram_mb, cpu_pct = usage_cache[running_instance]
+    elif running_instance:
+        ram_mb, cpu_pct = server_svc.get_resource_usage(running_instance)
+    else:
+        ram_mb, cpu_pct = server_svc.get_resource_usage()
     players = server_svc.get_players()
     last_exit_time, last_exit_code = server_svc.get_last_exit_info()
 
@@ -104,7 +113,7 @@ def status():
         ),
         "last_exit_code": last_exit_code,
         "ram_mb": ram_mb,
-        "cpu_percent": cpu_percent,
+        "cpu_percent": cpu_pct,
         "players": players,
     }
 

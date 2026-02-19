@@ -6,6 +6,10 @@ Nitrado WebServer runs on game_port + 100.
 """
 
 import os
+try:
+    import psutil
+except ImportError:
+    psutil = None
 import shutil
 import subprocess
 import sys
@@ -28,6 +32,7 @@ class _ProcessEntry:
     console_callback: Callable[[str], None]
     done_callback: Callable[[int], None]
     psutil_process: object = None  # persistent psutil.Process for CPU tracking
+    psutil_children: dict = field(default_factory=dict)  # pid -> psutil.Process for CPU tracking
 
 
 _server_processes: dict[str, _ProcessEntry] = {}
@@ -117,9 +122,7 @@ def get_all_running_ports() -> dict[str, int]:
 
 def _get_psutil_process(entry: _ProcessEntry) -> "Optional[object]":
     """Get or create a persistent psutil.Process for CPU tracking."""
-    try:
-        import psutil
-    except ImportError:
+    if psutil is None:
         return None
     p = entry.psutil_process
     if p is not None:
@@ -139,8 +142,9 @@ def _get_psutil_process(entry: _ProcessEntry) -> "Optional[object]":
 
 def get_resource_usage(instance_name: Optional[str] = None) -> tuple[Optional[float], Optional[float]]:
     """
-    (ram_mb, cpu_percent) for the Java server process.
-    Uses a persistent psutil.Process so cpu_percent accumulates between polls.
+    (ram_mb, cpu_percent) for the Java server process tree.
+    Uses persistent psutil.Process objects so cpu_percent accumulates between polls.
+    Includes all child processes (JVM may run as a child of the launcher on Windows).
     """
     entry = None
     with _server_lock:
@@ -155,26 +159,48 @@ def get_resource_usage(instance_name: Optional[str] = None) -> tuple[Optional[fl
                     break
     if not entry:
         return (None, None)
-    try:
-        import psutil
-    except ImportError:
+    if psutil is None:
         return (None, None)
     p = _get_psutil_process(entry)
     if not p:
         return (None, None)
     try:
         mem = p.memory_info()
-        ram_mb = (mem.rss or 0) / (1024 * 1024)
+        total_rss = mem.rss or 0
         cpu = p.cpu_percent(interval=None)
+
+        # Collect children and persist their psutil.Process objects so
+        # cpu_percent returns meaningful deltas across polls.
+        live_children: dict = {}
         try:
-            for child in p.children(recursive=True):
+            for child_proc in p.children(recursive=True):
+                cpid = child_proc.pid
+                cached = entry.psutil_children.get(cpid)
+                primed = False
+                if cached is not None:
+                    try:
+                        if cached.is_running():
+                            child_proc = cached
+                            primed = True
+                    except Exception:
+                        pass
+                if not primed:
+                    try:
+                        child_proc.cpu_percent(interval=None)  # prime; returns 0
+                    except Exception:
+                        pass
+                live_children[cpid] = child_proc
                 try:
-                    cpu += child.cpu_percent(interval=None)
+                    total_rss += child_proc.memory_info().rss or 0
+                    if primed:
+                        cpu += child_proc.cpu_percent(interval=None)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
-        # Normalize: psutil reports 100% per core, so divide by core count for 0-100 scale
+        entry.psutil_children = live_children
+
+        ram_mb = total_rss / (1024 * 1024)
         cores = psutil.cpu_count() or 1
         cpu_normalized = min(100, round(cpu / cores))
         return (int(round(ram_mb)), int(cpu_normalized))
