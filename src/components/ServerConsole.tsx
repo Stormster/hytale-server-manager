@@ -1,6 +1,24 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { List, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
+
+const CONSOLE_COMMANDS: { command: string; hint?: string }[] = [
+  { command: "/ban ", hint: "(username)" },
+  { command: "/unban ", hint: "(username)" },
+  { command: "/kick ", hint: "(username)" },
+  { command: "/op ", hint: "(username)" },
+  { command: "/deop ", hint: "(username)" },
+  { command: "/whitelist add ", hint: "(username)" },
+  { command: "/whitelist remove ", hint: "(username)" },
+  { command: "/whitelist enable" },
+  { command: "/whitelist disable" },
+  { command: "/whitelist list" },
+  { command: "/mute ", hint: "(username)" },
+  { command: "/unmute ", hint: "(username)" },
+  { command: "/save" },
+  { command: "/stop" },
+];
 
 const URL_RE = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
 const SCROLL_AT_BOTTOM_THRESHOLD = 80;
@@ -58,7 +76,12 @@ export function ServerConsole({
 }: ServerConsoleProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const commandsRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [command, setCommand] = useState("");
+  const [helperText, setHelperText] = useState<string | null>(null);
+  const [commandsOpen, setCommandsOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const userScrolledUpRef = useRef(false);
   const programmaticScrollRef = useRef(false);
@@ -88,12 +111,37 @@ export function ServerConsole({
     userScrolledUpRef.current = !checkAtBottom();
   }, [checkAtBottom]);
 
+  const insertCommand = useCallback((cmd: string, hint?: string) => {
+    setCommand(cmd);
+    setHelperText(hint ?? null);
+    setCommandsOpen(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
+  const handleCommandChange = useCallback((value: string) => {
+    setCommand(value);
+    setHelperText(null); // Clear helper as soon as user types
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (commandsRef.current && !commandsRef.current.contains(e.target as Node)) {
+        setCommandsOpen(false);
+      }
+    }
+    if (commandsOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [commandsOpen]);
+
   const sendCommand = useCallback(async () => {
     const cmd = command.trim();
     if (!cmd || !running || sending) return;
 
     setSending(true);
     setCommand("");
+    setHelperText(null);
     try {
       await api("/api/server/command", {
         method: "POST",
@@ -138,19 +186,71 @@ export function ServerConsole({
       </div>
       {running && (
         <div className="flex gap-2 p-2 border-t border-white/10">
-          <input
-            type="text"
-            value={command}
-            onChange={(e) => setCommand(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a command..."
-            className="flex-1 rounded-md border border-white/20 bg-zinc-900 px-3 py-2 font-mono text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-ring"
-            disabled={sending}
-          />
+          <div ref={commandsRef} className="relative flex-1 flex min-w-0">
+            <div className="relative flex-1 flex items-center">
+              <input
+                ref={inputRef}
+                type="text"
+                value={command}
+                onChange={(e) => handleCommandChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={!helperText ? "Type a command..." : undefined}
+                className="flex-1 min-w-0 rounded-md border border-white/20 bg-zinc-900 px-3 py-2 font-mono text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-ring"
+                disabled={sending}
+              />
+              {helperText && (
+                <div
+                  className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none select-none font-mono text-sm"
+                  aria-hidden
+                >
+                  <span ref={measureRef} className="invisible whitespace-pre">
+                    {command}
+                  </span>
+                  <span className="text-zinc-500">{helperText}</span>
+                </div>
+              )}
+            </div>
+            <div className="relative shrink-0 ml-2">
+              <button
+                type="button"
+                onClick={() => setCommandsOpen(!commandsOpen)}
+                className={cn(
+                  "rounded-md border border-white/20 bg-zinc-900 px-3 py-2 font-mono text-sm flex items-center gap-1.5 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
+                  commandsOpen && "bg-zinc-800"
+                )}
+                disabled={sending}
+                title="View commands"
+              >
+                <List className="h-3.5 w-3.5" />
+                Commands
+                <ChevronDown
+                  className={cn("h-3 w-3 transition-transform", commandsOpen && "rotate-180")}
+                />
+              </button>
+              {commandsOpen && (
+                <div className="absolute right-0 top-full mt-1 w-56 max-h-64 overflow-y-auto rounded-md border border-white/20 bg-zinc-900 shadow-lg py-1 z-50">
+                  <div className="px-2 py-1.5 text-xs text-zinc-500 uppercase tracking-wider">
+                    Click to insert
+                  </div>
+                  {CONSOLE_COMMANDS.map(({ command: cmd, hint }) => (
+                    <button
+                      key={cmd}
+                      type="button"
+                      className="w-full px-3 py-1.5 text-left font-mono text-sm hover:bg-zinc-800"
+                      onClick={() => insertCommand(cmd, hint)}
+                    >
+                      {cmd.trim()}
+                      {hint && <span className="text-zinc-500 ml-1">{hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
           <button
             onClick={sendCommand}
             disabled={!command.trim() || sending}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             Send
           </button>
