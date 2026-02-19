@@ -16,13 +16,19 @@ export function useUpdateSettings() {
       root_dir?: string;
       instance_name?: string;
       instance_server_settings?: Record<string, unknown>;
+      game_port?: number;
+      webserver_port?: number;
     }) =>
       api<AppSettings>("/api/settings", {
         method: "PUT",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["settings"] });
+      if (variables.instance_name) {
+        qc.invalidateQueries({ queryKey: ["instances"] });
+        qc.invalidateQueries({ queryKey: ["server-status"] });
+      }
     },
   });
 }

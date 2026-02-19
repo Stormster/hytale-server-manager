@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, type ForwardedRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, forwardRef, useImperativeHandle, type ForwardedRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ChevronDown, ChevronRight, Info, Server } from "lucide-react";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
+import { api } from "@/api/client";
 import type { InstanceServerSettings } from "@/api/types";
 
 type ParsedArgs = {
@@ -220,6 +221,14 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
   const activeInstance = settings?.active_instance ?? "";
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const currentGamePort = settings?.instance_ports?.[activeInstance]?.game ?? 5520;
+  const currentWebPort = settings?.instance_ports?.[activeInstance]?.webserver ?? currentGamePort + 100;
+  const [gamePort, setGamePort] = useState(String(currentGamePort));
+  const [webserverPort, setWebserverPort] = useState(String(currentWebPort));
+  const [portConflict, setPortConflict] = useState<string | null>(null);
+  const [webPortConflict, setWebPortConflict] = useState<string | null>(null);
+  const portCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const webPortCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const instanceSettings = useMemo((): InstanceServerSettings => {
     const all = settings?.instance_server_settings ?? {};
@@ -246,9 +255,61 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
     setForm(parsed);
   }, [instanceSettings, parsed]);
 
+  useEffect(() => {
+    const gp = settings?.instance_ports?.[activeInstance]?.game ?? 5520;
+    const wp = settings?.instance_ports?.[activeInstance]?.webserver ?? gp + 100;
+    setGamePort(String(gp));
+    setWebserverPort(String(wp));
+    setPortConflict(null);
+    setWebPortConflict(null);
+  }, [activeInstance, settings?.instance_ports]);
+
+  const checkPortInUse = useCallback(
+    (portNum: number, setConflict: (v: string | null) => void) => {
+      if (portNum < 1 || portNum > 65535) {
+        setConflict(null);
+        return;
+      }
+      api<{ in_use: boolean; conflict_with?: string }>(
+        `/api/port-check?port=${portNum}&exclude_instance=${encodeURIComponent(activeInstance)}`
+      ).then((r) => {
+        setConflict(r.in_use && r.conflict_with ? r.conflict_with : null);
+      }).catch(() => setConflict(null));
+    },
+    [activeInstance]
+  );
+
+  const handleGamePortChange = useCallback(
+    (value: string) => {
+      setGamePort(value);
+      setPortConflict(null);
+      if (portCheckRef.current) clearTimeout(portCheckRef.current);
+      const num = parseInt(value, 10);
+      if (Number.isNaN(num) || num < 1 || num > 65535) return;
+      portCheckRef.current = setTimeout(() => checkPortInUse(num, setPortConflict), 400);
+    },
+    [checkPortInUse]
+  );
+
+  const handleWebserverPortChange = useCallback(
+    (value: string) => {
+      setWebserverPort(value);
+      setWebPortConflict(null);
+      if (webPortCheckRef.current) clearTimeout(webPortCheckRef.current);
+      const num = parseInt(value, 10);
+      if (Number.isNaN(num) || num < 1 || num > 65535) return;
+      webPortCheckRef.current = setTimeout(() => checkPortInUse(num, setWebPortConflict), 400);
+    },
+    [checkPortInUse]
+  );
+
   const handleSave = useCallback(() => {
     if (!activeInstance) return;
     const startup_args = buildStartupArgs(form);
+    const gp = parseInt(gamePort, 10);
+    const wp = parseInt(webserverPort, 10);
+    const validGamePort = Number.isInteger(gp) && gp >= 1 && gp <= 65535 ? gp : undefined;
+    const validWebPort = Number.isInteger(wp) && wp >= 1 && wp <= 65535 ? wp : undefined;
     updateSettings.mutate(
       {
         instance_name: activeInstance,
@@ -257,6 +318,8 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
           ram_max_gb: ramUseCustom ? (parseInt(ramMax, 10) || null) : null,
           startup_args,
         },
+        ...(validGamePort !== undefined && { game_port: validGamePort }),
+        ...(validWebPort !== undefined && { webserver_port: validWebPort }),
       },
       {
         onSuccess: () => {
@@ -266,7 +329,7 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
         onError: (err) => setSaveMsg(`Error: ${(err as Error).message}`),
       }
     );
-  }, [activeInstance, form, ramMin, ramMax, ramUseCustom, updateSettings]);
+  }, [activeInstance, form, gamePort, webserverPort, ramMin, ramMax, ramUseCustom, updateSettings]);
 
   useImperativeHandle(
     ref,
@@ -290,9 +353,11 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
       { text: "--assets", required: true, tooltip: "Asset directory (default: ..\\HytaleAssets)" },
       { text: form.assetsPath.trim() || "../Assets.zip", required: true }
     );
+    const portNum = parseInt(gamePort, 10);
+    const bindPort = Number.isInteger(portNum) && portNum >= 1 && portNum <= 65535 ? portNum : 5520;
     parts.push(
       { text: "--bind", required: true, tooltip: "Port to listen on (default: 0.0.0.0:5520)" },
-      { text: "0.0.0.0:<port>", required: true }
+      { text: `0.0.0.0:${bindPort}`, required: true }
     );
     parts.push({
       text: "--accept-early-plugins",
@@ -302,7 +367,7 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
     const userArgs = buildStartupArgs(form);
     userArgs.forEach((a) => parts.push({ text: a }));
     return parts;
-  }, [ramUseCustom, ramMin, ramMax, form]);
+  }, [ramUseCustom, ramMin, ramMax, gamePort, form]);
 
   const update = (updates: Partial<ParsedArgs>) => setForm((f) => ({ ...f, ...updates }));
 
@@ -354,6 +419,50 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
       </div>
 
       <div className="space-y-3">
+        <Label className="text-xs">Ports</Label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Label htmlFor="game-port" className="text-xs cursor-help">Bind port (--bind)</Label>
+              </TooltipTrigger>
+              <TooltipContent>Game server port (default: 5520)</TooltipContent>
+            </Tooltip>
+            <Input
+              id="game-port"
+              type="number"
+              min={1}
+              max={65535}
+              value={gamePort}
+              onChange={(e) => handleGamePortChange(e.target.value)}
+              placeholder="5520"
+              className="h-8 font-mono text-xs"
+            />
+            {portConflict && <p className="text-xs text-destructive">In use by {portConflict}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Label htmlFor="webserver-port" className="text-xs cursor-help">Nitrado web port</Label>
+              </TooltipTrigger>
+              <TooltipContent>Nitrado WebServer BindPort (default: game + 100)</TooltipContent>
+            </Tooltip>
+            <Input
+              id="webserver-port"
+              type="number"
+              min={1}
+              max={65535}
+              value={webserverPort}
+              onChange={(e) => handleWebserverPortChange(e.target.value)}
+              placeholder="5620"
+              className="h-8 font-mono text-xs"
+            />
+            {webPortConflict && <p className="text-xs text-destructive">In use by {webPortConflict}</p>}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
         <Label className="text-xs">Startup arguments</Label>
         <p className="text-xs text-muted-foreground -mt-1">Applied on restart.</p>
         <div className="rounded-md border bg-muted/30 px-3 py-2 font-mono text-xs">
@@ -387,12 +496,12 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
             <TooltipContent>Allow operator commands</TooltipContent>
           </Tooltip>
 
-          <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Label htmlFor="assets-path" className="text-xs cursor-help">--assets</Label>
               </TooltipTrigger>
-              <TooltipContent>Asset directory (default: ..\HytaleAssets)</TooltipContent>
+              <TooltipContent>Asset path (default: ..\HytaleAssets)</TooltipContent>
             </Tooltip>
             <Input
               id="assets-path"
@@ -403,12 +512,12 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
             />
           </div>
 
-          <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Label htmlFor="auth-mode" className="text-xs cursor-help">--auth-mode</Label>
               </TooltipTrigger>
-              <TooltipContent>Authentication mode (default: AUTHENTICATED)</TooltipContent>
+              <TooltipContent>Authentication mode</TooltipContent>
             </Tooltip>
             <Select
               value={form.authMode || "default"}
@@ -426,12 +535,12 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
             </Select>
           </div>
 
-          <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Label htmlFor="owner-name" className="text-xs cursor-help">--owner-name</Label>
               </TooltipTrigger>
-              <TooltipContent>Server owner&apos;s display name for identification</TooltipContent>
+              <TooltipContent>Server owner display name</TooltipContent>
             </Tooltip>
             <Input
               id="owner-name"
@@ -502,57 +611,6 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
           <div className="space-y-3 rounded-md border border-border/60 p-3">
             <p className="text-xs text-muted-foreground">Rarely used options. Changes apply after restart.</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label className="text-xs font-medium">Token passthrough (automated auth)</Label>
-                <p className="text-xs text-muted-foreground -mt-1">For headless/automated deployments. Use all three together to skip manual OAuth.</p>
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Label htmlFor="owner-uuid" className="text-xs cursor-help">--owner-uuid</Label>
-                  </TooltipTrigger>
-                  <TooltipContent>Owner&apos;s profile UUID. Must match the profile that created the tokens.</TooltipContent>
-                </Tooltip>
-                <Input
-                  id="owner-uuid"
-                  value={form.ownerUuid}
-                  onChange={(e) => update({ ownerUuid: e.target.value })}
-                  placeholder="Profile UUID, e.g. 39ba683d-f53e-43df-82ee-ee104690ee05"
-                  className="h-8 font-mono text-xs"
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Label htmlFor="session-token" className="text-xs cursor-help">--session-token</Label>
-                  </TooltipTrigger>
-                  <TooltipContent>Pre-generated game session token for automated auth</TooltipContent>
-                </Tooltip>
-                <Input
-                  id="session-token"
-                  type="password"
-                  value={form.sessionToken}
-                  onChange={(e) => update({ sessionToken: e.target.value })}
-                  placeholder="Session token"
-                  className="h-8 font-mono text-xs"
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Label htmlFor="identity-token" className="text-xs cursor-help">--identity-token</Label>
-                  </TooltipTrigger>
-                  <TooltipContent>Pre-generated identity token from sessions.hytale.com</TooltipContent>
-                </Tooltip>
-                <Input
-                  id="identity-token"
-                  type="password"
-                  value={form.identityToken}
-                  onChange={(e) => update({ identityToken: e.target.value })}
-                  placeholder="Identity token"
-                  className="h-8 font-mono text-xs"
-                />
-              </div>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center justify-between">
@@ -662,7 +720,62 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
                 <TooltipContent>Exit with error if default world gen is invalid</TooltipContent>
               </Tooltip>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="border-t border-border/60 pt-3 mt-3">
+            <div className="space-y-2 pb-3 border-b border-border/60">
+              <Label className="text-xs font-medium">Token passthrough (automated auth)</Label>
+              <p className="text-xs text-muted-foreground -mt-1">For headless/automated deployments. Use all three together to skip manual OAuth.</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Label htmlFor="owner-uuid" className="text-xs cursor-help">--owner-uuid</Label>
+                    </TooltipTrigger>
+                    <TooltipContent>Profile UUID. Must match the profile that created the tokens.</TooltipContent>
+                  </Tooltip>
+                  <Input
+                    id="owner-uuid"
+                    value={form.ownerUuid}
+                    onChange={(e) => update({ ownerUuid: e.target.value })}
+                    placeholder="Profile UUID"
+                    className="h-8 font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Label htmlFor="session-token" className="text-xs cursor-help">--session-token</Label>
+                    </TooltipTrigger>
+                    <TooltipContent>Pre-generated game session token</TooltipContent>
+                  </Tooltip>
+                  <Input
+                    id="session-token"
+                    type="password"
+                    value={form.sessionToken}
+                    onChange={(e) => update({ sessionToken: e.target.value })}
+                    placeholder="Session token"
+                    className="h-8 font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Label htmlFor="identity-token" className="text-xs cursor-help">--identity-token</Label>
+                    </TooltipTrigger>
+                    <TooltipContent>Pre-generated identity token</TooltipContent>
+                  </Tooltip>
+                  <Input
+                    id="identity-token"
+                    type="password"
+                    value={form.identityToken}
+                    onChange={(e) => update({ identityToken: e.target.value })}
+                    placeholder="Identity token"
+                    className="h-8 font-mono text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 pt-3">
               <div className="space-y-1.5">
                 <Tooltip>
                   <TooltipTrigger asChild>

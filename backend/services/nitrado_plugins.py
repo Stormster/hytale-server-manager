@@ -81,23 +81,29 @@ def _pick_unique_webserver_port(server_dir: str) -> int:
 NITRADO_OFFSET = 100  # webserver port = game_port + 100
 
 
-def set_webserver_port_from_game(server_dir: str, game_port: int) -> None:
-    """Set Nitrado WebServer BindPort to game_port + 100."""
+def set_webserver_port(server_dir: str, port: int) -> None:
+    """Set Nitrado WebServer BindPort to the given port."""
     ws_dir = os.path.join(server_dir, "mods", "Nitrado_WebServer")
     if not os.path.isdir(ws_dir):
         return
     path = os.path.join(ws_dir, "config.json")
-    data = {}
+    data: dict = {}
     if os.path.isfile(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception:
             pass
-    data["BindPort"] = game_port + NITRADO_OFFSET
+    data["BindPort"] = port
     data.setdefault("BindHost", "0.0.0.0")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+
+
+def set_webserver_port_from_game(server_dir: str, game_port: int, webserver_port: Optional[int] = None) -> None:
+    """Set Nitrado WebServer BindPort. Uses webserver_port if provided, else game_port + 100."""
+    port = webserver_port if webserver_port is not None else game_port + NITRADO_OFFSET
+    set_webserver_port(server_dir, port)
 
 
 def _ensure_webserver_config(server_dir: str, *, force_unique: bool = False, game_port: Optional[int] = None) -> None:
