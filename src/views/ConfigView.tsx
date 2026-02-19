@@ -9,33 +9,45 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useConfigFile, useSaveConfigFile } from "@/api/hooks/useConfigFiles";
+import { useConfigFile, useSaveConfigFile, useWorldsList, useWorldConfig, useSaveWorldConfig } from "@/api/hooks/useConfigFiles";
 import { useSettings } from "@/api/hooks/useSettings";
 import { ConfigEditor } from "@/components/config/ConfigEditor";
 import { WhitelistEditor } from "@/components/config/WhitelistEditor";
 import { BansEditor } from "@/components/config/BansEditor";
+import { WorldConfigEditor } from "@/components/config/WorldConfigEditor";
 
-const CONFIG_FILES = ["config.json", "whitelist.json", "bans.json"] as const;
+const CONFIG_FILES = ["config.json", "whitelist.json", "bans.json", "worlds"] as const;
 const TAB_LABELS: Record<string, string> = {
   "config.json": "Config",
   "whitelist.json": "Whitelist",
   "bans.json": "Bans",
+  "worlds": "Worlds",
 };
-const FORM_EDITABLE_FILES = new Set(CONFIG_FILES);
+const FORM_EDITABLE_FILES = new Set(["config.json", "whitelist.json", "bans.json"]);
 
 export function ConfigView() {
   const [activeFile, setActiveFile] = useState<string>("config.json");
+  const [activeWorld, setActiveWorld] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [rawMode, setRawMode] = useState(false);
 
   const { data: settings } = useSettings();
-  const { data: fileData, isError, error } = useConfigFile(activeFile || null);
+  const { data: fileData, isError, error } = useConfigFile(
+    activeFile && FORM_EDITABLE_FILES.has(activeFile) ? activeFile : null
+  );
   const saveConfig = useSaveConfigFile();
 
+  const { data: worldsData } = useWorldsList();
+  const worlds = worldsData?.worlds ?? [];
+  const { data: worldData, isError: worldError } = useWorldConfig(activeWorld);
+  const saveWorldConfig = useSaveWorldConfig(activeWorld || "");
+
+  const isWorldsView = activeFile === "worlds";
   const isLogView = !activeFile;
   const showFormEditor =
     !isLogView &&
+    !isWorldsView &&
     FORM_EDITABLE_FILES.has(activeFile as (typeof CONFIG_FILES)[number]) &&
     !rawMode;
 
@@ -47,6 +59,31 @@ export function ConfigView() {
     }
   }, [fileData?.content]);
 
+  // Sync editor when world data loads
+  useEffect(() => {
+    if (worldData?.content !== undefined) {
+      setEditorContent(worldData.content);
+      setStatusMsg("");
+    }
+  }, [worldData?.content]);
+
+  // Auto-select first world when entering Worlds tab
+  useEffect(() => {
+    if (isWorldsView && worlds.length > 0 && !activeWorld) {
+      setActiveWorld(worlds[0]);
+    }
+    if (!isWorldsView) {
+      setActiveWorld(null);
+    }
+  }, [isWorldsView, worlds, activeWorld]);
+
+  // Clear stale content when switching world
+  useEffect(() => {
+    if (isWorldsView && activeWorld && !worldData?.content) {
+      setEditorContent("");
+    }
+  }, [isWorldsView, activeWorld, worldData?.content]);
+
   useEffect(() => {
     if (isError) {
       setEditorContent("");
@@ -54,15 +91,32 @@ export function ConfigView() {
     }
   }, [isError, error, activeFile]);
 
+  useEffect(() => {
+    if (worldError && activeWorld) {
+      setEditorContent("");
+      setStatusMsg(`World '${activeWorld}' not found`);
+    }
+  }, [worldError, activeWorld]);
+
   const handleSave = () => {
     if (!activeFile) return;
-    saveConfig.mutate(
-      { filename: activeFile, content: editorContent },
-      {
-        onSuccess: () => setStatusMsg(`Saved ${activeFile}`),
-        onError: (err) => setStatusMsg(`Error: ${err.message}`),
-      }
-    );
+    if (isWorldsView && activeWorld) {
+      saveWorldConfig.mutate(
+        { content: editorContent },
+        {
+          onSuccess: () => setStatusMsg(`Saved ${activeWorld}`),
+          onError: (err) => setStatusMsg(`Error: ${err.message}`),
+        }
+      );
+    } else {
+      saveConfig.mutate(
+        { filename: activeFile, content: editorContent },
+        {
+          onSuccess: () => setStatusMsg(`Saved ${activeFile}`),
+          onError: (err) => setStatusMsg(`Error: ${err.message}`),
+        }
+      );
+    }
   };
 
   const activeInstance = settings?.active_instance;
@@ -122,7 +176,7 @@ export function ConfigView() {
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">
-          {!isLogView && FORM_EDITABLE_FILES.has(activeFile as (typeof CONFIG_FILES)[number]) && (
+          {!isLogView && (FORM_EDITABLE_FILES.has(activeFile as (typeof CONFIG_FILES)[number]) || isWorldsView) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -147,7 +201,56 @@ export function ConfigView() {
             <p className="text-xs text-muted-foreground shrink-0">{statusMsg}</p>
           )}
 
-          {showFormEditor ? (
+          {isWorldsView ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Tabs value={activeWorld || "none"} onValueChange={(v) => v !== "none" && setActiveWorld(v)}>
+                  <TabsList className="h-9">
+                    {worlds.map((w) => (
+                      <TabsTrigger key={w} value={w}>
+                        {w}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
+              {worlds.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No worlds found. Worlds are created in Server/universe/worlds/
+                </p>
+              ) : activeWorld ? (
+                rawMode ? (
+                  <>
+                    <Textarea
+                      value={editorContent}
+                      onChange={(e) => setEditorContent(e.target.value)}
+                      className="min-h-48 font-mono text-sm resize-y"
+                      spellCheck={false}
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{statusMsg}</span>
+                      <Button
+                        size="sm"
+                        onClick={handleSave}
+                        disabled={saveWorldConfig.isPending}
+                      >
+                        {saveWorldConfig.isPending ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <WorldConfigEditor
+                    content={editorContent}
+                    onChange={setEditorContent}
+                    statusMsg={statusMsg}
+                    onSave={handleSave}
+                    isSaving={saveWorldConfig.isPending}
+                    worldName={activeWorld}
+                  />
+                )
+              ) : null}
+            </div>
+          ) : showFormEditor ? (
             <div>
               {activeFile === "config.json" && (
                 <ConfigEditor

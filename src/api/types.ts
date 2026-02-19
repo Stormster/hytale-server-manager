@@ -95,6 +95,10 @@ export interface ConfigFileContent {
   content: string;
 }
 
+export interface WorldsList {
+  worlds: string[];
+}
+
 export interface LatestLog {
   filename: string;
   content: string;
