@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../client";
 import { useSettings } from "./useSettings";
-import type { ConfigFileContent, LatestLog } from "../types";
+import type { ConfigFileContent, LatestLog, WorldsList } from "../types";
 
 export function useConfigFile(filename: string | null) {
   const { data: settings } = useSettings();
@@ -23,6 +23,43 @@ export function useSaveConfigFile() {
       }),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["config", variables.filename] });
+    },
+  });
+}
+
+export function useWorldsList() {
+  const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance;
+  return useQuery<WorldsList>({
+    queryKey: ["config", "worlds", activeInstance],
+    queryFn: () => api("/api/config/worlds"),
+    enabled: !!activeInstance,
+  });
+}
+
+export function useWorldConfig(worldName: string | null) {
+  const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance;
+  return useQuery<ConfigFileContent>({
+    queryKey: ["config", "world", activeInstance, worldName],
+    queryFn: () => api(`/api/config/worlds/${worldName}`),
+    enabled: !!activeInstance && !!worldName,
+  });
+}
+
+export function useSaveWorldConfig(worldName: string) {
+  const qc = useQueryClient();
+  const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance;
+  return useMutation({
+    mutationFn: ({ content }: { content: string }) =>
+      api<{ ok: boolean }>(`/api/config/worlds/${worldName}`, {
+        method: "PUT",
+        body: JSON.stringify({ content }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["config", "world", activeInstance, worldName] });
+      qc.invalidateQueries({ queryKey: ["config", "worlds", activeInstance] });
     },
   });
 }
