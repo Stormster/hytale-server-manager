@@ -27,6 +27,12 @@ def check():
     return updater.get_update_status()
 
 
+@router.get("/check-all")
+def check_all():
+    """Check update availability for all installed instances. Runs on startup, cached until invalidated."""
+    return updater.get_all_instances_update_status()
+
+
 def _sse_stream_for_operation(operation_fn, patchline: str):
     """Create an SSE StreamingResponse for a long-running updater operation."""
 

@@ -6,21 +6,33 @@ import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
 import { InfoRow } from "@/components/InfoRow";
 import { InstallServerDialog } from "@/components/InstallServerDialog";
-import { useUpdaterLocalStatus, useCheckUpdates } from "@/api/hooks/useUpdater";
+import { useUpdaterLocalStatus, useAllInstancesUpdateStatus } from "@/api/hooks/useUpdater";
 import { useSettings } from "@/api/hooks/useSettings";
 import { useQueryClient } from "@tanstack/react-query";
 import { subscribeSSE } from "@/api/client";
-import type { UpdaterFullStatus } from "@/api/types";
 import { Download } from "lucide-react";
 
 export function UpdateView() {
   const { data: settings } = useSettings();
   const queryClient = useQueryClient();
+
+  const invalidateOnUpdateComplete = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["updater", "all-instances"] });
+    queryClient.invalidateQueries({ queryKey: ["instances"] });
+    queryClient.invalidateQueries({ queryKey: ["updater", "local-status"] });
+  }, [queryClient]);
   const [installOpen, setInstallOpen] = useState(false);
   const { data: localStatus } = useUpdaterLocalStatus();
-  const checkUpdates = useCheckUpdates();
+  const { data: allUpdateStatus, isLoading: checkingUpdates, refetch: refetchUpdates } = useAllInstancesUpdateStatus();
 
-  const [fullStatus, setFullStatus] = useState<UpdaterFullStatus | null>(null);
+  const activeInstance = settings?.active_instance || "None";
+  const activeStatus = activeInstance !== "None" ? allUpdateStatus?.instances?.[activeInstance] : undefined;
+  const rr = allUpdateStatus?.remote_release ?? null;
+  const rp = allUpdateStatus?.remote_prerelease ?? null;
+  const updateAvailable = activeStatus?.update_available ?? false;
+  const canSwitchRelease = activeStatus?.can_switch_release ?? false;
+  const canSwitchPrerelease = activeStatus?.can_switch_prerelease ?? false;
+  const hasStatus = !!allUpdateStatus;
 
   // Update progress state
   const [updating, setUpdating] = useState(false);
@@ -32,12 +44,9 @@ export function UpdateView() {
     message: string;
   } | null>(null);
 
-  const handleCheck = () => {
-    setFullStatus(null);
+  const handleRefresh = () => {
     setUpdateDone(null);
-    checkUpdates.mutate(undefined, {
-      onSuccess: (data) => setFullStatus(data),
-    });
+    refetchUpdates();
   };
 
   const doUpdate = useCallback((patchline: string) => {
@@ -58,12 +67,16 @@ export function UpdateView() {
             setProgress(d.percent as number);
             setProgressDetail(d.detail as string);
           } else if (event === "done") {
+            const ok = d.ok as boolean;
             setUpdateDone({
-              ok: d.ok as boolean,
+              ok,
               message: d.message as string,
             });
             setUpdating(false);
-            if (d.ok) setProgress(100);
+            if (ok) {
+              setProgress(100);
+              invalidateOnUpdateComplete();
+            }
           }
         },
         onError() {
@@ -73,18 +86,11 @@ export function UpdateView() {
       },
       { method: "POST" }
     );
-  }, []);
+  }, [invalidateOnUpdateComplete]);
 
   const iv = localStatus?.installed_version ?? "...";
   const ip = localStatus?.installed_patchline ?? "release";
   const notInstalled = iv === "unknown" || iv === "...";
-  const activeInstance = settings?.active_instance || "None";
-
-  const rr = fullStatus?.remote_release;
-  const rp = fullStatus?.remote_prerelease;
-  const updateAvailable = fullStatus?.update_available ?? false;
-  const canSwitchRelease = fullStatus?.can_switch_release ?? false;
-  const canSwitchPrerelease = fullStatus?.can_switch_prerelease ?? false;
 
   return (
     <div className="p-6 space-y-6 max-w-3xl">
@@ -115,7 +121,7 @@ export function UpdateView() {
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["server", "status"] });
           queryClient.invalidateQueries({ queryKey: ["updater", "local-status"] });
-          setFullStatus(null);
+          queryClient.invalidateQueries({ queryKey: ["updater", "all-instances"] });
         }}
       />
 
@@ -133,11 +139,11 @@ export function UpdateView() {
           <Separator className="my-3" />
           <InfoRow
             label="Latest release"
-            value={rr ?? (fullStatus ? "unavailable" : "--")}
+            value={rr ?? (hasStatus ? "unavailable" : "--")}
           />
           <InfoRow
             label="Latest pre-release"
-            value={rp ?? (fullStatus ? "unavailable" : "--")}
+            value={rp ?? (hasStatus ? "unavailable" : "--")}
           />
         </CardContent>
       </Card>
@@ -146,14 +152,16 @@ export function UpdateView() {
       <div className="flex items-center justify-between">
         <StatusBadge
           text={
-            fullStatus
+            hasStatus
               ? updateAvailable
                 ? `Update available: ${ip === "release" ? rr : rp}`
                 : `Up to date on ${ip}`
-              : "Press Check for Updates"
+              : checkingUpdates
+                ? "Checking..."
+                : "No update data"
           }
           variant={
-            fullStatus
+            hasStatus
               ? updateAvailable
                 ? "warning"
                 : "ok"
@@ -161,15 +169,15 @@ export function UpdateView() {
           }
         />
         <Button
-          onClick={handleCheck}
-          disabled={checkUpdates.isPending || updating}
+          onClick={handleRefresh}
+          disabled={checkingUpdates || updating}
         >
-          {checkUpdates.isPending ? "Checking..." : "Check for Updates"}
+          {checkingUpdates ? "Checking..." : "Refresh"}
         </Button>
       </div>
 
       {/* Action card */}
-      {fullStatus && (updateAvailable || canSwitchRelease || canSwitchPrerelease) && !updating && !updateDone && (
+      {hasStatus && (updateAvailable || canSwitchRelease || canSwitchPrerelease) && !updating && !updateDone && (
         <Card>
           <CardContent className="pt-6 space-y-4">
             <div>

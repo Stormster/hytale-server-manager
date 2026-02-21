@@ -85,6 +85,41 @@ def get_update_status() -> dict:
     }
 
 
+def get_all_instances_update_status() -> dict:
+    """Check update availability for all installed instances. Fetches remote versions once."""
+    from services import instances as inst_svc
+
+    remote = check_remote_versions()
+    rr = remote.get("release")
+    rp = remote.get("pre-release")
+
+    result = {}
+    for inst in inst_svc.list_instances():
+        if not inst.get("installed"):
+            continue
+        iv = inst.get("version") or "unknown"
+        ip = inst.get("patchline") or "release"
+        if ip == "release":
+            update_available = version_greater(rr, iv) if rr else False
+        else:
+            update_available = version_greater(rp, iv) if rp else False
+        can_switch_release = ip == "pre-release" and rr is not None
+        can_switch_prerelease = ip == "release" and rp is not None
+        result[inst["name"]] = {
+            "update_available": update_available,
+            "installed_version": iv,
+            "installed_patchline": ip,
+            "can_switch_release": can_switch_release,
+            "can_switch_prerelease": can_switch_prerelease,
+        }
+
+    return {
+        "instances": result,
+        "remote_release": rr,
+        "remote_prerelease": rp,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Progress parsing
 # ---------------------------------------------------------------------------
