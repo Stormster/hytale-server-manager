@@ -36,6 +36,8 @@ import {
   RotateCw,
   Archive,
   FolderOpen,
+  FolderInput,
+  Plus,
   Copy,
   AlertTriangle,
   Cpu,
@@ -52,6 +54,8 @@ import { toast } from "sonner";
 
 interface DashboardViewProps {
   onNavigate: (view: ViewName) => void;
+  onAddServer?: () => void;
+  onImportServer?: () => void;
 }
 
 interface SortableInstanceCardProps {
@@ -395,7 +399,7 @@ function useDashboardSensors() {
   );
 }
 
-export function DashboardView({ onNavigate }: DashboardViewProps) {
+export function DashboardView({ onNavigate, onAddServer, onImportServer }: DashboardViewProps) {
   const { data: settings } = useSettings();
   const { data: instances } = useInstances();
   const { data: serverStatus } = useServerStatus();
@@ -551,8 +555,24 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
               ))
             ) : (
               <Card className="col-span-full">
-                <CardContent className="py-12 text-center text-muted-foreground">
-                  No instances yet. Add or import one from the sidebar.
+                <CardContent className="py-12 text-center">
+                  <p className="mb-6 text-muted-foreground">
+                    No instances yet.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <Button onClick={onAddServer} className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Add new
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={onImportServer}
+                      className="gap-2"
+                    >
+                      <FolderInput className="h-4 w-4" />
+                      Import existing
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
