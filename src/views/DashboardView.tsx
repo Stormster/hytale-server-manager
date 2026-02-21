@@ -528,9 +528,9 @@ export function DashboardView({ onNavigate, onAddServer, onImportServer }: Dashb
               href={managerUpdate.download_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex gap-1 text-sm font-medium text-blue-400 hover:underline"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-400 hover:underline"
             >
-              View release <ExternalLink className="h-3 w-3" />
+              View release <ExternalLink className="h-3 w-3 shrink-0" />
             </a>
           )}
         </div>
