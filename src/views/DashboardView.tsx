@@ -426,7 +426,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const createBackup = useCreateBackup();
 
   const handleCreateBackup = (instanceName: string) => {
-    const doBackup = () => createBackup.mutate();
+    const doBackup = () => createBackup.mutate(undefined);
     if (instanceName !== activeInstance) {
       setActive.mutate(instanceName, {
         onSuccess: () => doBackup(),
