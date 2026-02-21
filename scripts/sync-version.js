@@ -1,5 +1,5 @@
 /**
- * Sync version from package.json to backend/config.py and tauri.conf.json.
+ * Sync version from package.json to backend/config.py, tauri.conf.json, and src-tauri/Cargo.toml.
  * Run before builds or use: npm run version:sync
  */
 import { readFileSync, writeFileSync } from "fs";
@@ -32,4 +32,13 @@ const tauri = JSON.parse(readFileSync(tauriPath, "utf-8"));
 tauri.version = version;
 writeFileSync(tauriPath, JSON.stringify(tauri, null, 2));
 
-console.log(`Synced version ${version} to backend/config.py and tauri.conf.json`);
+// Update src-tauri/Cargo.toml (used for Windows exe file version)
+const cargoPath = join(root, "src-tauri", "Cargo.toml");
+let cargoContent = readFileSync(cargoPath, "utf-8");
+cargoContent = cargoContent.replace(
+  /^version\s*=\s*"[^"]+"/m,
+  `version = "${version}"`
+);
+writeFileSync(cargoPath, cargoContent);
+
+console.log(`Synced version ${version} to backend/config.py, tauri.conf.json, and Cargo.toml`);
