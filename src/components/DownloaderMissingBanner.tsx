@@ -25,7 +25,6 @@ export function DownloaderMissingBanner({ onNavigateToSettings }: { onNavigateTo
       action: onNavigateToSettings
         ? { label: "Open Settings", onClick: onNavigateToSettings }
         : undefined,
-      onClick: onNavigateToSettings,
     });
   }, [missing, onNavigateToSettings]);
 
