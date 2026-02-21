@@ -196,7 +196,16 @@ export function ServerView() {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Button
           onClick={handleStart}
-          disabled={isActiveInstanceRunning || !installed}
+          disabled={
+            isActiveInstanceRunning ||
+            !installed ||
+            !!status?.update_in_progress
+          }
+          title={
+            status?.update_in_progress
+              ? "Update in progress – cannot start"
+              : undefined
+          }
         >
           Start Server
         </Button>

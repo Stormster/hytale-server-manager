@@ -10,6 +10,8 @@ export interface InstanceUpdateInfo {
   installed_patchline: string;
   can_switch_release: boolean;
   can_switch_prerelease: boolean;
+  switch_to_release_is_downgrade: boolean;
+  switch_to_prerelease_is_downgrade: boolean;
 }
 
 export interface AllInstancesUpdateStatus {

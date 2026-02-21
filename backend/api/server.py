@@ -101,6 +101,9 @@ def status():
     players = server_svc.get_players()
     last_exit_time, last_exit_code = server_svc.get_last_exit_info()
 
+    from services import updater as updater_svc
+    update_in_progress = updater_svc.get_update_in_progress()
+
     return {
         "installed": server_svc.is_installed(),
         "running": server_svc.is_running(),
@@ -115,16 +118,24 @@ def status():
         "ram_mb": ram_mb,
         "cpu_percent": cpu_pct,
         "players": players,
+        "update_in_progress": update_in_progress,
     }
 
 
 @router.post("/start")
 async def start(body: dict = Body(default=None)):
     from services.settings import get_active_instance
+    from services import updater as updater_svc
+
     inst = (body or {}).get("instance") or get_active_instance()
     if not inst:
         return JSONResponse(
             {"ok": False, "error": "No instance selected"}, status_code=400
+        )
+    if updater_svc.get_update_in_progress():
+        return JSONResponse(
+            {"ok": False, "error": "Cannot start server while an update is in progress."},
+            status_code=409,
         )
     if server_svc.is_instance_running(inst):
         return JSONResponse(
