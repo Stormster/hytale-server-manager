@@ -146,6 +146,7 @@ def firewall_status(ports: str):
 def get_settings():
     data = settings.get_all()
     data["default_root_dir"] = get_default_root_dir()
+    data["onboarding_completed"] = settings.has_completed_onboarding()
     return data
 
 

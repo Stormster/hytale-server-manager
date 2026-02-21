@@ -47,6 +47,19 @@ def get_all() -> dict:
     return dict(load())
 
 
+# -- Onboarding ---------------------------------------------------------------
+
+def has_completed_onboarding() -> bool:
+    """True if user has completed the first-time setup (chosen servers folder)."""
+    return bool(load().get("onboarding_completed"))
+
+
+def set_onboarding_completed() -> None:
+    s = load()
+    s["onboarding_completed"] = True
+    _save(s)
+
+
 # -- Root directory -----------------------------------------------------------
 
 def get_root_dir() -> str:
@@ -57,6 +70,7 @@ def get_root_dir() -> str:
 def set_root_dir(path: str) -> None:
     s = load()
     s["root_dir"] = os.path.abspath(path)
+    s["onboarding_completed"] = True
     _save(s)
 
 

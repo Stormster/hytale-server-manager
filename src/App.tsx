@@ -101,8 +101,8 @@ export default function App() {
     );
   }
 
-  // Show onboarding if root_dir is not configured
-  if (!settings?.root_dir) {
+  // Show onboarding first on fresh install (before directory selection and auth)
+  if (!settings?.onboarding_completed || !settings?.root_dir) {
     return <OnboardingView />;
   }
 

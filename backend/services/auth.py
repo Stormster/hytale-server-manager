@@ -7,6 +7,7 @@ import threading
 from typing import Callable, Optional
 
 from services import downloader as dl
+from services.settings import get_root_dir
 from utils.paths import resolve_root
 from config import CREDENTIALS_FILE
 
@@ -50,6 +51,17 @@ def refresh_auth(
             if on_output:
                 on_output("Downloader ready.")
 
+        root = (get_root_dir() or "").strip()
+        if not root:
+            # root_dir must be set - subprocess cwd="" causes WinError 267 on Windows
+            if on_output:
+                on_output("[ERROR] Servers folder is not set. Complete setup first.")
+            if on_done:
+                on_done(1)
+            return
+
+        root = os.path.abspath(root)
+        os.makedirs(root, exist_ok=True)
         creds = resolve_root(CREDENTIALS_FILE)
         if os.path.isfile(creds):
             os.remove(creds)

@@ -9,6 +9,7 @@ export interface AppSettings {
   root_dir: string;
   active_instance: string;
   default_root_dir?: string;
+  onboarding_completed?: boolean;
   instance_server_settings?: Record<string, InstanceServerSettings>;
   instance_ports?: Record<string, { game?: number; webserver?: number }>;
 }
