@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/sync-version.js && tsc -b && vite build",
+    "build:release": "npm run version:sync && scripts/build-backend.bat && npm run tauri build",
     "version:sync": "node scripts/sync-version.js",
+    "postversion": "npm run version:sync",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
