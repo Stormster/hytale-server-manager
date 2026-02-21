@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { AppSettings } from "@/api/types";
 
@@ -29,6 +30,8 @@ export function useUpdateSettings() {
         qc.invalidateQueries({ queryKey: ["instances"] });
         qc.invalidateQueries({ queryKey: ["server-status"] });
       }
+      toast.success("Settings saved");
     },
+    onError: (err) => toast.error((err as Error).message),
   });
 }

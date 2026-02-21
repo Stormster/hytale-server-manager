@@ -326,7 +326,9 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
           setSaveMsg("Server settings saved");
           setTimeout(() => setSaveMsg(""), 3000);
         },
-        onError: (err) => setSaveMsg(`Error: ${(err as Error).message}`),
+        onError: (err) => {
+          setSaveMsg(`Error: ${(err as Error).message}`);
+        },
       }
     );
   }, [activeInstance, form, gamePort, webserverPort, ramMin, ramMax, ramUseCustom, updateSettings]);

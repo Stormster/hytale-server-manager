@@ -7,6 +7,7 @@ import { useInstances } from "@/api/hooks/useInstances";
 import { api } from "@/api/client";
 import { Copy, Shield, Globe, Terminal, RefreshCw, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const GAME_PORT_DEFAULT = 5520;
 const NITRADO_OFFSET = 100;
@@ -19,8 +20,9 @@ function Copyable({ text, children, className }: { text: string; children: React
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 800);
+      toast.success("Copied to clipboard");
     } catch {
-      // Ignore
+      toast.error("Failed to copy");
     }
   };
   return (

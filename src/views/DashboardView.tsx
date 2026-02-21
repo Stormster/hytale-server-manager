@@ -397,6 +397,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     const text = `${ip}:${gamePort}`;
     try {
       await navigator.clipboard.writeText(text);
+      toast.success("IP copied to clipboard");
     } catch {
       const ta = document.createElement("textarea");
       ta.value = text;
@@ -404,6 +405,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
+      toast.success("IP copied to clipboard");
     }
   };
 
@@ -423,12 +425,13 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const createBackup = useCreateBackup();
 
   const handleCreateBackup = (instanceName: string) => {
+    const doBackup = () => createBackup.mutate();
     if (instanceName !== activeInstance) {
       setActive.mutate(instanceName, {
-        onSuccess: () => createBackup.mutate(),
+        onSuccess: () => doBackup(),
       });
     } else {
-      createBackup.mutate();
+      doBackup();
     }
   };
 
