@@ -17,6 +17,14 @@ export function useManagerUpdate() {
   });
 }
 
+export function useLocalIp(enabled = true) {
+  return useQuery<{ ip: string | null; ok: boolean }>({
+    queryKey: ["info", "local-ip"],
+    queryFn: () => api("/api/info/local-ip"),
+    enabled,
+  });
+}
+
 export function usePublicIp(enabled = true) {
   return useQuery<{ ip: string | null; ok: boolean; error?: string }>({
     queryKey: ["info", "public-ip"],

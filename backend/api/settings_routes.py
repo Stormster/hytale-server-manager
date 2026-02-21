@@ -142,6 +142,51 @@ def firewall_status(ports: str):
     return _get_firewall_rules_for_ports(port_protocols)
 
 
+class FirewallRule(BaseModel):
+    name: str
+    port: int
+    protocol: str = "UDP"
+
+
+class AddFirewallRulesRequest(BaseModel):
+    rules: list[FirewallRule]
+
+
+@router.post("/firewall/add-rules")
+def add_firewall_rules(body: AddFirewallRulesRequest):
+    """
+    Attempt to add Windows Firewall inbound allow rules. Requires admin privileges.
+    Returns { "ok": bool, "added": int, "message": str }.
+    """
+    if sys.platform != "win32":
+        return {"ok": False, "added": 0, "message": "Windows only"}
+    added = 0
+    for r in body.rules:
+        name = r.name
+        port = r.port
+        protocol = r.protocol.upper()
+        if not name or port is None or protocol not in ("TCP", "UDP"):
+            continue
+        try:
+            proc = subprocess.run(
+                [
+                    "netsh", "advfirewall", "firewall", "add", "rule",
+                    f"name={name}",
+                    "dir=in", "action=allow", f"protocol={protocol}",
+                    f"localport={port}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+            if proc.returncode == 0:
+                added += 1
+        except Exception:
+            pass
+    return {"ok": added > 0, "added": added, "message": f"Added {added} rule(s)" if added else "Failed (try running as Administrator)"}
+
+
 @router.get("/settings")
 def get_settings():
     from services import instances as inst_svc

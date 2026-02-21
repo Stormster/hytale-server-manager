@@ -39,6 +39,26 @@ def info():
     }
 
 
+def _get_local_ip() -> str | None:
+    """Get the machine's local IPv4 address (for port forwarding)."""
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return None
+
+
+@router.get("/info/local-ip")
+def local_ip():
+    """Return the machine's local IPv4 address (for port forwarding)."""
+    ip = _get_local_ip()
+    return {"ip": ip, "ok": ip is not None}
+
+
 @router.get("/info/public-ip")
 def public_ip():
     """Fetch the machine's public IPv4 address (for server connection strings)."""
