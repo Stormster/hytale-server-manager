@@ -1,98 +1,29 @@
 # Hytale Server Manager
 
-A modern desktop application for managing your Hytale dedicated server. Built by HytaleManager.com.
+A modern desktop application for managing your Hytale dedicated servers.
 
-## Architecture
+[![Download Latest Release](https://img.shields.io/badge/Download-Latest_Release-0066cc?style=for-the-badge)](https://github.com/Stormster/hytale-server-manager/releases/latest)
 
-- **Frontend**: Tauri v2 + React 19 + TypeScript + Tailwind CSS + shadcn/ui
-- **Backend**: Python FastAPI sidecar (bundled as exe via PyInstaller)
-- **Data fetching**: TanStack Query + Server-Sent Events for streaming ops
-
-The Tauri shell spawns the Python backend as a sidecar on launch. The React UI communicates with it over `http://127.0.0.1:{port}`. No Python install required on user machines.
+*Make sure you have Java 25+ from the Requirements section below.*
 
 ## Features
 
-- **Dashboard**: Server status, quick start/stop, first-time setup wizard
-- **Server Console**: Live-streaming console output, start/stop controls
-- **Updates**: Check for server updates, switch between release/pre-release channels
-- **Backups**: Create, restore, and delete backups with metadata tracking
-- **Configuration**: Inline JSON editor for config.json, whitelist.json, bans.json
-- **Settings**: Auth management, manager version info, Java/downloader status
+- **Dashboard** – Overview of all server instances with status, quick start/stop, backup, and drag-and-drop reordering
+- **Console** – Live-streaming console output and server start/stop controls
+- **Updates** – Check for server updates, switch between release and pre-release channels, install with live progress
+- **Backups** – Create, restore, rename, and delete backups with metadata
+- **Mods** – View installed mods, enable/disable them, install required Nitrado mods, open mods folder
+- **Configuration** – Edit config.json, whitelist.json, bans.json, and world configs via form editors or raw JSON
+- **Port Forwarding** – Check firewall rules, UPnP discovery, copy connection info for players
+- **Multiple Instances** – Create, add, and import multiple servers; switch between them in one app
+- **Settings** – Hytale auth management, servers root folder, instance rename, Java status checks
 
 ## Requirements
 
-- Windows OS
-- Java 25+ (Temurin recommended): https://adoptium.net/temurin/releases
-- Hytale account (for authentication)
-
-## Development
-
-### Prerequisites
-
-- Node.js 18+
-- Python 3.11+
-- Rust (for Tauri): https://www.rust-lang.org/tools/install
-
-### Setup
-
-```bash
-# Install frontend dependencies
-npm install
-
-# Install backend dependencies
-cd backend
-pip install -r requirements.txt
-cd ..
-```
-
-### Dev mode
-
-Run the backend and frontend separately:
-
-```bash
-# Terminal 1: Start the Python backend
-cd backend
-python main.py --base-dir ..
-
-# Terminal 2: Start the Vite dev server
-npm run dev
-```
-
-Or run everything through Tauri (requires sidecar binary):
-
-```bash
-npm run tauri dev
-```
-
-### Build
-
-```powershell
-# 1. Build the backend sidecar
-scripts\build-backend.bat
-
-# 2. Build the Tauri app (produces .msi installer)
-npm run tauri build
-```
-
-## Project Structure
-
-```
-├── backend/           Python FastAPI backend (sidecar)
-│   ├── main.py        Entry point with port negotiation
-│   ├── config.py      App-wide constants
-│   ├── api/           REST + SSE route modules
-│   ├── services/      Business logic (server, updater, backups, auth)
-│   └── utils/         Path + subprocess helpers
-├── src/               React frontend
-│   ├── api/           API client, types, TanStack Query hooks
-│   ├── components/    Shared components + shadcn/ui primitives
-│   └── views/         Page views (Dashboard, Server, Updates, etc.)
-├── src-tauri/         Tauri v2 shell (Rust)
-│   └── src/           Sidecar spawn + port handshake
-└── scripts/           Build scripts
-```
+- **Windows**
+- **Java 25+** (Temurin recommended): https://adoptium.net/temurin/releases
+- **Hytale account** – Used for authentication and server downloads
 
 ## Support
 
-- Report issues on GitHub Issues
-- https://HytaleManager.com/issues
+Report issues on [GitHub Issues](https://github.com/Stormster/hytale-server-manager/issues).
