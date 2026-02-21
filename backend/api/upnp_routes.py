@@ -8,6 +8,23 @@ from pydantic import BaseModel
 router = APIRouter()
 
 
+def _check_upnp_available() -> bool:
+    """Discover UPnP IGD. Returns True if a gateway was found."""
+    try:
+        import miniupnpc
+        upnp = miniupnpc.UPnP()
+        upnp.discoverdelay = 2000
+        return upnp.discover() > 0
+    except Exception:
+        return False
+
+
+@router.get("/status")
+def upnp_status():
+    """Check if UPnP is available on the network. Does not add any mappings."""
+    return {"available": _check_upnp_available()}
+
+
 class PortMapping(BaseModel):
     port: int
     protocol: str  # "UDP" or "TCP"
