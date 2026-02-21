@@ -13,6 +13,7 @@ import { AuthRequiredView } from "@/views/AuthRequiredView";
 import { AddServerDialog } from "@/components/AddServerDialog";
 import { ImportServerDialog } from "@/components/ImportServerDialog";
 import { InstancesModal } from "@/components/InstancesModal";
+import { Loader2 } from "lucide-react";
 import { useSettings } from "@/api/hooks/useSettings";
 import { useAuthStatus } from "@/api/hooks/useAuth";
 
@@ -91,7 +92,10 @@ export default function App() {
           <div className="hytale-bg-image" />
           <div className="hytale-bg-overlay" />
         </div>
-        <p className="relative text-sm text-muted-foreground">Loading...</p>
+        <div className="relative flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }

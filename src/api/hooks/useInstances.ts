@@ -107,7 +107,7 @@ export function useReorderInstances() {
       }
       return { prev };
     },
-    onSuccess: () => toast.success("Instance reordered"),
+    onSuccess: () => toast.success("Order saved"),
     onError: (err, _names, ctx) => {
       if (ctx?.prev) qc.setQueryData(["instances"], ctx.prev);
       toast.error((err as Error).message);
