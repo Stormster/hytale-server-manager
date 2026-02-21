@@ -8,9 +8,10 @@ import { InfoRow } from "@/components/InfoRow";
 import { InstallServerDialog } from "@/components/InstallServerDialog";
 import { useUpdaterLocalStatus, useAllInstancesUpdateStatus } from "@/api/hooks/useUpdater";
 import { useSettings } from "@/api/hooks/useSettings";
+import { useServerStatus } from "@/api/hooks/useServer";
 import { useQueryClient } from "@tanstack/react-query";
 import { subscribeSSE } from "@/api/client";
-import { Download } from "lucide-react";
+import { Download, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 export function UpdateView() {
@@ -21,6 +22,7 @@ export function UpdateView() {
     queryClient.invalidateQueries({ queryKey: ["updater", "all-instances"] });
     queryClient.invalidateQueries({ queryKey: ["instances"] });
     queryClient.invalidateQueries({ queryKey: ["updater", "local-status"] });
+    queryClient.invalidateQueries({ queryKey: ["server", "status"] });
   }, [queryClient]);
   const [installOpen, setInstallOpen] = useState(false);
   const { data: localStatus } = useUpdaterLocalStatus();
@@ -31,9 +33,10 @@ export function UpdateView() {
   const rr = allUpdateStatus?.remote_release ?? null;
   const rp = allUpdateStatus?.remote_prerelease ?? null;
   const updateAvailable = activeStatus?.update_available ?? false;
-  const canSwitchRelease = activeStatus?.can_switch_release ?? false;
-  const canSwitchPrerelease = activeStatus?.can_switch_prerelease ?? false;
   const hasStatus = !!allUpdateStatus;
+
+  const { data: serverStatus } = useServerStatus();
+  const serverRunning = serverStatus?.running ?? false;
 
   // Update progress state
   const [updating, setUpdating] = useState(false);
@@ -58,7 +61,7 @@ export function UpdateView() {
     refetchUpdates();
   };
 
-  const doUpdate = useCallback((patchline: string) => {
+  const doUpdateActual = useCallback((patchline: string) => {
     setUpdating(true);
     setProgress(0);
     setProgressStatus("Preparing...");
@@ -105,6 +108,8 @@ export function UpdateView() {
       { method: "POST" }
     );
   }, [invalidateOnUpdateComplete]);
+
+  const doUpdate = doUpdateActual;
 
   const iv = localStatus?.installed_version ?? "...";
   const ip = localStatus?.installed_patchline ?? "release";
@@ -194,45 +199,27 @@ export function UpdateView() {
         </Button>
       </div>
 
-      {/* Action card */}
-      {hasStatus && (updateAvailable || canSwitchRelease || canSwitchPrerelease) && !updating && !updateDone && (
+      {/* Server must be stopped to update */}
+      {serverRunning && !updating && !updateDone && (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 flex items-center gap-2 text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <p className="text-sm">Stop the server before updating.</p>
+        </div>
+      )}
+
+      {/* Action card - update on current channel */}
+      {hasStatus && updateAvailable && !updating && !updateDone && (
         <Card>
           <CardContent className="pt-6 space-y-4">
             <div>
-              <p className="font-semibold">
-                {updateAvailable
-                  ? `New ${ip} version available`
-                  : "No updates on your current channel"}
-              </p>
+              <p className="font-semibold">New {ip} version available</p>
               <p className="text-sm text-muted-foreground">
-                {updateAvailable
-                  ? `${iv} \u2192 ${ip === "release" ? rr : rp}`
-                  : `You're running the latest ${ip} version.`}
+                {iv} → {ip === "release" ? rr : rp}
               </p>
             </div>
-            <div className="flex gap-3">
-              {updateAvailable && (
-                <Button onClick={() => doUpdate(ip)}>
-                  Update to {ip === "release" ? rr : rp}
-                </Button>
-              )}
-              {canSwitchRelease && (
-                <Button
-                  variant="outline"
-                  onClick={() => doUpdate("release")}
-                >
-                  Switch to Release ({rr})
-                </Button>
-              )}
-              {canSwitchPrerelease && (
-                <Button
-                  variant="outline"
-                  onClick={() => doUpdate("pre-release")}
-                >
-                  Switch to Pre-Release ({rp})
-                </Button>
-              )}
-            </div>
+            <Button onClick={() => doUpdate(ip)} disabled={serverRunning}>
+              Update to {ip === "release" ? rr : rp}
+            </Button>
           </CardContent>
         </Card>
       )}

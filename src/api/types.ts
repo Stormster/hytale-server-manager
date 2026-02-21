@@ -44,6 +44,8 @@ export interface ServerStatus {
   ram_mb: number | null;
   cpu_percent: number | null;
   players: number | null;
+  /** Instance name being updated, or null if no update in progress */
+  update_in_progress: string | null;
 }
 
 // ---- Mods ----
@@ -74,6 +76,8 @@ export interface UpdaterFullStatus {
   update_available: boolean;
   can_switch_release: boolean;
   can_switch_prerelease: boolean;
+  switch_to_release_is_downgrade: boolean;
+  switch_to_prerelease_is_downgrade: boolean;
 }
 
 // ---- Backups ----
