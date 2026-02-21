@@ -22,8 +22,12 @@ export function DownloaderMissingBanner({ onNavigateToSettings }: { onNavigateTo
       description:
         "Server installs and updates are disabled. Go to Settings to download it.",
       duration: 8000,
+      action: onNavigateToSettings
+        ? { label: "Open Settings", onClick: onNavigateToSettings }
+        : undefined,
+      onClick: onNavigateToSettings,
     });
-  }, [missing]);
+  }, [missing, onNavigateToSettings]);
 
   const handleDownload = () => {
     if (fetching) return;
