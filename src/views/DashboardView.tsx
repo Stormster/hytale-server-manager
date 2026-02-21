@@ -61,6 +61,7 @@ interface SortableInstanceCardProps {
   runningInstances: Array<{ name: string; game_port?: number | null; uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null }>;
   serverStatus: { uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null; players?: number | null; last_exit_code?: number | null; last_exit_time?: string | null } | undefined;
   updateAvailable: boolean;
+  hasUpdateStatus: boolean;
   onNavigate: (view: ViewName) => void;
   onRestart: (instanceName: string) => void;
   onCreateBackup: (instanceName: string) => void;
@@ -80,6 +81,7 @@ function SortableInstanceCard({
   runningInstances,
   serverStatus,
   updateAvailable,
+  hasUpdateStatus,
   onNavigate,
   onRestart,
   onCreateBackup,
@@ -343,9 +345,16 @@ function SortableInstanceCard({
                   </Tooltip>
                 )}
               </div>
-              {updateAvailable && (
-                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-medium text-amber-400 shrink-0">
-                  Update available
+              {hasUpdateStatus && (
+                <span
+                  className={cn(
+                    "shrink-0 rounded px-1.5 py-0.5 text-xs font-medium",
+                    updateAvailable
+                      ? "bg-amber-500/20 text-amber-400"
+                      : "bg-emerald-500/20 text-emerald-400"
+                  )}
+                >
+                  {updateAvailable ? "Update available" : "Up to date"}
                 </span>
               )}
             </>
@@ -512,6 +521,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   runningInstances={serverStatus?.running_instances ?? []}
                   serverStatus={serverStatus}
                   updateAvailable={!!allUpdateStatus?.instances?.[inst.name]?.update_available}
+                  hasUpdateStatus={!!(inst.installed && allUpdateStatus?.instances?.[inst.name])}
                   onNavigate={onNavigate}
                   onRestart={handleRestart}
                   onCreateBackup={handleCreateBackup}
