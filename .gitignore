@@ -5,6 +5,7 @@ build/
 
 # ---- Node ----
 node_modules/
+*.tsbuildinfo
 
 # ---- Python ----
 __pycache__/
