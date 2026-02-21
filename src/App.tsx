@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AppSidebar, type ViewName } from "@/components/AppSidebar";
+import { DownloaderMissingBanner } from "@/components/DownloaderMissingBanner";
 import { DashboardView } from "@/views/DashboardView";
 import { ServerView } from "@/views/ServerView";
 import { UpdateView } from "@/views/UpdateView";
@@ -127,7 +128,11 @@ export default function App() {
         onImportServer={() => setImportOpen(true)}
         onManageInstances={() => setManageInstancesOpen(true)}
       />
-      <main className="relative z-0 flex-1 overflow-y-auto">
+      <main className="relative z-0 flex flex-1 flex-col overflow-hidden">
+        <DownloaderMissingBanner
+          onNavigateToSettings={() => handleNavigate("settings")}
+        />
+        <div className="flex-1 overflow-y-auto">
         {activeView === "dashboard" && (
           <DashboardView onNavigate={handleNavigate} />
         )}
@@ -138,6 +143,7 @@ export default function App() {
         {activeView === "config" && <ConfigView />}
         {activeView === "port-forwarding" && <PortForwardingView />}
         {activeView === "settings" && <SettingsView />}
+        </div>
       </main>
 
       <AddServerDialog open={addOpen} onOpenChange={setAddOpen} />

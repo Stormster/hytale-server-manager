@@ -1,7 +1,8 @@
 """
-Info API routes – manager metadata, Java status, manager update check.
+Info API routes – manager metadata, Java status, manager update check, downloader fetch.
 """
 
+import asyncio
 import json as _json
 import os
 import subprocess
@@ -9,7 +10,7 @@ import sys
 import urllib.request
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from config import MANAGER_VERSION, GITHUB_REPO, REPORT_URL
@@ -53,6 +54,34 @@ def public_ip():
 def manager_update():
     """Check GitHub for a newer manager release (synchronous)."""
     return gh.check_manager_update_sync()
+
+
+@router.post("/info/fetch-downloader")
+async def fetch_downloader():
+    """Download the Hytale downloader executable. Returns SSE stream of status and result."""
+
+    async def generate():
+        queue = asyncio.Queue()
+        loop = asyncio.get_event_loop()
+
+        def on_status(msg: str):
+            loop.call_soon_threadsafe(queue.put_nowait, ("status", {"message": msg}))
+
+        def on_done(ok: bool, msg: str):
+            loop.call_soon_threadsafe(queue.put_nowait, ("done", {"ok": ok, "message": msg}))
+
+        dl.fetch_downloader(on_status=on_status, on_done=on_done)
+
+        while True:
+            try:
+                event_type, data = await asyncio.wait_for(queue.get(), timeout=90)
+                yield f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
+                if event_type == "done":
+                    break
+            except asyncio.TimeoutError:
+                yield "event: ping\ndata: {}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 class OpenPathRequest(BaseModel):
