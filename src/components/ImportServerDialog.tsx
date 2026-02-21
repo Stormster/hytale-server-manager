@@ -57,11 +57,12 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
     importInstance.mutate(
       { name: name.trim(), source_path: sourcePath.trim() },
       {
-        onSuccess: (data: { name?: string; copied?: boolean }) => {
-          if (data?.name && settings?.root_dir) {
+        onSuccess: (data: unknown) => {
+          const d = data as { name?: string; copied?: boolean };
+          if (d?.name && settings?.root_dir) {
             setSuccessResult({
-              path: `${settings.root_dir.replace(/[/\\]+$/, "")}\\${data.name}`,
-              copied: data.copied !== false,
+              path: `${settings.root_dir.replace(/[/\\]+$/, "")}\\${d.name}`,
+              copied: d.copied !== false,
             });
           }
         },

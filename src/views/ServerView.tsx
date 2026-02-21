@@ -13,6 +13,7 @@ import { usePublicIp } from "@/api/hooks/useInfo";
 import { subscribeSSE } from "@/api/client";
 import { formatUptime } from "@/lib/timeAgo";
 import { HardDrive, Cpu, Users, Copy } from "lucide-react";
+import { toast } from "sonner";
 
 const AUTH_NEEDED = /no server tokens configured/i;
 const AUTH_ALREADY_LOADED = /token refresh scheduled|session service client initialized/i;
@@ -167,6 +168,7 @@ export function ServerView() {
     const text = `${ip}:${gamePort}`;
     try {
       await navigator.clipboard.writeText(text);
+      toast.success("IP copied to clipboard");
     } catch {
       // Fallback for non-HTTPS
       const ta = document.createElement("textarea");
@@ -175,6 +177,7 @@ export function ServerView() {
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
+      toast.success("IP copied to clipboard");
     }
   };
 
