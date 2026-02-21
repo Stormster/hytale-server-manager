@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { FolderOpen, Pencil, Folder, Wrench } from "lucide-react";
+import { FolderOpen, Pencil, Folder, Wrench, Download } from "lucide-react";
 import { useAuthStatus, useInvalidateAuth } from "@/api/hooks/useAuth";
 import { useAppInfo, useManagerUpdate } from "@/api/hooks/useInfo";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
@@ -21,6 +21,7 @@ import { useServerStatus } from "@/api/hooks/useServer";
 import { useQueryClient } from "@tanstack/react-query";
 import { subscribeSSE, api } from "@/api/client";
 import { parseAuthOutput } from "@/lib/authOutput";
+import { toast } from "sonner";
 
 export function SettingsView() {
   const { data: authStatus } = useAuthStatus();
@@ -43,6 +44,7 @@ export function SettingsView() {
   const [renameValue, setRenameValue] = useState("");
   const [fixingPerms, setFixingPerms] = useState(false);
   const [fixingPort, setFixingPort] = useState(false);
+  const [fetchingDownloader, setFetchingDownloader] = useState(false);
 
   const running = serverStatus?.running ?? false;
 
@@ -190,6 +192,35 @@ export function SettingsView() {
       }
     );
   };
+
+  const handleFetchDownloader = useCallback(() => {
+    if (fetchingDownloader) return;
+    setFetchingDownloader(true);
+    subscribeSSE(
+      "/api/info/fetch-downloader",
+      {
+        onEvent(event, data) {
+          const d = data as Record<string, unknown>;
+          if (event === "done") {
+            const ok = d.ok as boolean;
+            const msg = d.message as string;
+            setFetchingDownloader(false);
+            queryClient.invalidateQueries({ queryKey: ["info"] });
+            if (ok) {
+              toast.success("Downloader installed successfully");
+            } else {
+              toast.error(msg || "Download failed");
+            }
+          }
+        },
+        onError() {
+          setFetchingDownloader(false);
+          toast.error("Connection error");
+        },
+      },
+      { method: "POST" }
+    );
+  }, [fetchingDownloader, queryClient]);
 
   return (
     <div className="p-6 space-y-6 max-w-3xl">
@@ -411,6 +442,19 @@ export function SettingsView() {
                 : "..."
             }
           />
+          {appInfo && !appInfo.has_downloader && (
+            <div className="pt-2">
+              <Button
+                size="sm"
+                onClick={handleFetchDownloader}
+                disabled={fetchingDownloader}
+                className="gap-1.5"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {fetchingDownloader ? "Downloading..." : "Download Hytale downloader"}
+              </Button>
+            </div>
+          )}
 
           <Separator className="my-3" />
 
