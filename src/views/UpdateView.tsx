@@ -142,6 +142,7 @@ export function UpdateView() {
         open={installOpen}
         onOpenChange={setInstallOpen}
         onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["instances"] });
           queryClient.invalidateQueries({ queryKey: ["server", "status"] });
           queryClient.invalidateQueries({ queryKey: ["updater", "local-status"] });
           queryClient.invalidateQueries({ queryKey: ["updater", "all-instances"] });
