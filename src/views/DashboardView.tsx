@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -21,7 +21,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useServerStatus, useStartServer, useStopServer } from "@/api/hooks/useServer";
 import { useInstances, useSetActiveInstance, useReorderInstances } from "@/api/hooks/useInstances";
 import { useCreateBackup } from "@/api/hooks/useBackups";
-import { useCheckUpdates } from "@/api/hooks/useUpdater";
+import { useAllInstancesUpdateStatus } from "@/api/hooks/useUpdater";
 import { useAppInfo, usePublicIp } from "@/api/hooks/useInfo";
 import { useManagerUpdate } from "@/api/hooks/useInfo";
 import { useSettings } from "@/api/hooks/useSettings";
@@ -48,6 +48,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 
 interface DashboardViewProps {
   onNavigate: (view: ViewName) => void;
@@ -206,11 +207,6 @@ function SortableInstanceCard({
               )}
             </span>
           )}
-          {isActive && updateAvailable && (
-            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-medium text-amber-400">
-              Update available
-            </span>
-          )}
         </div>
 
         {thisInstalled && (
@@ -306,7 +302,7 @@ function SortableInstanceCard({
               >
                 {thisRunning ? "Stop" : "Start"}
               </Button>
-              <div className="flex gap-1">
+              <div className="flex flex-1 gap-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onRestart(inst.name)} disabled={!thisRunning}>
@@ -347,6 +343,11 @@ function SortableInstanceCard({
                   </Tooltip>
                 )}
               </div>
+              {updateAvailable && (
+                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-medium text-amber-400 shrink-0">
+                  Update available
+                </span>
+              )}
             </>
           ) : (
             <>
@@ -374,7 +375,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const { data: settings } = useSettings();
   const { data: instances } = useInstances();
   const { data: serverStatus } = useServerStatus();
-  const checkUpdates = useCheckUpdates();
+  const { data: allUpdateStatus } = useAllInstancesUpdateStatus();
   const { data: appInfo } = useAppInfo();
   const { data: managerUpdate } = useManagerUpdate();
   const startServer = useStartServer();
@@ -447,12 +448,6 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     });
   };
 
-  useEffect(() => {
-    if (activeInstance && serverStatus?.installed) {
-      checkUpdates.mutate();
-    }
-  }, [activeInstance, serverStatus?.installed]);
-
   const handleOpenFolder = async (instanceName: string) => {
     if (!rootDir) return;
     const sep = rootDir.includes("\\") ? "\\" : "/";
@@ -516,7 +511,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   running={running}
                   runningInstances={serverStatus?.running_instances ?? []}
                   serverStatus={serverStatus}
-                  updateAvailable={!!checkUpdates.data?.update_available}
+                  updateAvailable={!!allUpdateStatus?.instances?.[inst.name]?.update_available}
                   onNavigate={onNavigate}
                   onRestart={handleRestart}
                   onCreateBackup={handleCreateBackup}
