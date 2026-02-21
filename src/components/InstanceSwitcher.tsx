@@ -28,7 +28,11 @@ export function InstanceSwitcher({
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const activeInstance = settings?.active_instance || "";
-  const activeInstanceLabel = activeInstance || "No instance";
+  const instanceNames = (instances ?? []).map((i) => i.name);
+  const activeInstanceLabel =
+    activeInstance && instanceNames.includes(activeInstance)
+      ? activeInstance
+      : "No instance";
   const hasMultiple = (instances?.length ?? 0) >= 2;
   const running = serverStatus?.running ?? false;
 
