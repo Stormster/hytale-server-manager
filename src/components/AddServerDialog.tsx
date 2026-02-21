@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCreateInstance } from "@/api/hooks/useInstances";
 import { toast } from "sonner";
 import { subscribeSSE } from "@/api/client";
@@ -32,6 +33,7 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
     message: string;
   } | null>(null);
 
+  const queryClient = useQueryClient();
   const createInstance = useCreateInstance();
 
   const handleCreate = async () => {
@@ -71,6 +73,10 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
             if (ok) {
               setProgress(100);
               toast.success("Server installed");
+              queryClient.invalidateQueries({ queryKey: ["instances"] });
+              queryClient.invalidateQueries({ queryKey: ["updater", "all-instances"] });
+              queryClient.invalidateQueries({ queryKey: ["updater", "local-status"] });
+              queryClient.invalidateQueries({ queryKey: ["server", "status"] });
             } else {
               toast.error((d.message as string) || "Installation failed");
             }

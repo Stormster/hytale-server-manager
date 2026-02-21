@@ -630,8 +630,10 @@ export function DashboardView({ onNavigate, onAddServer, onImportServer }: Dashb
         open={installOpen}
         onOpenChange={setInstallOpen}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["server", "status"] });
+          queryClient.invalidateQueries({ queryKey: ["instances"] });
+          queryClient.invalidateQueries({ queryKey: ["updater", "all-instances"] });
           queryClient.invalidateQueries({ queryKey: ["updater", "local-status"] });
+          queryClient.invalidateQueries({ queryKey: ["server", "status"] });
         }}
       />
 
