@@ -134,7 +134,11 @@ export default function App() {
         />
         <div className="flex-1 overflow-y-auto">
         {activeView === "dashboard" && (
-          <DashboardView onNavigate={handleNavigate} />
+          <DashboardView
+            onNavigate={handleNavigate}
+            onAddServer={() => setAddOpen(true)}
+            onImportServer={() => setImportOpen(true)}
+          />
         )}
         {activeView === "server" && <ServerView />}
         {activeView === "updates" && <UpdateView />}
