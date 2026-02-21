@@ -73,6 +73,8 @@ interface SortableInstanceCardProps {
   onCopyIp?: (gamePort: number) => void;
   onInstall: () => void;
   onSelect: () => void;
+  setActive: ReturnType<typeof useSetActiveInstance>;
+  queryClient: ReturnType<typeof useQueryClient>;
   startServer: ReturnType<typeof useStartServer>;
   stopServer: ReturnType<typeof useStopServer>;
   createBackup: ReturnType<typeof useCreateBackup>;
@@ -93,6 +95,8 @@ function SortableInstanceCard({
   onCopyIp,
   onInstall,
   onSelect,
+  setActive,
+  queryClient,
   startServer,
   stopServer,
   createBackup,
@@ -229,21 +233,22 @@ function SortableInstanceCard({
             ) : (
               (() => {
                 const runInfo = runningInstances.find((r) => r.name === inst.name);
-                const uptime = runInfo?.uptime_seconds ?? serverStatus?.uptime_seconds;
-                const ram = runInfo?.ram_mb ?? serverStatus?.ram_mb;
-                const cpu = runInfo?.cpu_percent ?? serverStatus?.cpu_percent;
+                // Only show stats for this instance when it's running—never use another instance's stats
+                const uptime = thisRunning ? (runInfo?.uptime_seconds ?? null) : null;
+                const ram = thisRunning ? (runInfo?.ram_mb ?? null) : null;
+                const cpu = thisRunning ? (runInfo?.cpu_percent ?? null) : null;
                 const players = thisRunning ? (serverStatus?.players ?? 0) : 0;
                 return (
                   <>
                     <Tooltip>
-                      <TooltipTrigger asChild><span className="cursor-default">{formatUptime(uptime ?? null)}</span></TooltipTrigger>
+                      <TooltipTrigger asChild><span className="cursor-default">{formatUptime(uptime)}</span></TooltipTrigger>
                       <TooltipContent>Uptime</TooltipContent>
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span className="flex items-center gap-1 cursor-default">
                           <HardDrive className="h-3 w-3" />
-                          {ram ?? 0} MB
+                          {ram != null ? `${ram} MB` : "—"}
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>RAM</TooltipContent>
@@ -252,7 +257,7 @@ function SortableInstanceCard({
                       <TooltipTrigger asChild>
                         <span className="flex items-center gap-1 cursor-default">
                           <Cpu className="h-3 w-3" />
-                          {cpu ?? 0}%
+                          {cpu != null ? `${cpu}%` : "—"}
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>CPU</TooltipContent>
@@ -261,7 +266,7 @@ function SortableInstanceCard({
                       <TooltipTrigger asChild>
                         <span className="flex items-center gap-1 cursor-default">
                           <Users className="h-3 w-3" />
-                          {players}
+                          {thisRunning ? players : "—"}
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>Players</TooltipContent>
@@ -303,8 +308,23 @@ function SortableInstanceCard({
                   <Button
                     size="sm"
                     onClick={() => {
-                      if (thisRunning) stopServer.mutate(inst.name);
-                      else startServer.mutate(inst.name);
+                      if (thisRunning) {
+                        stopServer.mutate(inst.name);
+                      } else {
+                        const doStart = () => {
+                          startServer.mutate(inst.name, {
+                            onSuccess: async () => {
+                              await queryClient.refetchQueries({ queryKey: ["server", "status"] });
+                              onNavigate("server");
+                            },
+                          });
+                        };
+                        if (inst.name !== activeInstance) {
+                          setActive.mutate(inst.name, { onSuccess: doStart });
+                        } else {
+                          doStart();
+                        }
+                      }
                     }}
                     disabled={
                       startServer.isPending ||
@@ -548,6 +568,8 @@ export function DashboardView({ onNavigate, onAddServer, onImportServer }: Dashb
                   onCopyIp={handleCopyIp}
                   onInstall={() => setInstallOpen(true)}
                   onSelect={() => setActive.mutate(inst.name)}
+                  setActive={setActive}
+                  queryClient={queryClient}
                   startServer={startServer}
                   stopServer={stopServer}
                   createBackup={createBackup}
