@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "../client";
 import { useSettings } from "./useSettings";
 import type { Backup } from "../types";
@@ -24,7 +25,9 @@ export function useCreateBackup() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["backups"] });
       qc.invalidateQueries({ queryKey: ["instances"] });
+      toast.success("Backup created");
     },
+    onError: (err) => toast.error((err as Error).message),
   });
 }
 
@@ -38,7 +41,9 @@ export function useRestoreBackup() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["backups"] });
       qc.invalidateQueries({ queryKey: ["instances"] });
+      toast.success("Backup restored");
     },
+    onError: (err) => toast.error((err as Error).message),
   });
 }
 
@@ -52,7 +57,9 @@ export function useRenameBackup() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["backups"] });
+      toast.success("Backup renamed");
     },
+    onError: (err) => toast.error((err as Error).message),
   });
 }
 
@@ -66,6 +73,8 @@ export function useDeleteBackup() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["backups"] });
       qc.invalidateQueries({ queryKey: ["instances"] });
+      toast.success("Backup deleted");
     },
+    onError: (err) => toast.error((err as Error).message),
   });
 }

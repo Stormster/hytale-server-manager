@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { useCreateInstance } from "@/api/hooks/useInstances";
+import { toast } from "sonner";
 import { subscribeSSE } from "@/api/client";
 
 interface Props {
@@ -61,16 +62,23 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
             setProgress(d.percent as number);
             setDetail(d.detail as string);
           } else if (event === "done") {
+            const ok = d.ok as boolean;
             setResult({
-              ok: d.ok as boolean,
+              ok,
               message: d.message as string,
             });
             setStep("done");
-            if (d.ok) setProgress(100);
+            if (ok) {
+              setProgress(100);
+              toast.success("Server installed");
+            } else {
+              toast.error((d.message as string) || "Installation failed");
+            }
           }
         },
         onError() {
           setResult({ ok: false, message: "Connection error" });
+          toast.error("Connection error");
           setStep("done");
         },
       },

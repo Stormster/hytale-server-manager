@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/api/client";
 import type { Instance } from "@/api/types";
 
@@ -41,7 +42,9 @@ export function useCreateInstance() {
       qc.invalidateQueries({ queryKey: ["settings"] });
       qc.invalidateQueries({ queryKey: ["server-status"] });
       qc.invalidateQueries({ queryKey: ["updater-local-status"] });
+      toast.success("Instance created");
     },
+    onError: (err) => toast.error((err as Error).message),
   });
 }
 
@@ -58,7 +61,9 @@ export function useImportInstance() {
       qc.invalidateQueries({ queryKey: ["settings"] });
       qc.invalidateQueries({ queryKey: ["server-status"] });
       qc.invalidateQueries({ queryKey: ["updater-local-status"] });
+      toast.success("Instance imported");
     },
+    onError: (err) => toast.error((err as Error).message),
   });
 }
 
@@ -76,7 +81,9 @@ export function useRenameInstance() {
       qc.invalidateQueries({ queryKey: ["server-status"] });
       qc.invalidateQueries({ queryKey: ["updater-local-status"] });
       qc.invalidateQueries({ queryKey: ["backups"] });
+      toast.success("Instance renamed");
     },
+    onError: (err) => toast.error((err as Error).message),
   });
 }
 
@@ -100,8 +107,10 @@ export function useReorderInstances() {
       }
       return { prev };
     },
-    onError: (_err, _names, ctx) => {
+    onSuccess: () => toast.success("Instance reordered"),
+    onError: (err, _names, ctx) => {
       if (ctx?.prev) qc.setQueryData(["instances"], ctx.prev);
+      toast.error((err as Error).message);
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["instances"] });
