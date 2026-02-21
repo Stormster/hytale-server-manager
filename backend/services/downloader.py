@@ -131,5 +131,17 @@ def run_auth(
     on_done: Optional[Callable[[int], None]] = None,
 ) -> threading.Thread:
     from services.settings import get_root_dir
+    root = (get_root_dir() or "").strip()
+    if not root:
+        def _fail():
+            if on_output:
+                on_output("[ERROR] Servers folder is not set.")
+            if on_done:
+                on_done(1)
+        t = threading.Thread(target=_fail, daemon=True)
+        t.start()
+        return t
+    root = os.path.abspath(root)
+    os.makedirs(root, exist_ok=True)
     cmd = [downloader_path(), "-print-version", "-skip-update-check"]
-    return run_in_thread(cmd, cwd=get_root_dir(), on_output=on_output, on_done=on_done)
+    return run_in_thread(cmd, cwd=root, on_output=on_output, on_done=on_done)
