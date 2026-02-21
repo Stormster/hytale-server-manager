@@ -92,23 +92,25 @@ export function AppSidebar({
             onClick={() => onNavigate(item.name)}
           />
         ))}
-        <a
-          href="https://github.com/Stormster/hytale-server-manager/issues"
-          target="_blank"
-          rel="noreferrer"
-          className="block px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
-        >
-          Report issues
-        </a>
-        <a
-          href={releaseUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="block px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
-          title="Release notes"
-        >
-          v{appInfo?.manager_version ?? "..."}
-        </a>
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <a
+            href="https://github.com/Stormster/hytale-server-manager/issues"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Report issues
+          </a>
+          <a
+            href={releaseUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] text-muted-foreground hover:text-foreground hover:underline shrink-0"
+            title="Release notes"
+          >
+            v{appInfo?.manager_version ?? "..."}
+          </a>
+        </div>
       </nav>
     </aside>
   );
