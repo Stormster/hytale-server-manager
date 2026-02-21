@@ -129,12 +129,12 @@ export function ServerView() {
     setConnected(false);
   }, [activeInstance]);
 
-  // Auto-connect when viewing the running instance and server is running
+  // Auto-connect when the active instance is running (any of the running instances)
   useEffect(() => {
-    if (viewingRunningInstance && running && !connected && activeInstance) {
+    if (isActiveInstanceRunning && running && !connected && activeInstance) {
       doConnect();
     }
-  }, [viewingRunningInstance, running, connected, activeInstance, doConnect]);
+  }, [isActiveInstanceRunning, running, connected, activeInstance, doConnect]);
 
   // Cleanup on unmount
   useEffect(() => {
