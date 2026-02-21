@@ -144,9 +144,20 @@ def firewall_status(ports: str):
 
 @router.get("/settings")
 def get_settings():
+    from services import instances as inst_svc
+
     data = settings.get_all()
     data["default_root_dir"] = get_default_root_dir()
     data["onboarding_completed"] = settings.has_completed_onboarding()
+
+    # Clear stale active_instance if it no longer exists (e.g. fresh install with leftover settings)
+    active = data.get("active_instance")
+    if active:
+        instance_names = [i["name"] for i in inst_svc.list_instances()]
+        if active not in instance_names:
+            settings.set_active_instance("")
+            data["active_instance"] = ""
+
     return data
 
 
