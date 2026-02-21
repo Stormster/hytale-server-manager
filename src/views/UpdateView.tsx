@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -11,6 +11,7 @@ import { useSettings } from "@/api/hooks/useSettings";
 import { useQueryClient } from "@tanstack/react-query";
 import { subscribeSSE } from "@/api/client";
 import { Download } from "lucide-react";
+import { toast } from "sonner";
 
 export function UpdateView() {
   const { data: settings } = useSettings();
@@ -44,6 +45,14 @@ export function UpdateView() {
     message: string;
   } | null>(null);
 
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const handleRefresh = () => {
     setUpdateDone(null);
     refetchUpdates();
@@ -62,26 +71,35 @@ export function UpdateView() {
         onEvent(event, data) {
           const d = data as Record<string, unknown>;
           if (event === "status") {
-            setProgressStatus(d.message as string);
+            if (mountedRef.current) setProgressStatus(d.message as string);
           } else if (event === "progress") {
-            setProgress(d.percent as number);
-            setProgressDetail(d.detail as string);
+            if (mountedRef.current) {
+              setProgress(d.percent as number);
+              setProgressDetail(d.detail as string);
+            }
           } else if (event === "done") {
             const ok = d.ok as boolean;
-            setUpdateDone({
-              ok,
-              message: d.message as string,
-            });
-            setUpdating(false);
+            const msg = d.message as string;
+            if (mountedRef.current) {
+              setUpdateDone({ ok, message: msg });
+              setUpdating(false);
+              if (ok) setProgress(100);
+            }
+            // Always run these so they work when user navigated away (background update)
             if (ok) {
-              setProgress(100);
               invalidateOnUpdateComplete();
+              toast.success("Server update completed");
+            } else {
+              toast.error(msg || "Update failed");
             }
           }
         },
         onError() {
-          setUpdateDone({ ok: false, message: "Connection error" });
-          setUpdating(false);
+          if (mountedRef.current) {
+            setUpdateDone({ ok: false, message: "Connection error" });
+            setUpdating(false);
+          }
+          toast.error("Connection error");
         },
       },
       { method: "POST" }
