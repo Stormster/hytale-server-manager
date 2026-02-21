@@ -59,7 +59,7 @@ interface SortableInstanceCardProps {
   activeInstance: string;
   running: boolean;
   runningInstances: Array<{ name: string; game_port?: number | null; uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null }>;
-  serverStatus: { uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null; players?: number | null; last_exit_code?: number | null; last_exit_time?: string | null } | undefined;
+  serverStatus: { uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null; players?: number | null; last_exit_code?: number | null; last_exit_time?: string | null; update_in_progress?: string | null } | undefined;
   updateAvailable: boolean;
   hasUpdateStatus: boolean;
   onNavigate: (view: ViewName) => void;
@@ -294,16 +294,31 @@ function SortableInstanceCard({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {thisInstalled ? (
             <>
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (thisRunning) stopServer.mutate(inst.name);
-                  else startServer.mutate(inst.name);
-                }}
-                disabled={startServer.isPending || stopServer.isPending}
-              >
-                {thisRunning ? "Stop" : "Start"}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (thisRunning) stopServer.mutate(inst.name);
+                      else startServer.mutate(inst.name);
+                    }}
+                    disabled={
+                      startServer.isPending ||
+                      stopServer.isPending ||
+                      !!serverStatus?.update_in_progress
+                    }
+                  >
+                    {thisRunning ? "Stop" : "Start"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {serverStatus?.update_in_progress
+                    ? "Update in progress – cannot start"
+                    : thisRunning
+                      ? "Stop server"
+                      : "Start server"}
+                </TooltipContent>
+              </Tooltip>
               <div className="flex flex-1 gap-1">
                 <Tooltip>
                   <TooltipTrigger asChild>

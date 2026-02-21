@@ -9,6 +9,22 @@ import zipfile
 import threading
 from typing import Callable, Optional
 
+_update_in_progress: Optional[str] = None
+_update_lock = threading.Lock()
+
+
+def get_update_in_progress() -> Optional[str]:
+    """Instance name being updated, or None if no update in progress."""
+    with _update_lock:
+        return _update_in_progress
+
+
+def _set_update_in_progress(instance_name: Optional[str]) -> None:
+    with _update_lock:
+        global _update_in_progress
+        _update_in_progress = instance_name
+
+
 from config import (
     VERSION_FILE,
     PATCHLINE_FILE,
@@ -59,6 +75,15 @@ def version_greater(a: str, b: str) -> bool:
     return a > b
 
 
+def version_less(a: str, b: str) -> bool:
+    """True if a is older than b (a < b)."""
+    if not a or a == "unknown":
+        return True
+    if not b or b == "unknown":
+        return False
+    return a < b
+
+
 def get_update_status() -> dict:
     iv = read_installed_version()
     ip = read_installed_patchline()
@@ -73,6 +98,8 @@ def get_update_status() -> dict:
 
     can_switch_release = (ip == "pre-release" and rr is not None)
     can_switch_prerelease = (ip == "release" and rp is not None)
+    switch_to_release_is_downgrade = can_switch_release and version_less(rr, iv)
+    switch_to_prerelease_is_downgrade = can_switch_prerelease and version_less(rp, iv)
 
     return {
         "installed_version": iv,
@@ -82,6 +109,8 @@ def get_update_status() -> dict:
         "update_available": update_available,
         "can_switch_release": can_switch_release,
         "can_switch_prerelease": can_switch_prerelease,
+        "switch_to_release_is_downgrade": switch_to_release_is_downgrade,
+        "switch_to_prerelease_is_downgrade": switch_to_prerelease_is_downgrade,
     }
 
 
@@ -105,12 +134,16 @@ def get_all_instances_update_status() -> dict:
             update_available = version_greater(rp, iv) if rp else False
         can_switch_release = ip == "pre-release" and rr is not None
         can_switch_prerelease = ip == "release" and rp is not None
+        switch_to_release_is_downgrade = can_switch_release and version_less(rr, iv)
+        switch_to_prerelease_is_downgrade = can_switch_prerelease and version_less(rp, iv)
         result[inst["name"]] = {
             "update_available": update_available,
             "installed_version": iv,
             "installed_patchline": ip,
             "can_switch_release": can_switch_release,
             "can_switch_prerelease": can_switch_prerelease,
+            "switch_to_release_is_downgrade": switch_to_release_is_downgrade,
+            "switch_to_prerelease_is_downgrade": switch_to_prerelease_is_downgrade,
         }
 
     return {
@@ -158,7 +191,19 @@ def perform_update(
     on_done: Optional[Callable[[bool, str], None]] = None,
 ) -> threading.Thread:
     def _worker():
+        from services.settings import get_active_instance
+        from services import server as server_svc
+
+        instance_name = get_active_instance()
         try:
+            _set_update_in_progress(instance_name or "")
+
+            if server_svc.is_running():
+                _set_update_in_progress(None)
+                if on_done:
+                    on_done(False, "Stop the server before updating.")
+                return
+
             zip_path = resolve_instance("temp_update.zip")
             server_dir = resolve_instance(SERVER_DIR)
 
@@ -211,6 +256,8 @@ def perform_update(
         except Exception as exc:
             if on_done:
                 on_done(False, str(exc))
+        finally:
+            _set_update_in_progress(None)
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
@@ -224,7 +271,19 @@ def perform_first_time_setup(
     on_done: Optional[Callable[[bool, str], None]] = None,
 ) -> threading.Thread:
     def _worker():
+        from services.settings import get_active_instance
+        from services import server as server_svc
+
+        instance_name = get_active_instance()
         try:
+            _set_update_in_progress(instance_name or "")
+
+            if server_svc.is_running():
+                _set_update_in_progress(None)
+                if on_done:
+                    on_done(False, "Stop the server before updating.")
+                return
+
             if not dl.has_downloader():
                 if on_status:
                     on_status("Downloading Hytale downloader...")
@@ -287,6 +346,8 @@ def perform_first_time_setup(
         except Exception as exc:
             if on_done:
                 on_done(False, str(exc))
+        finally:
+            _set_update_in_progress(None)
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
