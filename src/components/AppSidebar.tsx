@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InstanceSwitcher } from "@/components/InstanceSwitcher";
+import { useAppInfo } from "@/api/hooks/useInfo";
 
 export type ViewName =
   | "dashboard"
@@ -56,6 +57,11 @@ export function AppSidebar({
   onImportServer,
   onManageInstances,
 }: AppSidebarProps) {
+  const { data: appInfo } = useAppInfo();
+  const releaseUrl = appInfo?.github_repo
+    ? `https://github.com/${appInfo.github_repo}/releases`
+    : "https://github.com/Stormster/hytale-server-manager/releases";
+
   return (
     <aside className="relative z-20 flex h-full w-[260px] flex-col border-r border-white/10 bg-card/80 backdrop-blur-md">
       <InstanceSwitcher
@@ -93,6 +99,15 @@ export function AppSidebar({
           className="block px-3 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
         >
           Report issues
+        </a>
+        <a
+          href={releaseUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="block px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+          title="Release notes"
+        >
+          v{appInfo?.manager_version ?? "..."}
         </a>
       </nav>
     </aside>
