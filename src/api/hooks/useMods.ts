@@ -56,3 +56,20 @@ export function useToggleMod() {
     },
   });
 }
+
+interface NitradoUpdateStatus {
+  update_available: boolean;
+  webserver: { installed: string | null; latest: string | null };
+  query: { installed: string | null; latest: string | null };
+}
+
+export function useNitradoUpdateStatus() {
+  const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance;
+  return useQuery<NitradoUpdateStatus>({
+    queryKey: ["mods", "nitrado-update-status", activeInstance],
+    queryFn: () => api<NitradoUpdateStatus>("/api/mods/nitrado-update-status"),
+    enabled: !!activeInstance,
+    staleTime: 60000, // 1 min – don't hammer GitHub
+  });
+}

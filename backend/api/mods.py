@@ -51,6 +51,16 @@ def list_mods():
     return {"mods": mods_svc.list_mods(server_dir)}
 
 
+@router.get("/nitrado-update-status")
+def nitrado_update_status():
+    """Check if Nitrado WebServer/Query plugins have updates available."""
+    server_dir = resolve_instance(SERVER_DIR)
+    if not server_dir or not os.path.isdir(server_dir):
+        return {"update_available": False, "webserver": {"installed": None, "latest": None}, "query": {"installed": None, "latest": None}}
+    from services import nitrado_plugins as nitrado
+    return nitrado.get_nitrado_update_status(server_dir)
+
+
 @router.post("/ensure-query-permissions")
 def ensure_query_permissions():
     """
