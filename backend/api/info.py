@@ -116,7 +116,8 @@ def open_path(body: OpenPathRequest):
         return JSONResponse({"ok": False, "error": "Path does not exist"}, status_code=400)
     try:
         if sys.platform == "win32":
-            os.startfile(path)
+            # Use explorer.exe so the window opens in foreground (os.startfile often opens behind)
+            subprocess.Popen(["explorer", path], shell=False)
         elif sys.platform == "darwin":
             subprocess.run(["open", path], check=True)
         else:

@@ -48,20 +48,12 @@ export function InstancesModal({
   const [renameValue, setRenameValue] = useState("");
 
   const rootDir = settings?.root_dir || "";
+  const sep = rootDir.includes("\\") ? "\\" : "/";
 
   const handleOpenFolder = async (name: string) => {
-    const path = `${rootDir.replace(/[/\\]+$/, "")}\\${name}`;
-    try {
-      const { openPath } = await import("@tauri-apps/plugin-opener");
-      await openPath(path);
-    } catch {
-      try {
-        const { open } = await import("@tauri-apps/plugin-shell");
-        await open(`file:///${path.replace(/\\/g, "/")}`);
-      } catch {
-        console.warn("Could not open folder");
-      }
-    }
+    const path = [rootDir.replace(/[/\\]+$/, ""), name].join(sep);
+    const { openPathInExplorer } = await import("@/lib/openPath");
+    await openPathInExplorer(path);
   };
 
   const handleRenameClick = (name: string) => {

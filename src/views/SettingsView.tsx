@@ -137,17 +137,8 @@ export function SettingsView() {
 
   const handleOpenInstanceFolder = async () => {
     if (!instancePath) return;
-    try {
-      const { openPath } = await import("@tauri-apps/plugin-opener");
-      await openPath(instancePath);
-    } catch {
-      try {
-        const { open } = await import("@tauri-apps/plugin-shell");
-        await open(`file:///${instancePath.replace(/\\/g, "/")}`);
-      } catch {
-        console.warn("Could not open folder");
-      }
-    }
+    const { openPathInExplorer } = await import("@/lib/openPath");
+    await openPathInExplorer(instancePath);
   };
 
   const handleRenameClick = () => {
