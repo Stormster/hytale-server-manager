@@ -81,7 +81,7 @@ def create_app():
     app.include_router(instances_router, prefix="/api/instances", tags=["instances"])
     app.include_router(mods_router, prefix="/api/mods", tags=["mods"])
 
-    # Load Experimental addon if present (plugins/experimental_addon.whl or .pyz)
+    # Load Experimental addon if present (addons/experimental_addon.whl or .pyz)
     try:
         from plugin_loader import load_experimental_addon
         if load_experimental_addon(app):

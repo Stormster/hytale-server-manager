@@ -123,7 +123,7 @@ export interface AppInfo {
   has_downloader: boolean;
   github_repo: string;
   report_url: string;
-  /** True if Experimental addon loaded (plugins/experimental_addon.whl or .pyz present) */
+  /** True if Experimental addon loaded (addons/experimental_addon.whl or .pyz present) */
   experimental_addon_loaded?: boolean;
 }
 

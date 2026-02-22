@@ -36,9 +36,9 @@ src-tauri/server-manager-backend-*.exe
 # ---- Experimental addon (private repo: hytale-server-manager-pro) ----
 # Never commit Experimental addon implementation or docs to public repo.
 docs/
-backend/plugins/README.md
-backend/plugins/*.whl
-backend/plugins/*.pyz
+backend/addons/README.md
+backend/addons/*.whl
+backend/addons/*.pyz
 backend/experimental_addon/
 experimental_addon/
 
