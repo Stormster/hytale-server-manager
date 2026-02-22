@@ -123,8 +123,8 @@ export interface AppInfo {
   has_downloader: boolean;
   github_repo: string;
   report_url: string;
-  /** True if Pro plugin loaded (plugins/pro_plugin.whl or .pyz present) */
-  pro_loaded?: boolean;
+  /** True if Experimental addon loaded (plugins/experimental_addon.whl or .pyz present) */
+  experimental_addon_loaded?: boolean;
 }
 
 export interface ManagerUpdateInfo {
