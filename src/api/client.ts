@@ -63,6 +63,28 @@ export async function api<T>(
 }
 
 /**
+ * Upload files (e.g. FormData). Does not set Content-Type so browser sets multipart boundary.
+ */
+export async function apiUpload<T>(
+  path: string,
+  body: FormData,
+  options?: Omit<RequestInit, "body" | "headers">
+): Promise<T> {
+  const base = await getBaseUrl();
+  const res = await fetch(`${base}${path}`, {
+    ...options,
+    method: options?.method ?? "POST",
+    body,
+    headers: options?.headers,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || data.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
  * Subscribe to an SSE endpoint. Returns an abort function.
  */
 export function subscribeSSE(
