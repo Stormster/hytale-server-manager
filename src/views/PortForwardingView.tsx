@@ -85,7 +85,7 @@ export function PortForwardingView() {
   const [firewallChecking, setFirewallChecking] = useState(false);
   const [upnpRunning, setUpnpRunning] = useState(false);
   const [upnpResult, setUpnpResult] = useState<{ results: Record<string, boolean>; discovery_ok: boolean } | null>(null);
-  const [showPublicIp, setShowPublicIp] = useState(true);
+  const [showPublicIp, setShowPublicIp] = useState(false);
   const [upnpStatus, setUpnpStatus] = useState<{ available: boolean } | null>(null);
   const [routerExpanded, setRouterExpanded] = useState(false);
   const [addRulesRunning, setAddRulesRunning] = useState(false);
@@ -93,7 +93,7 @@ export function PortForwardingView() {
   const [expandedInstance, setExpandedInstance] = useState<string | null>(null);
 
   const { data: localIpData } = useLocalIp();
-  const { data: publicIpData } = usePublicIp(showPublicIp);
+  const { data: publicIpData } = usePublicIp(true);
 
   const instancesWithPorts = (instances ?? []).map((inst) => ({
     name: inst.name,
@@ -102,8 +102,8 @@ export function PortForwardingView() {
   }));
 
   const localIp = localIpData?.ip ?? "";
-  const publicIp = showPublicIp && publicIpData?.ok ? publicIpData.ip ?? "" : "";
-  const publicIpError = showPublicIp && publicIpData && !publicIpData.ok;
+  const publicIp = publicIpData?.ok ? publicIpData.ip ?? "" : "";
+  const publicIpError = publicIpData && !publicIpData.ok;
   const publicIpWarning: "private" | "cgnat" | "unreachable" | null =
     publicIp ? (isPrivateOrCgnat(publicIp) || null) : publicIpError ? "unreachable" : null;
 
@@ -679,7 +679,31 @@ export function PortForwardingView() {
                 <p className="font-medium text-foreground mb-2">Best test: ask a friend</p>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
                   <li>Start your server</li>
-                  <li>Copy and send your public address: {publicIp ? `${publicIp}:${firstGamePort}` : "PUBLIC_IP:GAME_PORT"}</li>
+                  <li className="flex flex-wrap items-center gap-2 gap-y-1">
+                    <span>Copy and send your public address:</span>
+                    {showPublicIp ? (
+                      publicIp ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => setShowPublicIp(false)} title="Hide public IP">
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                          <Copyable text={`${publicIp}:${firstGamePort}`} className="inline-flex items-center gap-1.5">
+                            <code className="rounded bg-muted px-2 py-1 text-sm font-mono">{publicIp}:{firstGamePort}</code>
+                            <Copy className="h-3.5 w-3.5" />
+                          </Copyable>
+                        </span>
+                      ) : publicIpError ? (
+                        <span className="text-amber-500">Failed</span>
+                      ) : (
+                        <span className="italic">Loading…</span>
+                      )
+                    ) : (
+                      <Button variant="ghost" size="sm" className="h-7 gap-1 -ml-2" onClick={() => setShowPublicIp(true)}>
+                        <Eye className="h-3.5 w-3.5" />
+                        Reveal
+                      </Button>
+                    )}
+                  </li>
                   <li>Have a friend connect from a different network</li>
                   <li>If it works, you're done</li>
                 </ol>
