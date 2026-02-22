@@ -141,7 +141,9 @@ export function ConfigView() {
   };
 
   return (
-    <div className="flex flex-col p-6">
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl px-6 py-8">
       <div className="mb-4 flex items-start justify-between gap-4">
         <h2 className="text-xl font-bold">Configuration</h2>
         {serverPath && (
@@ -304,6 +306,8 @@ export function ConfigView() {
           )}
         </CardContent>
       </Card>
+        </div>
+      </div>
     </div>
   );
 }
