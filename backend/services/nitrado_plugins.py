@@ -42,6 +42,76 @@ def _get_jar_url(repo: str) -> tuple[str, str] | None:
     return None
 
 
+def _get_latest_version(repo: str, prefix: str) -> str | None:
+    """Get latest version string from GitHub releases, or None."""
+    url = GITHUB_API.format(repo=repo)
+    try:
+        resp = requests.get(url, timeout=15, headers=_HEADERS)
+        resp.raise_for_status()
+        data = resp.json()
+        tag = (data.get("tag_name") or "").lstrip("v")
+        if tag:
+            return tag
+        for a in data.get("assets", []):
+            name = (a.get("name") or "")
+            if name.startswith(prefix) and name.endswith(".jar"):
+                # nitrado-webserver-1.1.1.jar -> 1.1.1
+                mid = name[len(prefix) : -4]
+                if mid.startswith("-"):
+                    return mid[1:] or None
+                return mid or None
+    except Exception:
+        pass
+    return None
+
+
+def _version_less(a: str, b: str) -> bool:
+    """True if a < b (a is older than b)."""
+    try:
+        from packaging.version import Version
+
+        return Version(a) < Version(b)
+    except Exception:
+        return a < b
+
+
+def get_nitrado_update_status(server_dir: str) -> dict:
+    """
+    Check if Nitrado plugins have updates available.
+    Returns { update_available: bool, webserver: {installed, latest}, query: {installed, latest} }.
+    """
+    import re
+
+    mods_path = os.path.join(server_dir, "mods")
+    result: dict = {
+        "update_available": False,
+        "webserver": {"installed": None, "latest": None},
+        "query": {"installed": None, "latest": None},
+    }
+    version_pattern = re.compile(r"(\d+\.\d+\.\d+(?:\.\d+)?(?:-[a-zA-Z0-9.]+)?)")
+    for repo, prefix, ext in PLUGINS:
+        key = "webserver" if "webserver" in prefix else "query"
+        installed = None
+        for subdir in ("", "disabled"):
+            dir_path = os.path.join(mods_path, subdir) if subdir else mods_path
+            if not os.path.isdir(dir_path):
+                continue
+            for f in os.listdir(dir_path):
+                if f.startswith(prefix) and f.endswith(ext):
+                    m = version_pattern.search(f)
+                    if m:
+                        installed = m.group(1)
+                    break
+            if installed:
+                break
+        latest = _get_latest_version(repo, prefix)
+        result[key]["installed"] = installed
+        result[key]["latest"] = latest
+        if installed and latest and _version_less(installed, latest):
+            result["update_available"] = True
+    return result
+
+
 def _pick_unique_webserver_port(server_dir: str) -> int:
     """
     Pick a BindPort for this instance that does not collide with other instances.
@@ -163,13 +233,29 @@ def install_nitrado_plugins(
     Download and install latest Nitrado WebServer + Query plugins.
 
     WebServer must load before Query (it provides the HTTP layer Query depends on).
-    Installs to server_dir/mods/. Ensures query permissions for player count.
+    Installs to server_dir/mods/. Config folders (Nitrado_WebServer, Nitrado_Query)
+    are never touched — only the .jar files are replaced, preserving user configs.
     """
     mods_path = os.path.join(server_dir, "mods")
     os.makedirs(mods_path, exist_ok=True)
     ok = True
 
     for repo, prefix, ext in PLUGINS:
+        # Remove old version(s) before install — avoids duplicate plugins, preserves config folders
+        for subdir in ("", "disabled"):
+            dir_path = os.path.join(mods_path, subdir) if subdir else mods_path
+            if not os.path.isdir(dir_path):
+                continue
+            try:
+                for f in os.listdir(dir_path):
+                    if f.startswith(prefix) and f.endswith(ext):
+                        old_path = os.path.join(dir_path, f)
+                        if os.path.isfile(old_path):
+                            os.remove(old_path)
+                            if on_status:
+                                on_status(f"Removed old {f}")
+            except OSError:
+                pass
         if on_status:
             on_status(f"Installing Nitrado plugin: {prefix}...")
         result = _get_jar_url(repo)

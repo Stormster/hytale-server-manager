@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { useMods, useToggleMod } from "@/api/hooks/useMods";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMods, useToggleMod, useNitradoUpdateStatus } from "@/api/hooks/useMods";
 import { useServerStatus } from "@/api/hooks/useServer";
 import { useSettings } from "@/api/hooks/useSettings";
 import { Lock, Download, FolderOpen, Info, Code2, Palette, ChevronDown, ChevronUp } from "lucide-react";
@@ -62,7 +63,9 @@ function ModTypeBadge({ mod }: { mod: Mod }) {
 export function ModsView() {
   const { data: settings } = useSettings();
   const { data: modsData, isLoading, refetch } = useMods();
+  const { data: nitradoUpdate } = useNitradoUpdateStatus();
   const { data: serverStatus } = useServerStatus();
+  const queryClient = useQueryClient();
   const toggleMod = useToggleMod();
   const [installing, setInstalling] = useState(false);
   const [showExplainer, setShowExplainer] = useState(false);
@@ -83,8 +86,10 @@ export function ModsView() {
   };
   const mods = modsData?.mods ?? [];
   const missingRequired = !hasRequiredMods(mods);
+  const nitradoUpdateAvailable = nitradoUpdate?.update_available ?? false;
 
   const handleInstallRequired = async () => {
+    if (running) return;
     setInstalling(true);
     try {
       await api<{ ok: boolean }>("/api/mods/install-required", {
@@ -92,6 +97,7 @@ export function ModsView() {
         body: "{}",
       });
       refetch();
+      queryClient.invalidateQueries({ queryKey: ["mods", "nitrado-update-status"] });
     } catch {
       // Error shown via mutation
     } finally {
@@ -126,15 +132,22 @@ export function ModsView() {
                 View Mods Folder
               </Button>
             )}
-            {activeInstance && missingRequired && (
+            {activeInstance && (missingRequired || nitradoUpdateAvailable) && (
               <Button
                 size="sm"
                 onClick={handleInstallRequired}
                 disabled={running || installing}
                 className="gap-2"
+                title={
+                  running
+                    ? "Stop the server first"
+                    : missingRequired
+                      ? "Install WebServer + Query plugins"
+                      : "Update to latest from GitHub (configs preserved)"
+                }
               >
                 <Download className="h-4 w-4" />
-                {installing ? "Downloading..." : "Download required mods"}
+                {installing ? (missingRequired ? "Downloading..." : "Updating...") : missingRequired ? "Download required mods" : "Update Nitrado plugins"}
               </Button>
             )}
           </div>
