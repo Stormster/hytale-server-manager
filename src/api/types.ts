@@ -34,6 +34,11 @@ export interface RunningInstanceInfo {
   cpu_percent: number | null;
 }
 
+export interface InstanceExitInfo {
+  exit_time: string;
+  exit_code: number;
+}
+
 export interface ServerStatus {
   installed: boolean;
   running: boolean;
@@ -42,6 +47,8 @@ export interface ServerStatus {
   uptime_seconds: number | null;
   last_exit_time: string | null;
   last_exit_code: number | null;
+  /** Per-instance last exit info keyed by instance name */
+  last_exits?: Record<string, InstanceExitInfo>;
   ram_mb: number | null;
   cpu_percent: number | null;
   players: number | null;
