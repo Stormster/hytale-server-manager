@@ -2,10 +2,12 @@
 Mods API – list and toggle mods. Toggling disabled while server is running.
 """
 
+import asyncio
+import json as _json
 import os
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from services import mods as mods_svc
@@ -14,6 +16,33 @@ from utils.paths import resolve_instance
 from config import SERVER_DIR
 
 router = APIRouter()
+
+
+@router.get("/watch")
+async def watch_mods():
+    """
+    SSE stream that emits mods_changed when files are added/removed in the mods folder.
+    Subscribe when on the mods page for instant updates.
+    """
+    server_dir = resolve_instance(SERVER_DIR)
+    mods_dir = os.path.join(server_dir, "mods") if server_dir else ""
+
+    async def generate():
+        if not mods_dir or not os.path.isdir(mods_dir):
+            yield f"event: error\ndata: {_json.dumps({'error': 'Mods folder not found'})}\n\n"
+            return
+        try:
+            from watchfiles import awatch
+            # Initial event so client knows we're ready
+            yield f"event: ready\ndata: {_json.dumps({})}\n\n"
+            async for _ in awatch(mods_dir):
+                yield f"event: mods_changed\ndata: {_json.dumps({})}\n\n"
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @router.get("")
