@@ -15,16 +15,24 @@ DISABLED_SUBFOLDER = "disabled"
 REQUIRED_PREFIXES = ("nitrado-webserver", "nitrado-query")
 
 
-def _get_manifest_meta(jar_path: str, filename: str) -> tuple[str, Optional[str]]:
+ModType = str  # "plugin" | "pack" | "plugin_pack"
+
+
+def _get_manifest_meta(jar_path: str, filename: str) -> tuple[str, Optional[str], ModType]:
     """
-    Extract display name and data folder from manifest.json in the JAR.
-    Returns (display_name, data_folder).
+    Extract display name, data folder, and mod type from manifest.json in the JAR.
+    Returns (display_name, data_folder, mod_type).
     - display_name: "Name Version by Group" (Group = author) or filename without .jar
     - data_folder: "Group_Name" (Hytale convention for plugin data dirs) or None if no manifest
+    - mod_type: "plugin" | "pack" | "plugin_pack"
+      - plugin: Has Main (Java entry point), no IncludesAssetPack
+      - pack: No Main, has IncludesAssetPack (asset-only JAR)
+      - plugin_pack: Has Main and IncludesAssetPack
     """
     fallback = filename[:-4] if filename.lower().endswith(".jar") else filename
     data_folder: Optional[str] = None
     display_name = fallback
+    mod_type: ModType = "plugin"  # default for JARs without manifest
     try:
         with zipfile.ZipFile(jar_path, "r") as zf:
             for candidate in ("manifest.json", "hytale-plugin.json", "mod.json"):
@@ -39,12 +47,20 @@ def _get_manifest_meta(jar_path: str, filename: str) -> tuple[str, Optional[str]
                         display_name = f"{lead} by {group}" if group else lead
                     if group and name_val:
                         data_folder = f"{group}_{name_val}"
+                    main_present = bool(str(manifest.get("Main", "")).strip())
+                    includes_asset_pack = manifest.get("IncludesAssetPack") is True
+                    if main_present and includes_asset_pack:
+                        mod_type = "plugin_pack"
+                    elif main_present:
+                        mod_type = "plugin"
+                    elif includes_asset_pack:
+                        mod_type = "pack"
                     break
                 except (KeyError, json.JSONDecodeError, UnicodeDecodeError):
                     continue
     except (zipfile.BadZipFile, OSError):
         pass
-    return display_name, data_folder
+    return display_name, data_folder, mod_type
 
 
 def _is_required(filename: str) -> bool:
@@ -75,8 +91,8 @@ def list_mods(server_dir: Optional[str] = None) -> list[dict]:
             full = os.path.join(base, name)
             if not os.path.isfile(full) or not name.lower().endswith(".jar"):
                 continue
-            display_name, data_folder = _get_manifest_meta(full, name)
-            entry: dict = {"name": name, "displayName": display_name, "path": os.path.join(sub, name), "enabled": True, "required": _is_required(name)}
+            display_name, data_folder, mod_type = _get_manifest_meta(full, name)
+            entry: dict = {"name": name, "displayName": display_name, "path": os.path.join(sub, name), "enabled": True, "required": _is_required(name), "modType": mod_type}
             if data_folder is not None:
                 entry["dataFolder"] = data_folder
                 mods_dir = os.path.join(server_dir, "mods")
@@ -88,8 +104,8 @@ def list_mods(server_dir: Optional[str] = None) -> list[dict]:
                 full = os.path.join(disabled_dir, name)
                 if not os.path.isfile(full) or not name.lower().endswith(".jar"):
                     continue
-                display_name, data_folder = _get_manifest_meta(full, name)
-                entry = {"name": name, "displayName": display_name, "path": os.path.join(sub, DISABLED_SUBFOLDER, name), "enabled": False, "required": _is_required(name)}
+                display_name, data_folder, mod_type = _get_manifest_meta(full, name)
+                entry = {"name": name, "displayName": display_name, "path": os.path.join(sub, DISABLED_SUBFOLDER, name), "enabled": False, "required": _is_required(name), "modType": mod_type}
                 if data_folder is not None:
                     entry["dataFolder"] = data_folder
                     mods_dir = os.path.join(server_dir, "mods")
