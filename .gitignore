@@ -33,12 +33,14 @@ src-tauri/server-manager-backend-*.exe
 .cursor/
 *.code-workspace
 
-# ---- Pro plugin (private repo: hytale-server-manager-pro) ----
-# Never commit Pro implementation to public repo.
+# ---- Experimental addon (private repo: hytale-server-manager-pro) ----
+# Never commit Experimental addon implementation or docs to public repo.
+docs/
+backend/plugins/README.md
 backend/plugins/*.whl
 backend/plugins/*.pyz
-backend/pro_plugin/
-pro_plugin/
+backend/experimental_addon/
+experimental_addon/
 
 # ---- Hytale runtime files (not source) ----
 Server/
@@ -63,5 +65,3 @@ Desktop.ini
 .DS_Store
 server info/config.json
 server info/output.txt
-docs/PRO_PLUGIN.md
-docs/PRO_PLUGIN.md

@@ -81,13 +81,13 @@ def create_app():
     app.include_router(instances_router, prefix="/api/instances", tags=["instances"])
     app.include_router(mods_router, prefix="/api/mods", tags=["mods"])
 
-    # Load Pro plugin if present (plugins/pro_plugin.whl or pro_plugin.pyz)
+    # Load Experimental addon if present (plugins/experimental_addon.whl or .pyz)
     try:
-        from plugin_loader import load_pro_plugin
-        if load_pro_plugin(app):
-            pass  # Pro routes/features now registered
+        from plugin_loader import load_experimental_addon
+        if load_experimental_addon(app):
+            pass  # Experimental addon routes/features now registered
     except Exception:
-        pass  # No plugin or load failed – open core runs without it
+        pass  # No addon or load failed – open core runs without it
 
     @app.get("/api/health")
     async def health():

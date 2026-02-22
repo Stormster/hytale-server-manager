@@ -1,9 +1,9 @@
 """
-Load Pro plugins from the plugins/ folder.
+Load Experimental addon from the plugins/ folder.
 
-Scans for pro_plugin.whl or pro_plugin.pyz. If present, imports the plugin
-and calls register(app, license_key). Pro code is never shipped with the
-public build – Patreon users receive the plugin file + license key separately.
+Scans for experimental_addon.whl or experimental_addon.pyz. If present, imports the addon
+and calls register(app, license_key). Experimental addon code is never shipped with the
+public build – Patreon users receive the addon file + license key separately.
 """
 
 from __future__ import annotations
@@ -12,16 +12,16 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from plugin_interface import ProPlugin
+from plugin_interface import ExperimentalAddon
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-# Plugin candidates (checked in order)
-_PRO_PLUGIN_NAMES = ("pro_plugin.whl", "pro_plugin.pyz")
+# Addon candidates (checked in order)
+_EXPERIMENTAL_ADDON_NAMES = ("experimental_addon.whl", "experimental_addon.pyz")
 
-# Set by load_pro_plugin; read by /api/info for frontend
-pro_loaded = False
+# Set by load_experimental_addon; read by /api/info for frontend
+experimental_addon_loaded = False
 
 
 def _get_plugins_dir() -> Path:
@@ -34,39 +34,39 @@ def _get_plugins_dir() -> Path:
     return base / "plugins"
 
 
-def _find_pro_plugin(plugins_dir: Path) -> Path | None:
-    """Return path to pro_plugin.whl or pro_plugin.pyz if present."""
+def _find_experimental_addon(plugins_dir: Path) -> Path | None:
+    """Return path to experimental_addon.whl or experimental_addon.pyz if present."""
     if not plugins_dir.is_dir():
         return None
-    for name in _PRO_PLUGIN_NAMES:
+    for name in _EXPERIMENTAL_ADDON_NAMES:
         p = plugins_dir / name
         if p.is_file():
             return p
     return None
 
 
-def _load_plugin_module(plugin_path: Path) -> ProPlugin | None:
+def _load_addon_module(addon_path: Path) -> ExperimentalAddon | None:
     """
-    Import plugin and return ProPlugin instance, or None on failure.
+    Import addon and return ExperimentalAddon instance, or None on failure.
 
     For .whl and .pyz: both are zip archives. We add the file to sys.path
-    and import the top-level package (assumed to be 'pro_plugin').
+    and import the top-level package (assumed to be 'experimental_addon').
     """
     try:
-        path_str = str(plugin_path.resolve())
+        path_str = str(addon_path.resolve())
         if path_str not in sys.path:
             sys.path.insert(0, path_str)
 
-        import pro_plugin as mod  # noqa: F811
+        import experimental_addon as mod  # noqa: F811
 
-        # Find ProPlugin subclass in the module
+        # Find ExperimentalAddon subclass in the module
         for attr in dir(mod):
             try:
                 cls = getattr(mod, attr)
                 if (
                     isinstance(cls, type)
-                    and issubclass(cls, ProPlugin)
-                    and cls is not ProPlugin
+                    and issubclass(cls, ExperimentalAddon)
+                    and cls is not ExperimentalAddon
                 ):
                     return cls()
             except TypeError:
@@ -76,29 +76,29 @@ def _load_plugin_module(plugin_path: Path) -> ProPlugin | None:
         return None
 
 
-def load_pro_plugin(app: "FastAPI") -> bool:
+def load_experimental_addon(app: "FastAPI") -> bool:
     """
-    Load and register the Pro plugin if present.
+    Load and register the Experimental addon if present.
 
-    Returns True if a plugin was loaded and registered, False otherwise.
+    Returns True if the addon was loaded and registered, False otherwise.
     """
     plugins_dir = _get_plugins_dir()
-    plugin_path = _find_pro_plugin(plugins_dir)
-    if plugin_path is None:
+    addon_path = _find_experimental_addon(plugins_dir)
+    if addon_path is None:
         return False
 
     license_key = None
     try:
         from services import settings
-        license_key = settings.get_pro_license_key().strip() or None
+        license_key = settings.get_experimental_addon_license_key().strip() or None
     except Exception:
         pass
 
-    plugin = _load_plugin_module(plugin_path)
-    if plugin is None:
+    addon = _load_addon_module(addon_path)
+    if addon is None:
         return False
 
-    global pro_loaded
-    plugin.register(app, license_key=license_key)
-    pro_loaded = True
+    global experimental_addon_loaded
+    addon.register(app, license_key=license_key)
+    experimental_addon_loaded = True
     return True
