@@ -17,7 +17,7 @@ class ExperimentalAddon(ABC):
     """
     Interface for Experimental addon.
 
-    Experimental addon is loaded from the plugins/ folder if experimental_addon.whl
+    Experimental addon is loaded from the addons/ folder if experimental_addon.whl
     or experimental_addon.pyz is present. It receives the FastAPI app and
     optionally a license key for validation.
     """

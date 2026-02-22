@@ -1,5 +1,5 @@
 """
-Load Experimental addon from the plugins/ folder.
+Load Experimental addon from the addons/ folder.
 
 Scans for experimental_addon.whl or experimental_addon.pyz. If present, imports the addon
 and calls register(app, license_key). Experimental addon code is never shipped with the
@@ -8,6 +8,7 @@ public build – Patreon users receive the addon file + license key separately.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -24,22 +25,24 @@ _EXPERIMENTAL_ADDON_NAMES = ("experimental_addon.whl", "experimental_addon.pyz")
 experimental_addon_loaded = False
 
 
-def _get_plugins_dir() -> Path:
-    """Resolve plugins/ directory: next to backend exe when frozen, else backend/ when in dev."""
+def _get_addons_dir() -> Path:
+    """
+    Addons directory. Uses %APPDATA%/HytaleServerManager/addons/ so the addon
+    persists across app updates (user data, not install dir).
+    In dev mode: backend/addons/ for easier testing.
+    """
     if getattr(sys, "frozen", False):
-        base = Path(sys.executable).parent
-    else:
-        # Running from source: backend/plugin_loader.py -> backend/
-        base = Path(__file__).resolve().parent
-    return base / "plugins"
+        app_data = Path(os.environ.get("APPDATA", os.path.expanduser("~"))) / "HytaleServerManager"
+        return app_data / "addons"
+    return Path(__file__).resolve().parent / "addons"
 
 
-def _find_experimental_addon(plugins_dir: Path) -> Path | None:
+def _find_experimental_addon(addons_dir: Path) -> Path | None:
     """Return path to experimental_addon.whl or experimental_addon.pyz if present."""
-    if not plugins_dir.is_dir():
+    if not addons_dir.is_dir():
         return None
     for name in _EXPERIMENTAL_ADDON_NAMES:
-        p = plugins_dir / name
+        p = addons_dir / name
         if p.is_file():
             return p
     return None
@@ -82,8 +85,9 @@ def load_experimental_addon(app: "FastAPI") -> bool:
 
     Returns True if the addon was loaded and registered, False otherwise.
     """
-    plugins_dir = _get_plugins_dir()
-    addon_path = _find_experimental_addon(plugins_dir)
+    addons_dir = _get_addons_dir()
+    addons_dir.mkdir(parents=True, exist_ok=True)
+    addon_path = _find_experimental_addon(addons_dir)
     if addon_path is None:
         return False
 
