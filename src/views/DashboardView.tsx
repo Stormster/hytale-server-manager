@@ -503,18 +503,8 @@ export function DashboardView({ onNavigate, onAddServer, onImportServer }: Dashb
     if (!rootDir) return;
     const sep = rootDir.includes("\\") ? "\\" : "/";
     const path = [rootDir.replace(/[/\\]+$/, ""), instanceName].join(sep);
-    try {
-      const { api } = await import("@/api/client");
-      await api<{ ok: boolean }>("/api/info/open-path", { method: "POST", body: JSON.stringify({ path }) });
-    } catch {
-      try {
-        const { openPath } = await import("@tauri-apps/plugin-opener");
-        await openPath(path);
-      } catch {
-        const { open } = await import("@tauri-apps/plugin-shell");
-        await open(`file:///${path.replace(/\\/g, "/")}`);
-      }
-    }
+    const { openPathInExplorer } = await import("@/lib/openPath");
+    await openPathInExplorer(path);
   };
 
   return (

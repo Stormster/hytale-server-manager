@@ -8,6 +8,7 @@ import { useSettings } from "@/api/hooks/useSettings";
 import { Lock, Download, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
+import { openPathInExplorer } from "@/lib/openPath";
 
 const REQUIRED_PREFIXES = ["nitrado-webserver", "nitrado-query"];
 
@@ -30,21 +31,6 @@ export function ModsView() {
   const sep = rootDir.includes("\\") ? "\\" : "/";
   const modsPath = activeInstance && rootDir ? [rootDir, activeInstance, "Server", "mods"].join(sep) : "";
   const running = serverStatus?.running ?? false;
-
-  const openPathInExplorer = async (path: string) => {
-    if (!path) return;
-    try {
-      await api<{ ok: boolean }>("/api/info/open-path", { method: "POST", body: JSON.stringify({ path }) });
-    } catch {
-      try {
-        const { openPath } = await import("@tauri-apps/plugin-opener");
-        await openPath(path);
-      } catch {
-        const { open } = await import("@tauri-apps/plugin-shell");
-        await open(`file:///${path.replace(/\\/g, "/")}`);
-      }
-    }
-  };
 
   const handleOpenFolder = () => openPathInExplorer(modsPath);
 
