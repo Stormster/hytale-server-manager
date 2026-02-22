@@ -5,8 +5,9 @@ Mods API – list and toggle mods. Toggling disabled while server is running.
 import asyncio
 import json as _json
 import os
+import shutil
 
-from fastapi import APIRouter
+from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -90,6 +91,46 @@ def ensure_webserver_port():
     game_port, _ = get_instance_port(inst) if inst else (None, None)
     _ensure_webserver_config(server_dir, force_unique=True, game_port=game_port)
     return {"ok": True}
+
+
+@router.post("/upload")
+async def upload_mods(files: list[UploadFile] = File(...)):
+    """Upload .jar file(s) to the mods folder. Requires server stopped."""
+    from services.settings import get_active_instance
+
+    inst = get_active_instance()
+    if inst and server_svc.is_instance_running(inst):
+        return JSONResponse(
+            {"ok": False, "error": "Stop the server before adding mods."},
+            status_code=409,
+        )
+    server_dir = resolve_instance(SERVER_DIR)
+    mods_dir = os.path.join(server_dir, "mods") if server_dir else ""
+    if not mods_dir or not os.path.isdir(mods_dir):
+        return JSONResponse(
+            {"ok": False, "error": "Mods folder not found. Install the server first."},
+            status_code=400,
+        )
+    uploaded: list[str] = []
+    errors: list[str] = []
+    for file in files:
+        name = (file.filename or "").strip()
+        if not name.lower().endswith(".jar"):
+            errors.append(f"{name or 'file'}: not a .jar file")
+            continue
+        dest = os.path.join(mods_dir, os.path.basename(name))
+        try:
+            with open(dest, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+            uploaded.append(name)
+        except OSError as e:
+            errors.append(f"{name}: {e}")
+    if not uploaded:
+        return JSONResponse(
+            {"ok": False, "error": errors[0] if errors else "No valid .jar files."},
+            status_code=400,
+        )
+    return {"ok": True, "uploaded": uploaded, "errors": errors if errors else None}
 
 
 @router.post("/install-required")

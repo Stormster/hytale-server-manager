@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, subscribeSSE } from "../client";
+import { toast } from "sonner";
+import { api, apiUpload, subscribeSSE } from "../client";
 import { useSettings } from "./useSettings";
 import type { Mod } from "../types";
 
@@ -41,6 +42,33 @@ export function useMods() {
   }, [activeInstance, queryClient]);
 
   return query;
+}
+
+interface UploadModsResponse {
+  ok: boolean;
+  uploaded?: string[];
+  errors?: string[] | null;
+}
+
+export function useUploadMods() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const form = new FormData();
+      for (const f of files) form.append("files", f);
+      return apiUpload<UploadModsResponse>("/api/mods/upload", form);
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["mods"] });
+      if (data.uploaded?.length) {
+        toast.success(`Added ${data.uploaded.join(", ")}`);
+      }
+      if (data.errors?.length) {
+        data.errors.forEach((e) => toast.error(e));
+      }
+    },
+    onError: (err) => toast.error((err as Error).message),
+  });
 }
 
 export function useToggleMod() {
