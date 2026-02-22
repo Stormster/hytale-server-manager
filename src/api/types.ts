@@ -65,6 +65,8 @@ export interface Mod {
   dataFolder?: string;
   /** Whether the data folder exists on disk (plugin has created it) */
   dataFolderExists?: boolean;
+  /** "plugin" | "pack" | "plugin_pack" - detected from manifest Main + IncludesAssetPack */
+  modType?: "plugin" | "pack" | "plugin_pack";
   path: string;
   enabled: boolean;
   required: boolean;
