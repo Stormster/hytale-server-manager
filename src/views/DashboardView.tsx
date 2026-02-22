@@ -221,14 +221,17 @@ function SortableInstanceCard({
 
         {thisInstalled && (
           <div className="flex min-h-5 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {(isActive || thisRunning) && serverStatus?.last_exit_code != null && serverStatus.last_exit_code !== 0 && !thisRunning ? (
+            {(() => {
+              const exitInfo = serverStatus?.last_exits?.[inst.name];
+              return exitInfo && exitInfo.exit_code !== 0 && !thisRunning;
+            })() ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="text-amber-400 cursor-default">
-                    Crashed {serverStatus.last_exit_time ? timeAgo(serverStatus.last_exit_time) : "recently"}
+                    Crashed {serverStatus?.last_exits?.[inst.name]?.exit_time ? timeAgo(serverStatus.last_exits[inst.name].exit_time) : "recently"}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Last exit</TooltipContent>
+                <TooltipContent>Exit code {serverStatus?.last_exits?.[inst.name]?.exit_code}</TooltipContent>
               </Tooltip>
             ) : (
               (() => {

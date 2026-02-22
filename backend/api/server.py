@@ -100,9 +100,18 @@ def status():
         ram_mb, cpu_pct = server_svc.get_resource_usage()
     players = server_svc.get_players()
     last_exit_time, last_exit_code = server_svc.get_last_exit_info()
+    per_instance_exit = server_svc.get_per_instance_exit_info()
 
     from services import updater as updater_svc
     update_in_progress = updater_svc.get_update_in_progress()
+
+    last_exits = {
+        name: {
+            "exit_time": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
+            "exit_code": code,
+        }
+        for name, (ts, code) in per_instance_exit.items()
+    }
 
     return {
         "installed": server_svc.is_installed(),
@@ -115,6 +124,7 @@ def status():
             if last_exit_time is not None else None
         ),
         "last_exit_code": last_exit_code,
+        "last_exits": last_exits,
         "ram_mb": ram_mb,
         "cpu_percent": cpu_pct,
         "players": players,

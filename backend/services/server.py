@@ -39,6 +39,7 @@ _server_processes: dict[str, _ProcessEntry] = {}
 _server_lock = threading.Lock()
 _last_exit_time: Optional[float] = None
 _last_exit_code: Optional[int] = None
+_per_instance_exit: dict[str, tuple[float, int]] = {}  # instance -> (time, code)
 
 
 def is_installed() -> bool:
@@ -79,6 +80,11 @@ def get_uptime_seconds(instance_name: Optional[str] = None) -> Optional[float]:
 def get_last_exit_info() -> tuple[Optional[float], Optional[int]]:
     """(timestamp_float, exit_code) of the last server exit, or (None, None)."""
     return (_last_exit_time, _last_exit_code)
+
+
+def get_per_instance_exit_info() -> dict[str, tuple[float, int]]:
+    """Per-instance last exit info: {instance_name: (timestamp, exit_code)}."""
+    return dict(_per_instance_exit)
 
 
 def get_running_instance() -> Optional[str]:
@@ -410,6 +416,7 @@ def start(
 
         _last_exit_time = time.time()
         _last_exit_code = rc
+        _per_instance_exit[inst] = (_last_exit_time, rc)
         if on_done:
             on_done(rc)
 
