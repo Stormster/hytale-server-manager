@@ -73,7 +73,9 @@ export function ModsView() {
   };
 
   return (
-    <div className="flex h-full flex-col p-6">
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       <div className="mb-2 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold">Mods</h2>
@@ -189,6 +191,8 @@ export function ModsView() {
           ))}
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -515,7 +515,9 @@ export function DashboardView({ onNavigate, onAddServer, onImportServer }: Dashb
   };
 
   return (
-    <div className="min-h-full space-y-6 p-4 sm:p-6">
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl space-y-6 px-6 py-8 sm:px-6">
       {/* Manager update banner */}
       {managerUpdate?.update_available && (
         <div className="flex flex-col gap-2 rounded-lg border bg-accent/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -549,7 +551,7 @@ export function DashboardView({ onNavigate, onAddServer, onImportServer }: Dashb
           items={instances?.map((i) => i.name) ?? []}
           strategy={rectSortingStrategy}
         >
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {instances?.length ? (
               instances.map((inst) => (
                 <SortableInstanceCard
@@ -669,6 +671,8 @@ export function DashboardView({ onNavigate, onAddServer, onImportServer }: Dashb
           Report issues on GitHub
         </a>
       </p>
+        </div>
+      </div>
     </div>
   );
 }

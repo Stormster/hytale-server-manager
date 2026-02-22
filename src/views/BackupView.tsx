@@ -58,7 +58,9 @@ export function BackupView() {
   };
 
   return (
-    <div className="flex h-full flex-col p-6">
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-xl font-bold">Backups</h2>
@@ -241,6 +243,8 @@ export function BackupView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </div>
+      </div>
     </div>
   );
 }
