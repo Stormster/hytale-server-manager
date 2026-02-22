@@ -10,9 +10,24 @@ struct BackendState {
 }
 
 /// Holds the backend sidecar process so we can kill it when the app exits.
-/// On Windows, child processes don't automatically terminate when the parent exits.
+///
+/// On Windows a Job Object with `KILL_ON_JOB_CLOSE` is used to guarantee the
+/// backend is terminated even if the parent process crashes or is force-killed.
+/// The `Drop` impl is a secondary safety net for panics and normal teardown.
 struct BackendChild {
     child: std::sync::Mutex<Option<CommandChild>>,
+    #[cfg(windows)]
+    _job: Option<job::JobGuard>,
+}
+
+impl Drop for BackendChild {
+    fn drop(&mut self) {
+        if let Ok(mut guard) = self.child.lock() {
+            if let Some(child) = guard.take() {
+                let _ = child.kill();
+            }
+        }
+    }
 }
 
 /// Kill the backend sidecar if it's still running. Safe to call multiple times.
@@ -22,6 +37,79 @@ fn kill_backend_child<R: tauri::Runtime>(app: &impl tauri::Manager<R>) {
             if let Some(child) = guard.take() {
                 let _ = child.kill();
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Windows: Job Object so the backend dies with the parent no matter what
+// ---------------------------------------------------------------------------
+#[cfg(windows)]
+mod job {
+    use std::mem;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
+    };
+
+    /// RAII guard — closing the last handle to the job kills every process in it
+    /// (thanks to the `KILL_ON_JOB_CLOSE` flag).
+    pub struct JobGuard(HANDLE);
+
+    unsafe impl Send for JobGuard {}
+    unsafe impl Sync for JobGuard {}
+
+    impl Drop for JobGuard {
+        fn drop(&mut self) {
+            unsafe {
+                CloseHandle(self.0);
+            }
+        }
+    }
+
+    /// Create a Job Object with `KILL_ON_JOB_CLOSE` and assign `pid` to it.
+    /// Returns `None` on failure (non-fatal — the event-based cleanup still
+    /// covers graceful exits).
+    pub fn assign_to_kill_on_close_job(pid: u32) -> Option<JobGuard> {
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return None;
+            }
+
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+            if SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            ) == 0
+            {
+                CloseHandle(job);
+                return None;
+            }
+
+            let process = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
+            if process.is_null() {
+                CloseHandle(job);
+                return None;
+            }
+
+            let assigned = AssignProcessToJobObject(job, process);
+            CloseHandle(process);
+            if assigned == 0 {
+                CloseHandle(job);
+                return None;
+            }
+
+            Some(JobGuard(job))
         }
     }
 }
@@ -52,8 +140,24 @@ pub fn run() {
                 .expect("failed to create sidecar command");
 
             let (mut rx, child) = sidecar.spawn().expect("failed to spawn sidecar");
+
+            // On Windows, bind the backend to a Job Object so it is automatically
+            // killed if this process exits for any reason (crash, force-kill, etc.).
+            #[cfg(windows)]
+            let job_guard = {
+                let guard = job::assign_to_kill_on_close_job(child.pid());
+                if guard.is_none() {
+                    eprintln!(
+                        "[Tauri] Warning: could not create kill-on-close job object for backend"
+                    );
+                }
+                guard
+            };
+
             app.manage(BackendChild {
                 child: std::sync::Mutex::new(Some(child)),
+                #[cfg(windows)]
+                _job: job_guard,
             });
 
             // Listen for the BACKEND_READY:<port> line on stdout
@@ -77,13 +181,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![get_backend_port])
-        // Don't kill backend on CloseRequested – frontend stops server first, then destroys.
-        // Backend is killed in RunEvent::ExitRequested when the app actually exits.
+        // Backend is killed gracefully in ExitRequested, and again in Exit as a
+        // safety net. The Job Object (Windows) handles the truly catastrophic cases.
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
+        .run(|app_handle, event| match event {
+            tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
                 kill_backend_child(app_handle);
             }
+            _ => {}
         });
 }
