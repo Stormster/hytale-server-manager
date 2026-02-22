@@ -244,7 +244,8 @@ def perform_update(
                 on_status("Extracting update...")
             _extract_server_zip(zip_path, server_dir)
 
-            nitrado.install_nitrado_plugins(server_dir, on_status=on_status)
+            # Nitrado plugins are updated only via the Mods page "Update Nitrado plugins" button
+            # to avoid unexpected changes; configs and versions stay under user control
 
             _save_version(new_ver, patchline)
 
@@ -334,6 +335,7 @@ def perform_first_time_setup(
             os.makedirs(server_dir, exist_ok=True)
             _extract_server_zip(zip_path, server_dir)
 
+            # Install Nitrado plugins on first-time setup (new server has no mods yet)
             nitrado.install_nitrado_plugins(server_dir, on_status=on_status)
 
             _save_version(new_ver, patchline)
