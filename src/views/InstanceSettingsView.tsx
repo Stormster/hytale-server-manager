@@ -68,7 +68,9 @@ export function InstanceSettingsView() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       <h1 className="text-2xl font-semibold">Instance Settings</h1>
 
       <Card>
@@ -169,6 +171,8 @@ export function InstanceSettingsView() {
           </div>
         </DialogContent>
       </Dialog>
+        </div>
+      </div>
     </div>
   );
 }

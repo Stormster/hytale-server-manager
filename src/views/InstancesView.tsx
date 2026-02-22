@@ -79,7 +79,9 @@ export function InstancesView({ onAddServer, onImportServer }: InstancesViewProp
   const activeInstance = settings?.active_instance || "";
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Server Instances</h1>
         <div className="flex gap-2">
@@ -237,6 +239,8 @@ export function InstancesView({ onAddServer, onImportServer }: InstancesViewProp
           </div>
         </DialogContent>
       </Dialog>
+        </div>
+      </div>
     </div>
   );
 }
