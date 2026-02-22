@@ -80,7 +80,7 @@ def get_default_root_dir() -> str:
 
 class UpdateSettingsRequest(BaseModel):
     root_dir: Optional[str] = None
-    pro_license_key: Optional[str] = None
+    experimental_addon_license_key: Optional[str] = None
     instance_name: Optional[str] = None
     instance_server_settings: Optional[dict[str, Any]] = None
     game_port: Optional[int] = None
@@ -192,6 +192,9 @@ def get_settings():
     from services import instances as inst_svc
 
     data = settings.get_all()
+    # Migrate legacy pro_license_key -> experimental_addon_license_key for API consumers
+    if "experimental_addon_license_key" not in data and data.get("pro_license_key"):
+        data["experimental_addon_license_key"] = data["pro_license_key"]
     data["default_root_dir"] = get_default_root_dir()
     data["onboarding_completed"] = settings.has_completed_onboarding()
 
@@ -212,8 +215,8 @@ def update_settings(body: UpdateSettingsRequest):
         path = os.path.abspath(body.root_dir)
         os.makedirs(path, exist_ok=True)
         settings.set_root_dir(path)
-    if body.pro_license_key is not None:
-        settings.set_pro_license_key(body.pro_license_key)
+    if body.experimental_addon_license_key is not None:
+        settings.set_experimental_addon_license_key(body.experimental_addon_license_key)
     if body.instance_name and body.instance_server_settings is not None:
         settings.set_instance_server_settings(body.instance_name, body.instance_server_settings)
     if body.instance_name:

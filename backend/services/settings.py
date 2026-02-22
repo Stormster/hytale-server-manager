@@ -165,17 +165,18 @@ def set_instance_port(instance_name: str, game_port: int, webserver_port: int) -
     _save(s)
 
 
-# -- Pro / Patreon license ----------------------------------------------------
+# -- Experimental addon / Patreon license ------------------------------------
 
-def get_pro_license_key() -> str:
-    """Return the Pro plugin license key (from Patreon), or empty string."""
-    return load().get("pro_license_key", "")
-
-
-def set_pro_license_key(key: str) -> None:
-    """Store the Pro plugin license key. Restart app for plugin to pick it up."""
+def get_experimental_addon_license_key() -> str:
+    """Return the Experimental addon license key (from Patreon), or empty string."""
     s = load()
-    s["pro_license_key"] = (key or "").strip()
+    return s.get("experimental_addon_license_key") or s.get("pro_license_key", "")
+
+
+def set_experimental_addon_license_key(key: str) -> None:
+    """Store the Experimental addon license key. Restart app for addon to pick it up."""
+    s = load()
+    s["experimental_addon_license_key"] = (key or "").strip()
     _save(s)
 
 
@@ -191,6 +192,8 @@ def get_instance_server_settings_for(instance_name: str) -> dict:
     all_settings = get_instance_server_settings()
     return dict(all_settings.get(instance_name, {}))
 
+
+# -- Instance server settings (RAM limits, startup args) ---------------------------------
 
 def set_instance_server_settings(instance_name: str, data: dict) -> None:
     """Update server settings for an instance. Merges with existing."""
