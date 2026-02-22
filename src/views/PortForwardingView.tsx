@@ -11,7 +11,6 @@ import {
   Shield,
   Zap,
   Eye,
-  EyeOff,
   ChevronDown,
   ChevronRight,
   ExternalLink,
@@ -86,7 +85,7 @@ export function PortForwardingView() {
   const [firewallChecking, setFirewallChecking] = useState(false);
   const [upnpRunning, setUpnpRunning] = useState(false);
   const [upnpResult, setUpnpResult] = useState<{ results: Record<string, boolean>; discovery_ok: boolean } | null>(null);
-  const [showPublicIp, setShowPublicIp] = useState(false);
+  const [showPublicIp, setShowPublicIp] = useState(true);
   const [upnpStatus, setUpnpStatus] = useState<{ available: boolean } | null>(null);
   const [routerExpanded, setRouterExpanded] = useState(false);
   const [addRulesRunning, setAddRulesRunning] = useState(false);
@@ -248,7 +247,6 @@ export function PortForwardingView() {
                   <span className="text-sm text-muted-foreground">Local IP</span>
                   {localIp ? (
                     <Copyable text={localIp} className="flex items-center gap-1.5">
-                      <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                       <code className="rounded bg-muted px-2 py-1 text-sm font-mono">{localIp}</code>
                       <Copy className="h-3.5 w-3.5" />
                     </Copyable>
@@ -261,16 +259,15 @@ export function PortForwardingView() {
                   {showPublicIp ? (
                     <div className="flex items-center gap-2">
                       {publicIp ? (
-                        <>
-                          <Copyable text={publicIp} className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setShowPublicIp(false)} title="Hide public IP">
                             <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                          <Copyable text={publicIp} className="flex items-center gap-1.5">
                             <code className="rounded bg-muted px-2 py-1 text-sm font-mono">{publicIp}</code>
                             <Copy className="h-3.5 w-3.5" />
                           </Copyable>
-                          <Button variant="ghost" size="sm" className="h-7" onClick={() => setShowPublicIp(false)}>
-                            <EyeOff className="h-3.5 w-3.5" />
-                          </Button>
-                        </>
+                        </div>
                       ) : publicIpError ? (
                         <span className="text-amber-500 text-sm">Failed</span>
                       ) : (
@@ -622,6 +619,63 @@ export function PortForwardingView() {
               </p>
 
               <div>
+                <p className="font-medium text-foreground mb-1">UDP & TCP port checker</p>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Test from multiple locations worldwide. Open or filtered = good; Connection refused or timeout = port not reachable.
+                </p>
+                <p className="text-xs text-amber-600/90 dark:text-amber-400/90 mb-2">
+                  Sharing your IP with external sites (or people you don't know) has privacy and security risks.
+                </p>
+                {publicIp ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      {(instancesWithPorts.length > 0 ? instancesWithPorts : [{ name: "Game", gamePort: firstGamePort, webserverPort: firstWebPort }]).map((inst) => (
+                        <div key={inst.name} className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium w-24 shrink-0">{inst.name}</span>
+                          <a
+                            href={`https://check-host.net/check-udp?host=${encodeURIComponent(`${publicIp}:${inst.gamePort}`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex"
+                          >
+                            <Button variant="outline" size="sm" className="gap-1.5 h-8">
+                              <ExternalLink className="h-3 w-3" />
+                              UDP {inst.gamePort}
+                            </Button>
+                          </a>
+                          <a
+                            href={`https://check-host.net/check-tcp?host=${encodeURIComponent(`${publicIp}:${inst.webserverPort}`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex"
+                          >
+                            <Button variant="ghost" size="sm" className="gap-1.5 h-8">
+                              <ExternalLink className="h-3 w-3" />
+                              TCP {inst.webserverPort}
+                            </Button>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This program is not affiliated with check-host.net. Links open an external third-party site.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm text-muted-foreground italic">
+                      {publicIpError ? "Could not fetch public IP." : "Loading your public IP…"}
+                    </p>
+                    {publicIpError && (
+                      <Button variant="ghost" size="sm" onClick={() => setShowPublicIp(true)}>
+                        Retry
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <p className="font-medium text-foreground mb-2">Best test: ask a friend</p>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
                   <li>Start your server</li>
@@ -629,37 +683,6 @@ export function PortForwardingView() {
                   <li>Have a friend connect from a different network</li>
                   <li>If it works, you're done</li>
                 </ol>
-              </div>
-
-              <div>
-                <p className="font-medium text-foreground mb-1">Optional: TCP port checker (web admin only)</p>
-                <p className="text-sm text-muted-foreground">
-                  TCP web admin can be tested with port checker sites. This does not verify the UDP game port.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {publicIp && (
-                  <Copyable text={`${publicIp}:${firstGamePort}`}>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy public address
-                    </Button>
-                  </Copyable>
-                )}
-                <a
-                  href="https://www.yougetsignal.com/tools/open-ports/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex"
-                >
-                  <Button variant="ghost" size="sm" className="gap-2" asChild>
-                    <span>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Port checker (TCP only)
-                    </span>
-                  </Button>
-                </a>
               </div>
 
               {publicIpWarning && (
