@@ -18,19 +18,18 @@ REQUIRED_PREFIXES = ("nitrado-webserver", "nitrado-query")
 ModType = str  # "plugin" | "pack" | "plugin_pack"
 
 
-def _get_manifest_meta(jar_path: str, filename: str) -> tuple[str, Optional[str], ModType]:
+def _get_manifest_meta(jar_path: str, filename: str) -> tuple[str, Optional[str], Optional[str], ModType]:
     """
-    Extract display name, data folder, and mod type from manifest.json in the JAR.
-    Returns (display_name, data_folder, mod_type).
+    Extract display name, data folder, plugin name, and mod type from manifest.json in the JAR.
+    Returns (display_name, data_folder, plugin_name, mod_type).
     - display_name: "Name Version by Group" (Group = author) or filename without .jar
-    - data_folder: "Group_Name" (Hytale convention for plugin data dirs) or None if no manifest
+    - data_folder: "Group_Name" (Hytale convention) or None if no manifest
+    - plugin_name: manifest "Name" field, used to detect alternative folder naming (e.g. "BetterMap")
     - mod_type: "plugin" | "pack" | "plugin_pack"
-      - plugin: Has Main (Java entry point), no IncludesAssetPack
-      - pack: No Main, has IncludesAssetPack (asset-only JAR)
-      - plugin_pack: Has Main and IncludesAssetPack
     """
     fallback = filename[:-4] if filename.lower().endswith(".jar") else filename
     data_folder: Optional[str] = None
+    plugin_name: Optional[str] = None
     display_name = fallback
     mod_type: ModType = "plugin"  # default for JARs without manifest
     try:
@@ -43,6 +42,7 @@ def _get_manifest_meta(jar_path: str, filename: str) -> tuple[str, Optional[str]
                     name_val = manifest.get("Name", "").strip()
                     version = manifest.get("Version", "").strip()
                     if name_val:
+                        plugin_name = name_val
                         lead = f"{name_val} {version}".strip()
                         display_name = f"{lead} by {group}" if group else lead
                     if group and name_val:
@@ -60,7 +60,26 @@ def _get_manifest_meta(jar_path: str, filename: str) -> tuple[str, Optional[str]
                     continue
     except (zipfile.BadZipFile, OSError):
         pass
-    return display_name, data_folder, mod_type
+    return display_name, data_folder, plugin_name, mod_type
+
+
+def _find_plugin_data_folder(mods_dir: str, group_name_folder: Optional[str], plugin_name: Optional[str]) -> tuple[Optional[str], bool]:
+    """
+    Find which data folder exists for a plugin. Some use Group_Name, others use just Name.
+    Returns (folder_name, exists) — folder_name is the actual folder to display.
+    """
+    if not os.path.isdir(mods_dir):
+        return (group_name_folder, False)
+    candidates = []
+    if group_name_folder:
+        candidates.append(group_name_folder)
+    if plugin_name and plugin_name != group_name_folder:
+        candidates.append(plugin_name)
+    for candidate in candidates:
+        path = os.path.join(mods_dir, candidate)
+        if os.path.isdir(path):
+            return (candidate, True)
+    return (group_name_folder, False)
 
 
 def _is_required(filename: str) -> bool:
@@ -91,12 +110,14 @@ def list_mods(server_dir: Optional[str] = None) -> list[dict]:
             full = os.path.join(base, name)
             if not os.path.isfile(full) or not name.lower().endswith(".jar"):
                 continue
-            display_name, data_folder, mod_type = _get_manifest_meta(full, name)
+            display_name, data_folder, plugin_name, mod_type = _get_manifest_meta(full, name)
             entry: dict = {"name": name, "displayName": display_name, "path": os.path.join(sub, name), "enabled": True, "required": _is_required(name), "modType": mod_type}
-            if data_folder is not None:
-                entry["dataFolder"] = data_folder
+            if data_folder is not None or plugin_name is not None:
                 mods_dir = os.path.join(server_dir, "mods")
-                entry["dataFolderExists"] = os.path.isdir(os.path.join(mods_dir, data_folder))
+                found_folder, exists = _find_plugin_data_folder(mods_dir, data_folder, plugin_name)
+                if found_folder is not None:
+                    entry["dataFolder"] = found_folder
+                    entry["dataFolderExists"] = exists
             result.append(entry)
 
         if os.path.isdir(disabled_dir):
@@ -104,12 +125,14 @@ def list_mods(server_dir: Optional[str] = None) -> list[dict]:
                 full = os.path.join(disabled_dir, name)
                 if not os.path.isfile(full) or not name.lower().endswith(".jar"):
                     continue
-                display_name, data_folder, mod_type = _get_manifest_meta(full, name)
+                display_name, data_folder, plugin_name, mod_type = _get_manifest_meta(full, name)
                 entry = {"name": name, "displayName": display_name, "path": os.path.join(sub, DISABLED_SUBFOLDER, name), "enabled": False, "required": _is_required(name), "modType": mod_type}
-                if data_folder is not None:
-                    entry["dataFolder"] = data_folder
+                if data_folder is not None or plugin_name is not None:
                     mods_dir = os.path.join(server_dir, "mods")
-                    entry["dataFolderExists"] = os.path.isdir(os.path.join(mods_dir, data_folder))
+                    found_folder, exists = _find_plugin_data_folder(mods_dir, data_folder, plugin_name)
+                    if found_folder is not None:
+                        entry["dataFolder"] = found_folder
+                        entry["dataFolderExists"] = exists
                 result.append(entry)
 
     result.sort(key=lambda m: (not m["enabled"], m["name"].lower()))

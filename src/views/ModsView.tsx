@@ -232,12 +232,11 @@ export function ModsView() {
                   </div>
                   <span className="text-xs text-muted-foreground">
                     {mod.enabled ? "Enabled" : "Disabled"}
-                    {mod.dataFolder != null && (
+                    {mod.dataFolder != null && mod.dataFolderExists && (
                       <>
                         {" · "}
-                        <span title={mod.dataFolderExists ? "Folder exists" : "Plugin has not created this folder yet"}>
+                        <span title="Config/data folder">
                           mods/{mod.dataFolder}
-                          {!mod.dataFolderExists && " (—)"}
                         </span>
                       </>
                     )}
