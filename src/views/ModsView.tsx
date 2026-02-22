@@ -3,12 +3,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMods, useToggleMod, useNitradoUpdateStatus } from "@/api/hooks/useMods";
+import { useMods, useToggleMod, useUploadMods, useNitradoUpdateStatus } from "@/api/hooks/useMods";
 import { useServerStatus } from "@/api/hooks/useServer";
 import { useSettings } from "@/api/hooks/useSettings";
-import { Lock, Download, FolderOpen, Info, Code2, Palette, ChevronDown, ChevronUp } from "lucide-react";
+import { Lock, Download, FolderOpen, Info, Code2, Palette, ChevronDown, ChevronUp, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
+import { toast } from "sonner";
 import { openPathInExplorer } from "@/lib/openPath";
 import type { Mod } from "@/api/types";
 
@@ -136,8 +137,10 @@ export function ModsView() {
   const { data: serverStatus } = useServerStatus();
   const queryClient = useQueryClient();
   const toggleMod = useToggleMod();
+  const uploadMods = useUploadMods();
   const [installing, setInstalling] = useState(false);
   const [showExplainer, setShowExplainer] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const activeInstance = settings?.active_instance;
   const rootDir = (settings?.root_dir || "").replace(/[/\\]+$/, "");
@@ -159,6 +162,41 @@ export function ModsView() {
   const missingRequired = !hasRequiredMods(mods);
   const nitradoUpdateAvailable = nitradoUpdate?.update_available ?? false;
 
+  const jarFiles = (files: FileList | null): File[] => {
+    if (!files) return [];
+    return Array.from(files).filter((f) => f.name.toLowerCase().endsWith(".jar"));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.types?.includes("Files")) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (!activeInstance || running || uploadMods.isPending) return;
+    const files = jarFiles(e.dataTransfer.files);
+    if (files.length === 0) {
+      toast.error("No .jar files in drop");
+      return;
+    }
+    uploadMods.mutate(files);
+  };
+
   const handleInstallRequired = async () => {
     if (running) return;
     setInstalling(true);
@@ -176,8 +214,24 @@ export function ModsView() {
     }
   };
 
+  const canDrop = activeInstance && !running && !uploadMods.isPending;
+
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="relative flex h-full flex-col"
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && canDrop && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/5">
+          <div className="flex flex-col items-center gap-2 rounded-lg bg-background/95 px-6 py-4 shadow-lg">
+            <Upload className="h-10 w-10 text-primary" />
+            <span className="font-medium">Drop .jar files to add mods</span>
+          </div>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       <div className="mb-4 flex items-start justify-between gap-4">
@@ -270,17 +324,18 @@ export function ModsView() {
       ) : isLoading ? (
         <p className="text-sm text-muted-foreground">Loading mods...</p>
       ) : mods.length === 0 ? (
-        <Card>
+        <Card className={cn(canDrop && "border-dashed")}>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            No mods found. You can find them here:{" "}
+            No mods found. Drag & drop .jar files here, or find mods at{" "}
             <a
               href="https://www.curseforge.com/hytale"
               target="_blank"
               rel="noreferrer"
               className="text-primary hover:underline"
             >
-              https://www.curseforge.com/hytale
+              CurseForge
             </a>
+            .
           </CardContent>
         </Card>
       ) : (
