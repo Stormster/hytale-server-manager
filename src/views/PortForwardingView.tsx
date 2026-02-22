@@ -292,15 +292,27 @@ export function PortForwardingView() {
                           <Copy className="h-3 w-3" />
                         </Copyable>
                       </div>
-                      {publicIp && (
+                      {publicIp ? (
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-muted-foreground">WAN</span>
-                          <Copyable text={`${publicIp}:${firstGamePort}`} className="flex items-center gap-1">
-                            <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono">{publicIp}:{firstGamePort}</code>
-                            <Copy className="h-3 w-3" />
-                          </Copyable>
+                          {showPublicIp ? (
+                            <div className="flex items-center gap-1.5">
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={() => setShowPublicIp(false)} title="Hide public IP">
+                                <Eye className="h-3 w-3 text-muted-foreground" />
+                              </Button>
+                              <Copyable text={`${publicIp}:${firstGamePort}`} className="flex items-center gap-1">
+                                <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono">{publicIp}:{firstGamePort}</code>
+                                <Copy className="h-3 w-3" />
+                              </Copyable>
+                            </div>
+                          ) : (
+                            <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs" onClick={() => setShowPublicIp(true)}>
+                              <Eye className="h-3 w-3" />
+                              Reveal
+                            </Button>
+                          )}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 )}
