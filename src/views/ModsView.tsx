@@ -60,6 +60,75 @@ function ModTypeBadge({ mod }: { mod: Mod }) {
   );
 }
 
+function ModCard({
+  mod,
+  running,
+  toggleMod,
+  getModFolderPath,
+  openPathInExplorer,
+}: {
+  mod: Mod;
+  running: boolean;
+  toggleMod: ReturnType<typeof useToggleMod>;
+  getModFolderPath: (path: string) => string;
+  openPathInExplorer: (path: string) => void;
+}) {
+  return (
+    <Card className={cn(!mod.enabled && "opacity-70")}>
+      <CardContent className="flex items-center justify-between gap-4 py-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium truncate" title={mod.name}>{mod.displayName ?? mod.name}</span>
+            <ModTypeBadge mod={mod} />
+            {mod.required && (
+              <span title="Required – cannot be disabled">
+                <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {mod.enabled ? "Enabled" : "Disabled"}
+            {mod.dataFolder != null && mod.dataFolderExists && (
+              <>
+                {" · "}
+                <span title="Config/data folder">
+                  mods/{mod.dataFolder}
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 shrink-0"
+            onClick={() => openPathInExplorer(getModFolderPath(mod.path))}
+            title="Open folder in File Explorer"
+          >
+            <FolderOpen className="h-4 w-4" />
+          </Button>
+          <Switch
+            checked={mod.enabled}
+            disabled={mod.required || running || toggleMod.isPending}
+            onCheckedChange={(checked) => {
+              if (mod.required) return;
+              toggleMod.mutate({ path: mod.path, enabled: checked });
+            }}
+            title={
+              mod.required
+                ? "Required mod – cannot be disabled"
+                : running
+                  ? "Stop the server first"
+                  : undefined
+            }
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ModsView() {
   const { data: settings } = useSettings();
   const { data: modsData, isLoading, refetch } = useMods();
@@ -85,6 +154,8 @@ export function ModsView() {
     return [rootDir, activeInstance, "Server", ...parts].join(sep);
   };
   const mods = modsData?.mods ?? [];
+  const regularMods = mods.filter((m) => !m.required);
+  const requiredMods = mods.filter((m) => m.required);
   const missingRequired = !hasRequiredMods(mods);
   const nitradoUpdateAvailable = nitradoUpdate?.update_available ?? false;
 
@@ -213,64 +284,39 @@ export function ModsView() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {mods.map((mod) => (
-            <Card
-              key={mod.path}
-              className={cn(!mod.enabled && "opacity-70")}
-            >
-              <CardContent className="flex items-center justify-between gap-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium truncate" title={mod.name}>{mod.displayName ?? mod.name}</span>
-                    <ModTypeBadge mod={mod} />
-                    {mod.required && (
-                      <span title="Required – cannot be disabled">
-                        <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {mod.enabled ? "Enabled" : "Disabled"}
-                    {mod.dataFolder != null && mod.dataFolderExists && (
-                      <>
-                        {" · "}
-                        <span title="Config/data folder">
-                          mods/{mod.dataFolder}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 shrink-0"
-                    onClick={() => openPathInExplorer(getModFolderPath(mod.path))}
-                    title="Open folder in File Explorer"
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                  </Button>
-                  <Switch
-                    checked={mod.enabled}
-                    disabled={mod.required || running || toggleMod.isPending}
-                    onCheckedChange={(checked) => {
-                      if (mod.required) return;
-                      toggleMod.mutate({ path: mod.path, enabled: checked });
-                    }}
-                    title={
-                      mod.required
-                        ? "Required mod – cannot be disabled"
-                        : running
-                          ? "Stop the server first"
-                          : undefined
-                    }
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-6">
+          {regularMods.length > 0 && (
+            <div className="space-y-2">
+              {regularMods.map((mod) => (
+                <ModCard
+                  key={mod.path}
+                  mod={mod}
+                  running={running}
+                  toggleMod={toggleMod}
+                  getModFolderPath={getModFolderPath}
+                  openPathInExplorer={openPathInExplorer}
+                />
+              ))}
+            </div>
+          )}
+          {requiredMods.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Lock className="h-4 w-4" />
+                Required
+              </h3>
+              {requiredMods.map((mod) => (
+                <ModCard
+                  key={mod.path}
+                  mod={mod}
+                  running={running}
+                  toggleMod={toggleMod}
+                  getModFolderPath={getModFolderPath}
+                  openPathInExplorer={openPathInExplorer}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
         </div>
