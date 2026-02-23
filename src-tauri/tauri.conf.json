@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui-org/nicegui/main/examples/tray_icon/src-tauri/tauri.conf.json",
   "productName": "Hytale Server Manager",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "identifier": "com.hytalelife.server-manager",
   "build": {
     "frontendDist": "../dist",
