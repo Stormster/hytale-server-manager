@@ -21,6 +21,18 @@ def list_backups():
     return [entry.to_dict() for entry in entries]
 
 
+@router.get("/world-snapshots")
+def list_world_snapshots():
+    """Hytale universe backups (from --backup / /backup), stored in Server/backups/."""
+    return bk.list_hytale_world_backups()
+
+
+@router.get("/world-snapshots-folder")
+def get_world_snapshots_folder():
+    """Absolute path to Server/backups for opening in explorer."""
+    return {"path": bk.get_hytale_world_backups_folder()}
+
+
 @router.post("")
 def create_backup(body: CreateBackupRequest):
     try:

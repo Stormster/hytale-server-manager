@@ -91,6 +91,15 @@ export interface UpdaterFullStatus {
 }
 
 // ---- Backups ----
+/** Hytale world/universe snapshot (from --backup or /backup). Stored in Server/backups/. */
+export interface HytaleWorldBackup {
+  filename: string;
+  path: string;
+  created: string | null;
+  size_bytes: number;
+  archived: boolean;
+}
+
 export interface Backup {
   folder_name: string;
   backup_type: "manual" | "pre-update";

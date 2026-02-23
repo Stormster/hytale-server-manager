@@ -142,7 +142,7 @@ export default function App() {
         )}
         {activeView === "server" && <ServerView />}
         {activeView === "updates" && <UpdateView />}
-        {activeView === "backups" && <BackupView />}
+        {activeView === "backups" && <BackupView onNavigate={handleNavigate} />}
         {activeView === "mods" && <ModsView />}
         {activeView === "config" && <ConfigView />}
         {activeView === "port-forwarding" && <PortForwardingView />}

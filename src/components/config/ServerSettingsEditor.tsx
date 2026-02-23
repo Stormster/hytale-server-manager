@@ -55,7 +55,10 @@ type ParsedArgs = {
   customRaw: string;
 };
 
-function parseStartupArgs(args: string[]): ParsedArgs {
+function parseStartupArgs(
+  args: string[] | undefined,
+  hasExplicitInstanceSettings: boolean
+): ParsedArgs {
   const arr = args ?? [];
   const result: ParsedArgs = {
     allowOp: false,
@@ -100,14 +103,16 @@ function parseStartupArgs(args: string[]): ParsedArgs {
 
   result.allowOp = hasFlag("--allow-op");
   result.assetsPath = extractVal("--assets") ?? "";
+  // Default --backup and --backup-dir only when instance has never been configured
+  const backupDefault = !hasExplicitInstanceSettings && arr.length === 0;
   const am = extractVal("--auth-mode");
   if (am === "authenticated" || am === "offline" || am === "insecure") result.authMode = am;
   result.ownerName = extractVal("--owner-name") ?? "";
   result.ownerUuid = extractVal("--owner-uuid") ?? "";
   result.sessionToken = extractVal("--session-token") ?? "";
   result.identityToken = extractVal("--identity-token") ?? "";
-  result.backup = hasFlag("--backup");
-  result.backupDir = extractVal("--backup-dir") ?? "";
+  result.backup = backupDefault ? true : hasFlag("--backup");
+  result.backupDir = (backupDefault ? "backups" : extractVal("--backup-dir")) ?? "";
   result.backupFrequency = extractVal("--backup-frequency") ?? "30";
   result.backupMaxCount = extractVal("--backup-max-count") ?? "5";
   result.backupArchiveMaxCount = extractVal("--backup-archive-max-count") ?? "5";
@@ -173,7 +178,7 @@ function buildStartupArgs(p: ParsedArgs): string[] {
   if (p.identityToken.trim()) out.push("--identity-token", p.identityToken.trim());
   if (p.backup) {
     out.push("--backup");
-    if (p.backupDir.trim()) out.push("--backup-dir", p.backupDir.trim());
+    out.push("--backup-dir", (p.backupDir.trim() || "backups"));
     if (p.backupFrequency.trim() && p.backupFrequency !== "30") out.push("--backup-frequency", p.backupFrequency.trim());
     if (p.backupMaxCount.trim() && p.backupMaxCount !== "5") out.push("--backup-max-count", p.backupMaxCount.trim());
     if (p.backupArchiveMaxCount.trim() && p.backupArchiveMaxCount !== "5") out.push("--backup-archive-max-count", p.backupArchiveMaxCount.trim());
@@ -235,9 +240,13 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
     return all[activeInstance] ?? {};
   }, [settings?.instance_server_settings, activeInstance]);
 
+  const hasExplicitInstanceSettings = Boolean(
+    activeInstance && settings?.instance_server_settings && activeInstance in settings.instance_server_settings
+  );
+
   const parsed = useMemo(
-    () => parseStartupArgs(instanceSettings.startup_args ?? []),
-    [instanceSettings.startup_args]
+    () => parseStartupArgs(instanceSettings.startup_args ?? [], hasExplicitInstanceSettings),
+    [instanceSettings.startup_args, hasExplicitInstanceSettings]
   );
 
   const [ramUseCustom, setRamUseCustom] = useState(
@@ -544,10 +553,10 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
           </div>
         </div>
 
-        <div className="space-y-3 rounded-md border border-border/60 p-3">
-          <Label className="text-xs">Backup</Label>
+        <div id="backup-settings" className="space-y-3 rounded-md border border-border/60 p-3">
+          <Label className="text-xs">Hytale world backups</Label>
           <p className="text-xs text-muted-foreground -mt-1">
-            Backups run automatically by default—no flag needed. Defaults: every 30 min, 5 backups kept, 5 archived. Use --backup to explicitly enable; the options below customize those defaults.
+            Automatic universe/world snapshots. Requires --backup-dir for both scheduled backups and the /backup console command. Defaults: every 30 min, 5 kept, 5 archived.
           </p>
           <div className="flex items-center justify-between">
             <Label className="text-xs font-normal">--backup</Label>
@@ -556,8 +565,13 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
           {form.backup && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="backup-dir" className="text-xs">--backup-dir</Label>
-                <Input id="backup-dir" value={form.backupDir} onChange={(e) => update({ backupDir: e.target.value })} placeholder="Uses default path if empty" className="h-8 font-mono text-xs" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="backup-dir" className="text-xs cursor-help">--backup-dir</Label>
+                  </TooltipTrigger>
+                  <TooltipContent>Required for /backup. Path relative to Server/ folder.</TooltipContent>
+                </Tooltip>
+                <Input id="backup-dir" value={form.backupDir} onChange={(e) => update({ backupDir: e.target.value })} placeholder="backups" className="h-8 font-mono text-xs" />
               </div>
               <div className="space-y-1.5">
                 <Tooltip>
