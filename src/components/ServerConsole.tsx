@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
-import { List, ChevronDown, Star } from "lucide-react";
+import { List, ChevronDown, ChevronRight, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
 import { parseAnsi } from "@/lib/ansiParser";
@@ -416,11 +416,14 @@ function MainCommandRow({
       </button>
       <button
         type="button"
-        className="flex-1 min-w-0 px-2 py-1.5 text-left font-mono text-sm hover:bg-zinc-800"
+        className="flex-1 min-w-0 px-2 py-1.5 text-left font-mono text-sm hover:bg-zinc-800 flex items-center gap-1.5"
         onClick={() => onInsert(item.command, item.hint)}
       >
         {item.command.trim()}
         {item.hint && !item.subCommands && <span className="text-zinc-500 ml-1">{item.hint}</span>}
+        {item.subCommands?.length ? (
+          <ChevronRight className="h-3 w-3 text-zinc-500 shrink-0 ml-auto" title="Hover for sub-commands" aria-label="Has sub-commands" />
+        ) : null}
       </button>
     </div>
   );
