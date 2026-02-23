@@ -19,8 +19,14 @@ export const CONSOLE_COMMANDS: ConsoleCommand[] = [
   { command: "/ban ", hint: "(username)" },
   { command: "/unban ", hint: "(username)" },
   { command: "/kick ", hint: "(username)" },
-  { command: "/op ", hint: "(username)" },
-  { command: "/deop ", hint: "(username)" },
+  {
+    command: "/op",
+    subCommands: [
+      { command: "/op ", hint: "(username or self)" },
+      { command: "/op add ", hint: "(username)" },
+      { command: "/op remove ", hint: "(username)" },
+    ],
+  },
   {
     command: "/whitelist",
     subCommands: [
@@ -31,9 +37,6 @@ export const CONSOLE_COMMANDS: ConsoleCommand[] = [
       { command: "/whitelist list" },
     ],
   },
-  { command: "/mute ", hint: "(username)" },
-  { command: "/unmute ", hint: "(username)" },
-  { command: "/save" },
   { command: "/stop" },
 ];
 
