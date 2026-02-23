@@ -60,7 +60,7 @@ export function BackupView({ onNavigate }: BackupViewProps) {
   const renameBackup = useRenameBackup();
   const deleteBackup = useDeleteBackup();
   const { data: serverStatus } = useServerStatus();
-  const isServerRunning = Boolean(activeInstance && serverStatus?.running_instances?.includes(activeInstance));
+  const isServerRunning = Boolean(activeInstance && serverStatus?.running_instances?.some(r => r.name === activeInstance));
 
   const [showExplainer, setShowExplainer] = useState(false);
   const [worldRestoreDialog, setWorldRestoreDialog] = useState<HytaleWorldBackup | null>(null);
