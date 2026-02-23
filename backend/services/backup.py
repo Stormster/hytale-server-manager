@@ -6,6 +6,8 @@ import json
 import os
 import re
 import shutil
+import tempfile
+import zipfile
 from datetime import datetime
 from typing import Optional
 
@@ -315,3 +317,76 @@ def get_hytale_world_backups_folder() -> str:
     """Absolute path to Server/backups (Hytale world snapshots)."""
     from config import SERVER_DIR
     return resolve_instance(SERVER_DIR, "backups")
+
+
+def restore_hytale_world_backup(filename: str) -> None:
+    """
+    Restore a Hytale world backup (.zip from Server/backups/).
+    Creates a pre-restore backup of current universe first.
+    Server must be stopped.
+    """
+    from config import SERVER_DIR
+    from services.server import is_instance_running
+    from services.settings import get_active_instance
+
+    active = get_active_instance()
+    if active and is_instance_running(active):
+        raise ValueError("Stop the server before restoring a world backup.")
+
+    server_dir = resolve_instance(SERVER_DIR)
+    backups_root = os.path.join(server_dir, "backups")
+    universe_dir = os.path.join(server_dir, "universe")
+
+    # Resolve source zip path (main backups/ or backups/archive/)
+    if "/" in filename or "\\" in filename:
+        raise ValueError("Invalid filename")
+    if filename.lower().endswith(".zip"):
+        base_name = filename
+    else:
+        base_name = filename + ".zip"
+
+    # Resolve source zip (main backups/ or backups/archive/)
+    source_zip = None
+    for sub in ["", "archive"]:
+        candidate = os.path.join(backups_root, sub, base_name) if sub else os.path.join(backups_root, base_name)
+        if os.path.isfile(candidate):
+            source_zip = candidate
+            break
+    if not source_zip:
+        raise FileNotFoundError(f"World backup not found: {base_name}")
+
+    ensure_dir(backups_root)
+
+    # 1) Create pre-restore backup of current universe
+    if os.path.isdir(universe_dir):
+        pre_restore_name = datetime.now().strftime("pre-restore_%Y-%m-%d_%H-%M.zip")
+        pre_restore_path = os.path.join(backups_root, pre_restore_name)
+        with zipfile.ZipFile(pre_restore_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, _, files in os.walk(universe_dir):
+                for f in files:
+                    path = os.path.join(root, f)
+                    arcname = os.path.relpath(path, os.path.dirname(universe_dir))
+                    zf.write(path, arcname)
+
+    # 2) Remove current universe
+    if os.path.isdir(universe_dir):
+        shutil.rmtree(universe_dir)
+
+    # 3) Extract the selected backup
+    with tempfile.TemporaryDirectory() as tmp:
+        with zipfile.ZipFile(source_zip, "r") as zf:
+            zf.extractall(tmp)
+        # Zip may contain "universe/" at root or contents at root
+        extracted_universe = os.path.join(tmp, "universe")
+        if os.path.isdir(extracted_universe):
+            shutil.copytree(extracted_universe, universe_dir)
+        else:
+            # Contents at root are the universe
+            os.makedirs(universe_dir, exist_ok=True)
+            for name in os.listdir(tmp):
+                src = os.path.join(tmp, name)
+                dst = os.path.join(universe_dir, name)
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
