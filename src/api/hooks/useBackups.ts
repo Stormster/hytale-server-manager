@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "../client";
 import { useSettings } from "./useSettings";
-import type { Backup } from "../types";
+import type { Backup, HytaleWorldBackup } from "../types";
 
 export function useBackups() {
   const { data: settings } = useSettings();
@@ -10,6 +10,16 @@ export function useBackups() {
   return useQuery<Backup[]>({
     queryKey: ["backups", activeInstance],
     queryFn: () => api("/api/backups"),
+    enabled: !!activeInstance,
+  });
+}
+
+export function useHytaleWorldBackups() {
+  const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance;
+  return useQuery<HytaleWorldBackup[]>({
+    queryKey: ["backups", "world-snapshots", activeInstance],
+    queryFn: () => api("/api/backups/world-snapshots"),
     enabled: !!activeInstance,
   });
 }

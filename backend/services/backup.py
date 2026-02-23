@@ -257,3 +257,61 @@ def rename_backup(entry: BackupEntry, new_label: str) -> None:
 def delete_backup(entry: BackupEntry) -> None:
     if os.path.isdir(entry.path):
         shutil.rmtree(entry.path)
+
+
+# ---------------------------------------------------------------------------
+# Hytale world backups (universe snapshots from --backup / /backup)
+# ---------------------------------------------------------------------------
+
+def list_hytale_world_backups() -> list[dict]:
+    """List .zip backups created by Hytale (--backup, /backup). Path: Server/backups/."""
+    from config import SERVER_DIR
+    backups_root = resolve_instance(SERVER_DIR, "backups")
+    if not os.path.isdir(backups_root):
+        return []
+    entries = []
+    for name in os.listdir(backups_root):
+        if name == "archive":
+            archive_dir = os.path.join(backups_root, name)
+            if os.path.isdir(archive_dir):
+                for sub in os.listdir(archive_dir):
+                    if sub.lower().endswith(".zip"):
+                        full = os.path.join(archive_dir, sub)
+                        if os.path.isfile(full):
+                            try:
+                                mtime = os.path.getmtime(full)
+                                size = os.path.getsize(full)
+                            except OSError:
+                                mtime = 0
+                                size = 0
+                            entries.append({
+                                "filename": sub,
+                                "path": f"backups/archive/{sub}",
+                                "created": datetime.fromtimestamp(mtime).isoformat() if mtime else None,
+                                "size_bytes": size,
+                                "archived": True,
+                            })
+        elif name.lower().endswith(".zip"):
+            full = os.path.join(backups_root, name)
+            if os.path.isfile(full):
+                try:
+                    mtime = os.path.getmtime(full)
+                    size = os.path.getsize(full)
+                except OSError:
+                    mtime = 0
+                    size = 0
+                entries.append({
+                    "filename": name,
+                    "path": f"backups/{name}",
+                    "created": datetime.fromtimestamp(mtime).isoformat() if mtime else None,
+                    "size_bytes": size,
+                    "archived": False,
+                })
+    entries.sort(key=lambda e: (e["created"] or ""), reverse=True)
+    return entries
+
+
+def get_hytale_world_backups_folder() -> str:
+    """Absolute path to Server/backups (Hytale world snapshots)."""
+    from config import SERVER_DIR
+    return resolve_instance(SERVER_DIR, "backups")
