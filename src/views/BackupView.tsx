@@ -16,11 +16,13 @@ import {
   useHytaleWorldBackups,
   useCreateBackup,
   useRestoreBackup,
+  useRestoreWorldSnapshot,
   useRenameBackup,
   useDeleteBackup,
 } from "@/api/hooks/useBackups";
+import { useServerStatus } from "@/api/hooks/useServer";
 import { useSettings } from "@/api/hooks/useSettings";
-import type { Backup } from "@/api/types";
+import type { Backup, HytaleWorldBackup } from "@/api/types";
 import { Pencil, FolderOpen, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { api } from "@/api/client";
 import type { ViewName } from "@/components/AppSidebar";
@@ -54,10 +56,14 @@ export function BackupView({ onNavigate }: BackupViewProps) {
   const { data: worldSnapshots, isLoading: worldLoading } = useHytaleWorldBackups();
   const createBackup = useCreateBackup();
   const restoreBackup = useRestoreBackup();
+  const restoreWorldSnapshot = useRestoreWorldSnapshot();
   const renameBackup = useRenameBackup();
   const deleteBackup = useDeleteBackup();
+  const { data: serverStatus } = useServerStatus();
+  const isServerRunning = Boolean(activeInstance && serverStatus?.running_instances?.includes(activeInstance));
 
   const [showExplainer, setShowExplainer] = useState(false);
+  const [worldRestoreDialog, setWorldRestoreDialog] = useState<HytaleWorldBackup | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     type: "restore" | "delete";
     backup: Backup;
@@ -198,6 +204,15 @@ export function BackupView({ onNavigate }: BackupViewProps) {
                         {s.created ? formatDate(s.created) : "—"} · {formatSize(s.size_bytes)}
                       </p>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isServerRunning || restoreWorldSnapshot.isPending}
+                      onClick={() => setWorldRestoreDialog(s)}
+                      title={isServerRunning ? "Stop the server before restoring" : undefined}
+                    >
+                      Restore
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -381,6 +396,42 @@ export function BackupView({ onNavigate }: BackupViewProps) {
         </DialogContent>
       </Dialog>
 
+      {/* World restore confirm dialog */}
+      <Dialog
+        open={!!worldRestoreDialog}
+        onOpenChange={(open) => !open && setWorldRestoreDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restore World Snapshot</DialogTitle>
+            <DialogDescription>
+              A backup of your current universe will be created first as{" "}
+              <code className="rounded bg-muted px-1 font-mono text-xs">pre-restore_YYYY-MM-DD_HH-MM.zip</code> in{" "}
+              <code className="rounded bg-muted px-1 font-mono text-xs">Server/backups/</code>.
+              Then the selected snapshot will replace the universe. The server must be stopped.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWorldRestoreDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const s = worldRestoreDialog;
+                if (s) {
+                  restoreWorldSnapshot.mutate(s.filename, {
+                    onSuccess: () => setWorldRestoreDialog(null),
+                  });
+                }
+              }}
+              disabled={restoreWorldSnapshot.isPending || isServerRunning}
+            >
+              {restoreWorldSnapshot.isPending ? "Restoring..." : "Restore"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirm dialog */}
       <Dialog
         open={!!confirmDialog}
@@ -395,7 +446,7 @@ export function BackupView({ onNavigate }: BackupViewProps) {
             </DialogTitle>
             <DialogDescription>
               {confirmDialog?.type === "restore"
-                ? "This will replace your current server files with this backup. This action cannot be undone."
+                ? "A backup of your current server will be created first (labeled \"Pre-restore backup\") in instance backups. Then your server files will be replaced with this backup."
                 : "This will permanently delete this backup. This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>

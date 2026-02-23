@@ -57,6 +57,22 @@ export function useRestoreBackup() {
   });
 }
 
+export function useRestoreWorldSnapshot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (filename: string) =>
+      api<{ ok: boolean }>(`/api/backups/world-snapshots/${encodeURIComponent(filename)}/restore`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["backups"] });
+      qc.invalidateQueries({ queryKey: ["backups", "world-snapshots"] });
+      toast.success("World snapshot restored");
+    },
+    onError: (err) => toast.error((err as Error).message),
+  });
+}
+
 export function useRenameBackup() {
   const qc = useQueryClient();
   return useMutation({
