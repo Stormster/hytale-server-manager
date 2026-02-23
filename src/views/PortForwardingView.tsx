@@ -588,7 +588,7 @@ export function PortForwardingView() {
                     <Zap className="h-4 w-4" />
                     Try UPnP (automatic)
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-sm text-muted-foreground mt-3">
                     Ask your router to forward ports automatically via UPnP. Works only if UPnP is enabled on your router.
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
