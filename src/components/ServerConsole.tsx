@@ -323,7 +323,10 @@ export function ServerConsole({
                     ))}
                   </div>
                   {hoveredWithSubs?.subCommands && hoveredWithSubs.subCommands.length > 0 && (
-                    <div className="w-56 max-h-72 overflow-y-auto rounded-r-md border border-white/20 bg-zinc-900 shadow-lg py-1">
+                    <div
+                      key={hoveredWithSubs.command}
+                      className="w-56 max-h-72 overflow-y-auto rounded-r-md border border-white/20 bg-zinc-900 shadow-lg py-1"
+                    >
                       <div className="px-2 py-1.5 text-xs text-zinc-500 uppercase tracking-wider">
                         Sub-commands
                       </div>

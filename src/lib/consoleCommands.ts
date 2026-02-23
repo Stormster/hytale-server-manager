@@ -14,31 +14,94 @@ export interface FlatCommand {
   hint?: string;
 }
 
-/** Built-in commands – single source of truth. Easy to modify. */
+/** Built-in commands – single source of truth. A–Z. */
 export const CONSOLE_COMMANDS: ConsoleCommand[] = [
+  { command: "/backup" },
   { command: "/ban ", hint: "(username)" },
-  { command: "/unban ", hint: "(username)" },
-  { command: "/kick ", hint: "(username)" },
+  { command: "/gamemode ", hint: "(gamemode)" },
+  {
+    command: "/hide",
+    subCommands: [
+      { command: "/hide ", hint: "(player)" },
+      { command: "/hide all" },
+      { command: "/hide show ", hint: "(player)" },
+      { command: "/hide showall" },
+    ],
+  },
+  { command: "/kick ", hint: "(player)" },
+  { command: "/kill" },
   {
     command: "/op",
     subCommands: [
-      { command: "/op ", hint: "(username or self)" },
-      { command: "/op add ", hint: "(username)" },
-      { command: "/op remove ", hint: "(username)" },
+      { command: "/op add ", hint: "(player)" },
+      { command: "/op remove ", hint: "(player)" },
+      { command: "/op self" },
+    ],
+  },
+  { command: "/refer ", hint: "(host) (port)" },
+  { command: "/say ", hint: "(message)" },
+  {
+    command: "/spawning",
+    subCommands: [
+      { command: "/spawning beacons" },
+      { command: "/spawning beacons add ", hint: "(beacon)" },
+      { command: "/spawning beacons trigger" },
+      { command: "/spawning disable" },
+      { command: "/spawning enable" },
+      { command: "/spawning markers" },
+      { command: "/spawning markers add ", hint: "(marker)" },
+      { command: "/spawning markers disable" },
+      { command: "/spawning markers enable" },
+      { command: "/spawning populate" },
+      { command: "/spawning stats" },
+      { command: "/spawning suppression" },
+      { command: "/spawning suppression add ", hint: "(suppression)" },
+      { command: "/spawning suppression dump" },
+      { command: "/spawning suppression dumpall" },
+    ],
+  },
+  { command: "/stop" },
+  {
+    command: "/time",
+    subCommands: [
+      { command: "/time set ", hint: "(time)" },
+      { command: "/time set dawn" },
+      { command: "/time set dusk" },
+      { command: "/time set midday" },
+      { command: "/time set midnight" },
     ],
   },
   {
-    command: "/whitelist",
+    command: "/tp",
     subCommands: [
-      { command: "/whitelist add ", hint: "(username)" },
-      { command: "/whitelist remove ", hint: "(username)" },
-      { command: "/whitelist enable" },
-      { command: "/whitelist disable" },
-      { command: "/whitelist list" },
+      { command: "/tp ", hint: "(player) (targetPlayer)" },
+      { command: "/tp ", hint: "(player) (x) (y) (z)" },
+      { command: "/tp ", hint: "(targetPlayer)" },
+      { command: "/tp ", hint: "(x) (y) (z)" },
+      { command: "/tp all ", hint: "(x) (y) (z)" },
+      { command: "/tp world ", hint: "(worldName)" },
     ],
   },
-  { command: "/backup", hint: "Trigger world backup (requires --backup-dir)" },
-  { command: "/stop" },
+  { command: "/unban ", hint: "(player)" },
+  {
+    command: "/warp",
+    subCommands: [
+      { command: "/warp ", hint: "(warpName)" },
+      { command: "/warp go ", hint: "(warpName)" },
+      { command: "/warp list" },
+      { command: "/warp reload" },
+      { command: "/warp remove ", hint: "(name)" },
+      { command: "/warp set ", hint: "(name)" },
+    ],
+  },
+  {
+    command: "/weather",
+    subCommands: [
+      { command: "/weather get" },
+      { command: "/weather reset" },
+      { command: "/weather set ", hint: "(weather)" },
+    ],
+  },
 ];
 
 /**
