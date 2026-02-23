@@ -63,7 +63,7 @@ interface SortableInstanceCardProps {
   activeInstance: string;
   running: boolean;
   runningInstances: Array<{ name: string; game_port?: number | null; uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null }>;
-  serverStatus: { uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null; players?: number | null; last_exit_code?: number | null; last_exit_time?: string | null; update_in_progress?: string | null } | undefined;
+  serverStatus: { uptime_seconds?: number | null; ram_mb?: number | null; cpu_percent?: number | null; players?: number | null; last_exit_code?: number | null; last_exit_time?: string | null; last_exits?: Record<string, { exit_time: string; exit_code: number }>; update_in_progress?: string | null } | undefined;
   updateAvailable: boolean;
   hasUpdateStatus: boolean;
   onNavigate: (view: ViewName) => void;
