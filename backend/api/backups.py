@@ -33,6 +33,20 @@ def get_world_snapshots_folder():
     return {"path": bk.get_hytale_world_backups_folder()}
 
 
+@router.post("/world-snapshots/{filename}/restore")
+def restore_world_snapshot(filename: str):
+    """Restore a Hytale world backup. Creates pre-restore backup first. Server must be stopped."""
+    try:
+        bk.restore_hytale_world_backup(filename)
+        return {"ok": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.post("")
 def create_backup(body: CreateBackupRequest):
     try:
