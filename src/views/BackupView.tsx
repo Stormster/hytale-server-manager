@@ -139,7 +139,7 @@ export function BackupView({ onNavigate }: BackupViewProps) {
             ) : (
               <ChevronDown className="h-3.5 w-3.5" />
             )}
-            What are backups?
+            Why are there two types of backups?
           </Button>
         </div>
       </div>
@@ -149,7 +149,7 @@ export function BackupView({ onNavigate }: BackupViewProps) {
           <CardContent className="flex gap-4 py-4">
             <Info className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
             <div className="min-w-0 space-y-2 text-sm">
-              <p className="font-medium text-foreground">What are backups?</p>
+              <p className="font-medium text-foreground">Why are there two types of backups?</p>
               <p className="text-muted-foreground leading-relaxed">
                 Two types of backups protect your server:
               </p>
