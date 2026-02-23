@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -141,6 +141,7 @@ export function ModsView() {
   const [installing, setInstalling] = useState(false);
   const [showExplainer, setShowExplainer] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeInstance = settings?.active_instance;
   const rootDir = (settings?.root_dir || "").replace(/[/\\]+$/, "");
@@ -170,6 +171,7 @@ export function ModsView() {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -195,6 +197,12 @@ export function ModsView() {
       return;
     }
     uploadMods.mutate(files);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = jarFiles(e.target.files);
+    e.target.value = "";
+    if (files.length > 0) uploadMods.mutate(files);
   };
 
   const handleInstallRequired = async () => {
@@ -224,14 +232,6 @@ export function ModsView() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {isDragging && canDrop && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/5">
-          <div className="flex flex-col items-center gap-2 rounded-lg bg-background/95 px-6 py-4 shadow-lg">
-            <Upload className="h-10 w-10 text-primary" />
-            <span className="font-medium">Drop .jar files to add mods</span>
-          </div>
-        </div>
-      )}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       <div className="mb-4 flex items-start justify-between gap-4">
@@ -291,6 +291,58 @@ export function ModsView() {
           </Button>
         </div>
       </div>
+
+      {activeInstance && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".jar"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+          <Card
+            role="button"
+            tabIndex={canDrop ? 0 : undefined}
+            className={cn(
+              "border-2 border-dashed transition-all duration-200",
+              canDrop
+                ? isDragging
+                  ? "border-emerald-500/80 bg-accent ring-2 ring-emerald-400/60 ring-offset-2 ring-offset-background"
+                  : "border-primary bg-muted hover:bg-muted/95 cursor-pointer"
+                : "border-muted-foreground/50 bg-muted/60 opacity-70"
+            )}
+            onClick={() => canDrop && fileInputRef.current?.click()}
+            onKeyDown={(e) => canDrop && (e.key === "Enter" || e.key === " ") && fileInputRef.current?.click()}
+          >
+            <CardContent className="flex flex-col items-center gap-2 py-6 sm:flex-row sm:py-4">
+              <Upload className={cn("h-10 w-10 shrink-0 sm:h-8 sm:w-8 transition-transform", isDragging && canDrop ? "text-emerald-400 scale-110" : canDrop ? "text-foreground/90" : "text-muted-foreground")} />
+              <div className="flex flex-col items-center gap-1 text-center sm:items-start sm:text-left">
+                <span className={cn("text-sm", canDrop ? (isDragging ? "font-semibold text-foreground" : "text-foreground") : "text-muted-foreground")}>
+                  {canDrop ? (
+                    isDragging ? (
+                      "Drop to add mods"
+                    ) : (
+                      <>Drag & drop <span className="font-semibold">.jar</span> files here</>
+                    )
+                  ) : (
+                    "Stop the server to add mods"
+                  )}
+                </span>
+                {canDrop && (
+                  <span className={cn(
+                    "text-xs font-medium underline underline-offset-2",
+                    isDragging ? "text-muted-foreground" : "text-foreground"
+                  )}>
+                    {isDragging ? "Release to add" : "or click to select files"}
+                  </span>
+                )}
+              </div>
+            </CardContent>
+        </Card>
+        </>
+      )}
 
       {showExplainer && (
         <Card className="border-muted/50 bg-muted/20">
