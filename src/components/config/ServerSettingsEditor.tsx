@@ -488,16 +488,6 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
 
         {/* Common args */}
         <div className="grid gap-3 sm:grid-cols-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center justify-between rounded-md border px-3 py-2">
-                <Label htmlFor="allow-op" className="text-xs font-normal cursor-help">--allow-op</Label>
-                <Switch id="allow-op" checked={form.allowOp} onCheckedChange={(c) => update({ allowOp: c })} />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>Allow operator commands</TooltipContent>
-          </Tooltip>
-
           <div className="space-y-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -613,6 +603,15 @@ const ServerSettingsEditorBase = forwardRef(function ServerSettingsEditor(
           <div className="space-y-3 rounded-md border border-border/60 p-3">
             <p className="text-xs text-muted-foreground">Rarely used options. Changes apply after restart.</p>
             <div className="grid gap-3 sm:grid-cols-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="allow-op" className="text-xs font-normal cursor-help">--allow-op</Label>
+                    <Switch id="allow-op" checked={form.allowOp} onCheckedChange={(c) => update({ allowOp: c })} />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>Allow /op self in server console to grant operator status</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center justify-between">
