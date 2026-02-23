@@ -422,7 +422,9 @@ function MainCommandRow({
         {item.command.trim()}
         {item.hint && !item.subCommands && <span className="text-zinc-500 ml-1">{item.hint}</span>}
         {item.subCommands?.length ? (
-          <ChevronRight className="h-3 w-3 text-zinc-500 shrink-0 ml-auto" title="Hover for sub-commands" aria-label="Has sub-commands" />
+          <span title="Hover for sub-commands">
+          <ChevronRight className="h-3 w-3 text-zinc-500 shrink-0 ml-auto" aria-label="Has sub-commands" />
+        </span>
         ) : null}
       </button>
     </div>

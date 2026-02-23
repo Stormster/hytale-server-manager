@@ -68,7 +68,7 @@ export async function api<T>(
 export async function apiUpload<T>(
   path: string,
   body: FormData,
-  options?: Omit<RequestInit, "body" | "headers">
+  options?: Omit<RequestInit, "body">
 ): Promise<T> {
   const base = await getBaseUrl();
   const res = await fetch(`${base}${path}`, {
