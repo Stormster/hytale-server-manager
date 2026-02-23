@@ -37,6 +37,7 @@ export const CONSOLE_COMMANDS: ConsoleCommand[] = [
       { command: "/whitelist list" },
     ],
   },
+  { command: "/backup", hint: "Trigger world backup (requires --backup-dir)" },
   { command: "/stop" },
 ];
 
