@@ -6,7 +6,7 @@ A modern desktop application for managing your Hytale dedicated servers.
 
 *Make sure you have Java 25+ from the Requirements section below. Support the project and get access to future experimental addons on [Patreon](https://www.patreon.com/c/stormster).*
 
-<img src="assets/dashboard-screenshot.png" alt="Dashboard screenshot" style="pointer-events: none">
+<img src="assets/dashboard-screenshot.png?v=2" alt="Dashboard screenshot" style="pointer-events: none">
 
 ## Features
 
