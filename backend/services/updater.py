@@ -467,7 +467,7 @@ def perform_first_time_setup(
 
 
 def _graceful_shutdown_with_warning(
-    instance_name: str,
+    instance_name: Optional[str],
     minutes: int = 1,
     on_status: Optional[Callable[[str], None]] = None,
 ) -> bool:
@@ -475,7 +475,8 @@ def _graceful_shutdown_with_warning(
     minutes=1: single 1-min warning. minutes=10: 10, 5, 2, 1 min, 30s, 10s."""
     from services import server as server_svc
 
-    if not server_svc.is_instance_running(instance_name):
+    inst = instance_name or server_svc.get_running_instance()
+    if not inst or not server_svc.is_instance_running(inst):
         return True
 
     msg = "Server will shut down in {remaining} to update. Please update your client to rejoin."
@@ -483,9 +484,13 @@ def _graceful_shutdown_with_warning(
     if minutes <= 1:
         server_svc.send_command(
             f'/say {msg.format(remaining="1 minute")}\n',
-            instance_name=instance_name,
+            instance_name=inst,
         )
         deadline = time.time() + 60
+        while time.time() < deadline:
+            if not server_svc.is_instance_running(inst):
+                return True
+            time.sleep(1)
     else:
         schedule = [
             (600, "10 minutes"),
@@ -498,13 +503,13 @@ def _graceful_shutdown_with_warning(
         def _say(remaining: str) -> None:
             server_svc.send_command(
                 f'/say {msg.format(remaining=remaining)}\n',
-                instance_name=instance_name,
+                instance_name=inst,
             )
         _say("10 minutes")
         next_idx = 1
         deadline = time.time() + 600
         while next_idx < len(schedule) and time.time() < deadline:
-            if not server_svc.is_instance_running(instance_name):
+            if not server_svc.is_instance_running(inst):
                 return True
             remaining_sec = int(deadline - time.time())
             target_sec, label = schedule[next_idx]
@@ -513,14 +518,14 @@ def _graceful_shutdown_with_warning(
                 next_idx += 1
             time.sleep(1)
         while time.time() < deadline:
-            if not server_svc.is_instance_running(instance_name):
+            if not server_svc.is_instance_running(inst):
                 return True
             time.sleep(1)
 
-    if server_svc.is_instance_running(instance_name):
-        server_svc.stop(instance_name=instance_name)
+    if server_svc.is_instance_running(inst):
+        server_svc.stop(instance_name=inst)
         for _ in range(30):
-            if not server_svc.is_instance_running(instance_name):
+            if not server_svc.is_instance_running(inst):
                 return True
             time.sleep(1)
         return False
