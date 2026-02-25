@@ -424,10 +424,10 @@ def perform_first_time_setup(
         try:
             _set_update_in_progress(instance_name or "")
 
-            if server_svc.is_running():
+            if instance_name and server_svc.is_instance_running(instance_name):
                 _set_update_in_progress(None)
                 if on_done:
-                    on_done(False, "Stop the server before updating.")
+                    on_done(False, "Stop the server before installing.")
                 return
 
             if not dl.has_downloader():
