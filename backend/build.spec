@@ -60,6 +60,7 @@ a = Analysis(
         'psutil._psutil_windows',
         'psutil._pswindows',
         'psutil._common',
+        'multipart',  # Required by FastAPI for form/file uploads (File, UploadFile)
     ],
     hookspath=[],
     hooksconfig={},

@@ -12,6 +12,7 @@ import { SettingsView } from "@/views/SettingsView";
 import { OnboardingView } from "@/views/OnboardingView";
 import { AuthRequiredView } from "@/views/AuthRequiredView";
 import { AddServerDialog } from "@/components/AddServerDialog";
+import { AppFooter } from "@/components/AppFooter";
 import { ImportServerDialog } from "@/components/ImportServerDialog";
 import { InstancesModal } from "@/components/InstancesModal";
 import { Loader2 } from "lucide-react";
@@ -88,15 +89,16 @@ export default function App() {
   // Show loading while settings and auth are being fetched
   if (isLoading || authLoading) {
     return (
-      <div className="relative flex h-screen w-screen items-center justify-center">
+      <div className="relative flex h-screen w-screen flex-col">
         <div className="hytale-bg">
           <div className="hytale-bg-image" />
           <div className="hytale-bg-overlay" />
         </div>
-        <div className="relative flex flex-col items-center gap-3">
+        <div className="relative z-0 flex flex-1 flex-col items-center justify-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
+        <AppFooter />
       </div>
     );
   }
@@ -116,39 +118,42 @@ export default function App() {
   };
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden select-none">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden select-none">
       <div className="hytale-bg">
         <div className="hytale-bg-image" />
         <div className="hytale-bg-overlay" />
       </div>
-      <AppSidebar
-        active={activeView}
-        onNavigate={handleNavigate}
-        onAddServer={() => setAddOpen(true)}
-        onImportServer={() => setImportOpen(true)}
-        onManageInstances={() => setManageInstancesOpen(true)}
-      />
-      <main className="relative z-0 flex flex-1 flex-col overflow-hidden">
-        <DownloaderMissingBanner
-          onNavigateToSettings={() => handleNavigate("settings")}
+      <div className="relative z-10 flex flex-1 overflow-hidden">
+        <AppSidebar
+          active={activeView}
+          onNavigate={handleNavigate}
+          onAddServer={() => setAddOpen(true)}
+          onImportServer={() => setImportOpen(true)}
+          onManageInstances={() => setManageInstancesOpen(true)}
         />
-        <div className="flex-1 overflow-y-auto">
-        {activeView === "dashboard" && (
-          <DashboardView
-            onNavigate={handleNavigate}
-            onAddServer={() => setAddOpen(true)}
-            onImportServer={() => setImportOpen(true)}
+        <main className="relative z-0 flex flex-1 flex-col overflow-hidden">
+          <DownloaderMissingBanner
+            onNavigateToSettings={() => handleNavigate("settings")}
           />
-        )}
-        {activeView === "server" && <ServerView />}
-        {activeView === "updates" && <UpdateView />}
-        {activeView === "backups" && <BackupView onNavigate={handleNavigate} />}
-        {activeView === "mods" && <ModsView />}
-        {activeView === "config" && <ConfigView />}
-        {activeView === "port-forwarding" && <PortForwardingView />}
-        {activeView === "settings" && <SettingsView />}
-        </div>
-      </main>
+          <div className="flex-1 overflow-y-auto">
+          {activeView === "dashboard" && (
+            <DashboardView
+              onNavigate={handleNavigate}
+              onAddServer={() => setAddOpen(true)}
+              onImportServer={() => setImportOpen(true)}
+            />
+          )}
+          {activeView === "server" && <ServerView />}
+          {activeView === "updates" && <UpdateView />}
+          {activeView === "backups" && <BackupView onNavigate={handleNavigate} />}
+          {activeView === "mods" && <ModsView />}
+          {activeView === "config" && <ConfigView />}
+          {activeView === "port-forwarding" && <PortForwardingView />}
+          {activeView === "settings" && <SettingsView />}
+          </div>
+        </main>
+      </div>
+      <AppFooter />
 
       <AddServerDialog open={addOpen} onOpenChange={setAddOpen} />
       <ImportServerDialog open={importOpen} onOpenChange={setImportOpen} />
