@@ -479,24 +479,28 @@ export function UpdateView() {
 
       {/* Shutdown confirmation when servers running - update all */}
       <Dialog open={shutdownConfirmOpen} onOpenChange={setShutdownConfirmOpen}>
-        <DialogContent>
+        <DialogContent className="w-fit max-w-[min(32rem,90vw)]">
           <DialogHeader>
             <DialogTitle>Servers are running</DialogTitle>
             <DialogDescription>
-              {runningCount} server(s) {runningCount === 1 ? "is" : "are"} currently running. How would
+              {runningCount} {runningCount === 1 ? "server is" : "servers are"} currently running. How would
               you like to proceed?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShutdownConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="outline" onClick={() => handleUpdateChoice(false)}>
-              Update now (stop immediately)
-            </Button>
-            <Button onClick={() => handleUpdateChoice(true)}>
-              Graceful update (1 min warning)
-            </Button>
+          <DialogFooter className="flex flex-col items-stretch gap-3 pt-2 sm:flex-col">
+            <div className="flex flex-nowrap gap-2">
+              <Button variant="outline" onClick={() => handleUpdateChoice(false)}>
+                Update now (stop immediately)
+              </Button>
+              <Button onClick={() => handleUpdateChoice(true)}>
+                Graceful update (1 min warning)
+              </Button>
+            </div>
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setShutdownConfirmOpen(false)}>
+                Cancel
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -509,28 +513,32 @@ export function UpdateView() {
           if (!open) setPendingUpdateCurrentPatchline("release");
         }}
       >
-        <DialogContent>
+        <DialogContent className="w-fit max-w-[min(32rem,90vw)]">
           <DialogHeader>
             <DialogTitle>Server is running</DialogTitle>
             <DialogDescription>
               The current server is running. How would you like to proceed?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUpdateCurrentChoiceOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleUpdateCurrentChoice(pendingUpdateCurrentPatchline, false)}
-            >
-              Update now (stop immediately)
-            </Button>
-            <Button
-              onClick={() => handleUpdateCurrentChoice(pendingUpdateCurrentPatchline, true)}
-            >
-              Graceful update (1 min warning)
-            </Button>
+          <DialogFooter className="flex flex-col items-stretch gap-3 pt-2 sm:flex-col">
+            <div className="flex flex-nowrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleUpdateCurrentChoice(pendingUpdateCurrentPatchline, false)}
+              >
+                Update now (stop immediately)
+              </Button>
+              <Button
+                onClick={() => handleUpdateCurrentChoice(pendingUpdateCurrentPatchline, true)}
+              >
+                Graceful update (1 min warning)
+              </Button>
+            </div>
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setUpdateCurrentChoiceOpen(false)}>
+                Cancel
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
