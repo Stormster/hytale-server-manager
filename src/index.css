@@ -33,24 +33,24 @@
   }
 
   .dark {
-    --background: 217 46% 8%;
+    --background: 217 50% 4%;
     --foreground: 0 0% 96%;
-    --card: 217 40% 12%;
+    --card: 217 40% 8%;
     --card-foreground: 0 0% 96%;
-    --popover: 217 40% 12%;
+    --popover: 217 40% 8%;
     --popover-foreground: 0 0% 96%;
     --primary: 217 46% 15%;
     --primary-foreground: 0 0% 96%;
-    --secondary: 217 35% 18%;
+    --secondary: 217 35% 14%;
     --secondary-foreground: 0 0% 96%;
-    --muted: 217 30% 18%;
-    --muted-foreground: 217 15% 65%;
-    --accent: 217 35% 22%;
+    --muted: 217 30% 12%;
+    --muted-foreground: 217 15% 70%;
+    --accent: 217 35% 16%;
     --accent-foreground: 0 0% 96%;
     --destructive: 0 62.8% 40%;
     --destructive-foreground: 0 0% 98%;
-    --border: 217 25% 22%;
-    --input: 217 25% 22%;
+    --border: 217 25% 18%;
+    --input: 217 25% 18%;
     --ring: 217 30% 50%;
   }
 }
@@ -79,7 +79,7 @@
   background-image: url(/bg.jpg);
   background-size: cover;
   background-position: center;
-  filter: blur(4px) brightness(0.35);
+  filter: blur(4px) brightness(0.22);
 }
 
 .hytale-bg-overlay {
@@ -87,8 +87,8 @@
   inset: 0;
   background: linear-gradient(
     180deg,
-    hsl(217 46% 15% / 0.75) 0%,
-    hsl(217 46% 10% / 0.9) 100%
+    hsl(217 46% 10% / 0.52) 0%,
+    hsl(217 46% 6% / 0.92) 100%
   );
 }
 
