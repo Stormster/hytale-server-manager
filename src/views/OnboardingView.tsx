@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { AppFooter } from "@/components/AppFooter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -41,12 +42,13 @@ export function OnboardingView() {
   };
 
   return (
-    <div className="relative flex h-screen w-screen items-center justify-center p-6">
+    <div className="relative flex h-screen w-screen flex-col">
       <div className="hytale-bg">
         <div className="hytale-bg-image" />
         <div className="hytale-bg-overlay" />
       </div>
-      <Card className="relative w-full max-w-lg">
+      <div className="relative z-0 flex flex-1 items-center justify-center p-6">
+      <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">
             Welcome to Hytale Server Manager
@@ -93,6 +95,8 @@ export function OnboardingView() {
           )}
         </CardContent>
       </Card>
+      </div>
+      <AppFooter />
     </div>
   );
 }
