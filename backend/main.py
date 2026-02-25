@@ -4,6 +4,9 @@ Runs as a sidecar process, started by Tauri.
 """
 
 import argparse
+import asyncio
+import contextlib
+import logging
 import os
 import socket
 import sys
@@ -60,7 +63,78 @@ def create_app():
     from api.instances import router as instances_router
     from api.mods import router as mods_router
 
-    app = FastAPI(title="Hytale Server Manager Backend")
+    @contextlib.asynccontextmanager
+    async def lifespan(app):
+        task = None
+
+        async def auto_update_loop():
+            while True:
+                try:
+                    interval_hours = 12.0
+                    instance_filter = []
+                    try:
+                        from services.settings import (
+                            get_instance_auto_updates,
+                            get_auto_update_interval_hours,
+                        )
+                        auto_updates = get_instance_auto_updates()
+                        instance_filter = [n for n, enabled in auto_updates.items() if enabled]
+                        interval_hours = get_auto_update_interval_hours()
+                    except Exception:
+                        pass
+                    await asyncio.sleep(interval_hours * 3600)
+                    if not instance_filter:
+                        continue
+                    try:
+                        from services import updater as updater_svc
+                        if updater_svc.get_update_in_progress():
+                            continue
+                        status = updater_svc.get_all_instances_update_status()
+                        to_update = [
+                            n for n, info in (status.get("instances") or {}).items()
+                            if info.get("update_available") and n in instance_filter
+                        ]
+                        if not to_update:
+                            continue
+                        evt = asyncio.Event()
+                        result = {"ok": False, "msg": ""}
+
+                        def on_done(ok, msg):
+                            result["ok"] = ok
+                            result["msg"] = msg
+                            evt.set()
+
+                        updater_svc.perform_update_all(
+                            on_done=on_done,
+                            instance_filter=to_update,
+                        )
+                        await asyncio.wait_for(evt.wait(), timeout=3600)
+                        if result["ok"]:
+                            logging.getLogger(__name__).info("Auto-update completed: %s", result["msg"])
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        logging.getLogger(__name__).warning("Auto-update failed: %s", exc)
+                except asyncio.CancelledError:
+                    break
+
+        def start_scheduler():
+            nonlocal task
+            task = asyncio.create_task(auto_update_loop())
+
+        async def stop_scheduler():
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        start_scheduler()
+        yield
+        await stop_scheduler()
+
+    app = FastAPI(title="Hytale Server Manager Backend", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,
