@@ -45,7 +45,6 @@ export function SettingsView() {
   const [fixingPerms, setFixingPerms] = useState(false);
   const [fixingPort, setFixingPort] = useState(false);
   const [fetchingDownloader, setFetchingDownloader] = useState(false);
-
   const running = serverStatus?.running ?? false;
 
   const activeInstance = settings?.active_instance || "";
@@ -56,11 +55,14 @@ export function SettingsView() {
       ? `${rootDirPath.replace(/[/\\]+$/, "")}\\${activeInstance}`
       : "";
 
-  // Initialize rootDir from settings
   const currentRoot = settings?.root_dir || "";
-  if (rootDir === "" && currentRoot) {
-    setRootDir(currentRoot);
-  }
+
+  // Initialize rootDir from settings when it loads
+  useEffect(() => {
+    if (rootDir === "" && currentRoot) {
+      setRootDir(currentRoot);
+    }
+  }, [settings?.root_dir]);
 
   const handleRefreshAuth = useCallback(() => {
     setAuthRunning(true);

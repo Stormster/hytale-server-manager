@@ -17,7 +17,7 @@ from config import (
     VERSION_FILE,
     PATCHLINE_FILE,
 )
-from utils.paths import resolve_instance, ensure_dir
+from utils.paths import resolve_instance, resolve_instance_by_name, ensure_dir
 
 _META_FILE = "backup_info.json"
 
@@ -173,6 +173,53 @@ def find_backup(folder_name: str) -> BackupEntry | None:
         if entry.folder_name == folder_name:
             return entry
     return None
+
+
+def create_backup_for_instance(instance_name: str, label: Optional[str] = None) -> BackupEntry:
+    """Create a backup for a specific instance (used by update-all)."""
+    backup_root = ensure_dir(resolve_instance_by_name(instance_name, BACKUP_DIR))
+    now = datetime.now()
+    folder_name = now.strftime("backup_%Y-%m-%d_%I%M%p")
+
+    dest = os.path.join(backup_root, folder_name)
+    counter = 1
+    while os.path.exists(dest):
+        dest = os.path.join(backup_root, f"{folder_name}_{counter}")
+        counter += 1
+
+    server_dir = resolve_instance_by_name(instance_name, SERVER_DIR)
+    if not os.path.isdir(server_dir):
+        raise FileNotFoundError("No Server folder to backup.")
+
+    os.makedirs(dest, exist_ok=True)
+    shutil.copytree(server_dir, os.path.join(dest, "Server"), dirs_exist_ok=True)
+
+    for name in ("Assets.zip", "start.bat", "start.sh", VERSION_FILE, PATCHLINE_FILE):
+        src = resolve_instance_by_name(instance_name, name)
+        if os.path.isfile(src):
+            shutil.copy2(src, dest)
+
+    if label and "update from" in label.lower():
+        m = re.match(
+            r'update from\s+(\S+)\s+\(([^)]+)\)\s+to\s+(\S+)\s+\(([^)]+)\)',
+            label, re.IGNORECASE,
+        )
+        if m:
+            _save_meta(
+                dest,
+                backup_type="pre-update",
+                label="Pre-update backup",
+                from_version=m.group(1),
+                from_patchline=m.group(2),
+                to_version=m.group(3),
+                to_patchline=m.group(4),
+            )
+        else:
+            _save_meta(dest, backup_type="pre-update", label=label)
+    else:
+        _save_meta(dest, backup_type="manual", label=label or "Manual backup")
+
+    return BackupEntry(dest)
 
 
 def create_backup(label: Optional[str] = None) -> BackupEntry:
