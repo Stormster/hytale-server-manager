@@ -25,22 +25,31 @@ _psutil_dir = os.path.dirname(_psutil_spec.origin)
 print(f"[build] psutil found at: {_psutil_dir}")
 print(f"[build] psutil contents: {os.listdir(_psutil_dir)}")
 
-# .pyd files are C extensions - must go in binaries so they can be imported
-_psutil_pyd_binaries = [
+# C extensions: .pyd on Windows, .so on Linux
+_psutil_ext = '*.pyd' if sys.platform == 'win32' else '*.so'
+_psutil_binaries = [
     (f, 'psutil')
-    for f in glob.glob(os.path.join(_psutil_dir, '*.pyd'))
+    for f in glob.glob(os.path.join(_psutil_dir, _psutil_ext))
 ]
-# .py files and everything else go in datas
 _psutil_py_datas = [
     (f, 'psutil')
     for f in glob.glob(os.path.join(_psutil_dir, '*.py'))
 ]
-print(f"[build] psutil binaries (.pyd): {_psutil_pyd_binaries}")
+print(f"[build] psutil binaries ({_psutil_ext}): {_psutil_binaries}")
+
+_psutil_hidden = [
+    'psutil',
+    'psutil._common',
+]
+if sys.platform == 'win32':
+    _psutil_hidden.extend(['psutil._psutil_windows', 'psutil._pswindows'])
+else:
+    _psutil_hidden.append('psutil._psutil_linux')
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
-    binaries=_psutil_pyd_binaries,
+    binaries=_psutil_binaries,
     datas=_psutil_py_datas,
     hiddenimports=[
         'uvicorn.logging',
@@ -56,10 +65,7 @@ a = Analysis(
         'requests',
         'packaging',
         'packaging.version',
-        'psutil',
-        'psutil._psutil_windows',
-        'psutil._pswindows',
-        'psutil._common',
+        *_psutil_hidden,
         'multipart',  # Required by FastAPI for form/file uploads (File, UploadFile)
     ],
     hookspath=[],

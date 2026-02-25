@@ -20,7 +20,8 @@ REPORT_URL = "https://github.com/Stormster/hytale-server-manager/issues"
 # Hytale downloader / server paths (relative names only)
 # ---------------------------------------------------------------------------
 
-DOWNLOADER_EXE = "hytale-downloader-windows-amd64.exe"
+DOWNLOADER_WINDOWS = "hytale-downloader-windows-amd64.exe"
+DOWNLOADER_LINUX = "hytale-downloader-linux-amd64"
 DOWNLOADER_ZIP_URL = "https://downloader.hytale.com/hytale-downloader.zip"
 CREDENTIALS_FILE = ".hytale-downloader-credentials.json"
 VERSION_FILE = "server_version.txt"

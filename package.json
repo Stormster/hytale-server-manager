@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/sync-version.js && tsc -b && vite build",
-    "build:release": "npm run version:sync && scripts\\build-backend.bat && npm run tauri build",
+    "build:release": "npm run version:sync && node scripts/build-backend.js && npm run tauri build",
+    "build:backend": "node scripts/build-backend.js",
+    "build:backend:linux": "bash scripts/build-backend.sh",
     "version:sync": "node scripts/sync-version.js",
     "version:bump:patch": "npm version patch --no-git-tag-version",
     "version:bump:minor": "npm version minor --no-git-tag-version",
@@ -21,6 +23,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@fontsource-variable/nunito-sans": "^5.2.7",
     "@radix-ui/react-dialog": "^1.1.0",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-progress": "^1.1.0",
