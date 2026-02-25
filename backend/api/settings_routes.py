@@ -85,6 +85,8 @@ class UpdateSettingsRequest(BaseModel):
     instance_server_settings: Optional[dict[str, Any]] = None
     game_port: Optional[int] = None
     webserver_port: Optional[int] = None
+    instance_auto_updates: Optional[dict[str, bool]] = None
+    auto_update_interval_hours: Optional[float] = None
 
 
 @router.get("/port-check")
@@ -211,6 +213,10 @@ def get_settings():
 
 @router.put("/settings")
 def update_settings(body: UpdateSettingsRequest):
+    if body.instance_auto_updates is not None:
+        settings.set_instance_auto_updates(body.instance_auto_updates)
+    if body.auto_update_interval_hours is not None:
+        settings.set_auto_update_interval_hours(body.auto_update_interval_hours)
     if body.root_dir is not None:
         path = os.path.abspath(body.root_dir)
         os.makedirs(path, exist_ok=True)

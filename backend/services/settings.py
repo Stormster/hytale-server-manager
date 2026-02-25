@@ -180,6 +180,48 @@ def set_experimental_addon_license_key(key: str) -> None:
     _save(s)
 
 
+# -- Auto-updates (per-instance, check and install periodically) ---------------------------------
+
+def get_instance_auto_updates() -> dict[str, bool]:
+    """Return { instance_name: enabled } for per-instance auto-update. Default all False."""
+    return dict(load().get("instance_auto_updates", {}))
+
+
+def get_instance_auto_update_enabled(instance_name: str) -> bool:
+    """Whether auto-update is enabled for this instance."""
+    return bool(get_instance_auto_updates().get(instance_name, False))
+
+
+def set_instance_auto_update_enabled(instance_name: str, enabled: bool) -> None:
+    s = load()
+    updates = dict(s.get("instance_auto_updates", {}))
+    updates[instance_name] = enabled
+    s["instance_auto_updates"] = updates
+    _save(s)
+
+
+def set_instance_auto_updates(updates: dict[str, bool]) -> None:
+    """Set multiple instance auto-update settings at once."""
+    s = load()
+    s["instance_auto_updates"] = dict(updates)
+    _save(s)
+
+
+def get_auto_update_interval_hours() -> float:
+    """How often to run the auto-update check, in hours. Default 12."""
+    v = load().get("auto_update_interval_hours", 12)
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return 12.0
+
+
+def set_auto_update_interval_hours(hours: float) -> None:
+    s = load()
+    s["auto_update_interval_hours"] = max(1.0, min(168.0, float(hours)))
+    _save(s)
+
+
 # -- Instance server settings (RAM limits, startup args) ---------------------------------
 
 def get_instance_server_settings() -> dict:

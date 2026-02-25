@@ -29,6 +29,13 @@ def resolve_instance_by_name(instance_name: str, *parts: str) -> str:
     return ""
 
 
+def resolve_cache(patchline: str, *parts: str) -> str:
+    """Join *parts* onto the shared server download cache for this patchline.
+    Cache is at root/.server-cache/{patchline}/ so the same release is reused across instances.
+    """
+    return os.path.join(get_root_dir(), ".server-cache", patchline, *parts)
+
+
 def ensure_dir(path: str) -> str:
     """Create *path* (and parents) if it doesn't exist.  Returns the path."""
     os.makedirs(path, exist_ok=True)
