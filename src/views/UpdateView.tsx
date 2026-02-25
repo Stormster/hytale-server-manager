@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { StatusBadge } from "@/components/StatusBadge";
 import { InfoRow } from "@/components/InfoRow";
 import { InstallServerDialog } from "@/components/InstallServerDialog";
 import {
@@ -251,7 +250,15 @@ export function UpdateView() {
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
-      <h2 className="text-xl font-bold">Server Updates</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Server Updates</h2>
+        <Button
+          onClick={handleRefresh}
+          disabled={checkingUpdates || updating}
+        >
+          {checkingUpdates ? "Checking..." : "Refresh"}
+        </Button>
+      </div>
 
       {/* Not installed: offer Install Server */}
       {notInstalled && activeInstance !== "None" && (
@@ -305,34 +312,6 @@ export function UpdateView() {
           />
         </CardContent>
       </Card>
-
-      {/* Status row */}
-      <div className="flex items-center justify-between">
-        <StatusBadge
-          text={
-            hasStatus
-              ? updateAvailable
-                ? `Update available: ${ip === "release" ? rr : rp}`
-                : `Up to date on ${ip}`
-              : checkingUpdates
-                ? "Checking..."
-                : "No update data"
-          }
-          variant={
-            hasStatus
-              ? updateAvailable
-                ? "warning"
-                : "ok"
-              : "neutral"
-          }
-        />
-        <Button
-          onClick={handleRefresh}
-          disabled={checkingUpdates || updating}
-        >
-          {checkingUpdates ? "Checking..." : "Refresh"}
-        </Button>
-      </div>
 
       {/* Action card - update on current channel */}
       {hasStatus && (updateAvailable || instancesWithUpdates.length > 0) && !updating && !updateDone && (
