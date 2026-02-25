@@ -12,8 +12,6 @@ export interface AppSettings {
   onboarding_completed?: boolean;
   instance_server_settings?: Record<string, InstanceServerSettings>;
   instance_ports?: Record<string, { game?: number; webserver?: number }>;
-  instance_auto_updates?: Record<string, boolean>;
-  auto_update_interval_hours?: number;
 }
 
 // ---- Instances ----

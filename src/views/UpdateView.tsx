@@ -15,20 +15,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useUpdaterLocalStatus, useAllInstancesUpdateStatus } from "@/api/hooks/useUpdater";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 import { useInstances } from "@/api/hooks/useInstances";
 import { useServerStatus } from "@/api/hooks/useServer";
 import { useQueryClient } from "@tanstack/react-query";
-import { subscribeSSE, api } from "@/api/client";
+import { subscribeSSE } from "@/api/client";
 import { Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -66,14 +58,13 @@ export function UpdateView() {
   const [shutdownConfirmOpen, setShutdownConfirmOpen] = useState(false);
   const [updateLeaveWarningOpen, setUpdateLeaveWarningOpen] = useState(false);
   const [updateLeaveDontShow, setUpdateLeaveDontShow] = useState(false);
-  const [autoUpdateConfirmOpen, setAutoUpdateConfirmOpen] = useState(false);
-  const [autoUpdateDontShow, setAutoUpdateDontShow] = useState(false);
-  const [pendingAutoUpdateInstance, setPendingAutoUpdateInstance] = useState<string | null>(null);
-  const SKIP_AUTO_UPDATE_WARNING_KEY = "hytale-manager:skipAutoUpdateWarning";
+  const [updateCurrentChoiceOpen, setUpdateCurrentChoiceOpen] = useState(false);
+  const [pendingUpdateCurrentPatchline, setPendingUpdateCurrentPatchline] = useState<string>("release");
   const [pendingUpdate, setPendingUpdate] = useState<{
     type: "current";
     patchline: string;
-  } | { type: "all" } | null>(null);
+    graceful?: boolean;
+  } | { type: "all"; graceful?: boolean } | null>(null);
 
   const SKIP_UPDATE_LEAVE_KEY = "hytale-manager:skipUpdateLeaveWarning";
 
@@ -101,7 +92,7 @@ export function UpdateView() {
     refetchUpdates();
   };
 
-  const doUpdateActual = useCallback((patchline: string) => {
+  const doUpdateActual = useCallback((patchline: string, graceful = false) => {
     setUpdating(true);
     setProgress(0);
     setProgressStatus("Preparing...");
@@ -145,14 +136,14 @@ export function UpdateView() {
           toast.error("Connection error");
         },
       },
-      { method: "POST" }
+      { method: "POST", body: JSON.stringify({ graceful }) }
     );
   }, [invalidateOnUpdateComplete]);
 
   const doUpdate = doUpdateActual;
 
 
-  const runUpdateAll = useCallback(() => {
+  const runUpdateAll = useCallback((graceful = false) => {
     setShutdownConfirmOpen(false);
     setUpdating(true);
     setProgress(0);
@@ -193,16 +184,16 @@ export function UpdateView() {
         }
         toast.error("Connection error");
       },
-    }, { method: "POST" });
+    }, { method: "POST", body: JSON.stringify({ graceful }) });
   }, [invalidateOnUpdateComplete]);
 
   const confirmAndRunUpdate = useCallback(
-    (update: { type: "current"; patchline: string } | { type: "all" }) => {
+    (update: { type: "current"; patchline: string; graceful?: boolean } | { type: "all"; graceful?: boolean }) => {
       if (typeof localStorage !== "undefined" && localStorage.getItem(SKIP_UPDATE_LEAVE_KEY)) {
         if (update.type === "current") {
-          doUpdateActual(update.patchline);
+          doUpdateActual(update.patchline, update.graceful ?? false);
         } else {
-          runUpdateAll();
+          runUpdateAll(update.graceful ?? false);
         }
         return;
       }
@@ -220,101 +211,41 @@ export function UpdateView() {
     setUpdateLeaveDontShow(false);
     if (pendingUpdate) {
       if (pendingUpdate.type === "current") {
-        doUpdateActual(pendingUpdate.patchline);
+        doUpdateActual(pendingUpdate.patchline, pendingUpdate.graceful ?? false);
       } else {
-        runUpdateAll();
+        runUpdateAll(pendingUpdate.graceful ?? false);
       }
       setPendingUpdate(null);
     }
   }, [pendingUpdate, updateLeaveDontShow, doUpdateActual, runUpdateAll]);
 
   const doUpdateAll = useCallback(() => {
-    if (serverRunning) {
+    if (serverRunning || runningCount > 0) {
       setShutdownConfirmOpen(true);
       return;
     }
     confirmAndRunUpdate({ type: "all" });
-  }, [serverRunning, confirmAndRunUpdate]);
+  }, [serverRunning, runningCount, confirmAndRunUpdate]);
 
-  const handleShutdownAndUpdate = useCallback(async () => {
-    setShutdownConfirmOpen(false);
-    try {
-      await api("/api/server/stop", {
-        method: "POST",
-        body: JSON.stringify({ all: true }),
-      });
-      for (let i = 0; i < 30; i++) {
-        await new Promise((r) => setTimeout(r, 500));
-        const status = await api<{ running: boolean }>("/api/server/status");
-        if (!status?.running) {
-          confirmAndRunUpdate({ type: "all" });
-          return;
-        }
-      }
-      toast.error("Servers did not stop in time. Please stop them manually and try again.");
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  }, [confirmAndRunUpdate]);
+  const handleUpdateChoice = useCallback(
+    (graceful: boolean) => {
+      setShutdownConfirmOpen(false);
+      confirmAndRunUpdate({ type: "all", graceful });
+    },
+    [confirmAndRunUpdate]
+  );
+
+  const handleUpdateCurrentChoice = useCallback(
+    (patchline: string, graceful: boolean) => {
+      setUpdateCurrentChoiceOpen(false);
+      confirmAndRunUpdate({ type: "current", patchline, graceful });
+    },
+    [confirmAndRunUpdate]
+  );
 
   const iv = localStatus?.installed_version ?? "...";
   const ip = localStatus?.installed_patchline ?? "release";
   const notInstalled = iv === "unknown" || iv === "...";
-
-  const instanceAutoUpdates = settings?.instance_auto_updates ?? {};
-  const installedInstances = instances?.filter((i) => i.installed) ?? [];
-
-  const handleAutoUpdateToggle = useCallback(
-    (instanceName: string, enabled: boolean) => {
-      if (enabled) {
-        if (
-          typeof localStorage !== "undefined" &&
-          localStorage.getItem(SKIP_AUTO_UPDATE_WARNING_KEY)
-        ) {
-          updateSettings.mutate({
-            instance_auto_updates: {
-              ...instanceAutoUpdates,
-              [instanceName]: true,
-            },
-          });
-        } else {
-          setPendingAutoUpdateInstance(instanceName);
-          setAutoUpdateConfirmOpen(true);
-        }
-      } else {
-        updateSettings.mutate({
-          instance_auto_updates: {
-            ...instanceAutoUpdates,
-            [instanceName]: false,
-          },
-        });
-      }
-    },
-    [instanceAutoUpdates, updateSettings]
-  );
-
-  const handleAutoUpdateConfirm = useCallback(() => {
-    if (pendingAutoUpdateInstance) {
-      if (autoUpdateDontShow && typeof localStorage !== "undefined") {
-        localStorage.setItem(SKIP_AUTO_UPDATE_WARNING_KEY, "1");
-      }
-      updateSettings.mutate(
-        {
-          instance_auto_updates: {
-            ...instanceAutoUpdates,
-            [pendingAutoUpdateInstance]: true,
-          },
-        },
-        {
-          onSettled: () => {
-            setAutoUpdateConfirmOpen(false);
-            setPendingAutoUpdateInstance(null);
-            setAutoUpdateDontShow(false);
-          },
-        }
-      );
-    }
-  }, [pendingAutoUpdateInstance, autoUpdateDontShow, instanceAutoUpdates, updateSettings]);
 
   return (
     <div className="flex h-full flex-col">
@@ -417,8 +348,15 @@ export function UpdateView() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    onClick={() => confirmAndRunUpdate({ type: "current", patchline: ip })}
-                    disabled={serverRunning}
+                    onClick={() => {
+                      if (serverRunning) {
+                        setPendingUpdateCurrentPatchline(ip);
+                        setUpdateCurrentChoiceOpen(true);
+                      } else {
+                        confirmAndRunUpdate({ type: "current", patchline: ip });
+                      }
+                    }}
+                    disabled={updating}
                   >
                     Update current
                   </Button>
@@ -539,21 +477,60 @@ export function UpdateView() {
         </DialogContent>
       </Dialog>
 
-      {/* Shutdown confirmation when servers running */}
+      {/* Shutdown confirmation when servers running - update all */}
       <Dialog open={shutdownConfirmOpen} onOpenChange={setShutdownConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Shut down servers first</DialogTitle>
+            <DialogTitle>Servers are running</DialogTitle>
             <DialogDescription>
-              {runningCount} server(s) {runningCount === 1 ? "is" : "are"} currently running. Updates
-              require all servers to be stopped. Shut them down and update all now?
+              {runningCount} server(s) {runningCount === 1 ? "is" : "are"} currently running. How would
+              you like to proceed?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShutdownConfirmOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleShutdownAndUpdate}>Shut down & Update all</Button>
+            <Button variant="outline" onClick={() => handleUpdateChoice(false)}>
+              Update now (stop immediately)
+            </Button>
+            <Button onClick={() => handleUpdateChoice(true)}>
+              Graceful update (1 min warning)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update current choice when server running */}
+      <Dialog
+        open={updateCurrentChoiceOpen}
+        onOpenChange={(open) => {
+          setUpdateCurrentChoiceOpen(open);
+          if (!open) setPendingUpdateCurrentPatchline("release");
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Server is running</DialogTitle>
+            <DialogDescription>
+              The current server is running. How would you like to proceed?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUpdateCurrentChoiceOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleUpdateCurrentChoice(pendingUpdateCurrentPatchline, false)}
+            >
+              Update now (stop immediately)
+            </Button>
+            <Button
+              onClick={() => handleUpdateCurrentChoice(pendingUpdateCurrentPatchline, true)}
+            >
+              Graceful update (1 min warning)
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -591,110 +568,6 @@ export function UpdateView() {
 
         </>
       )}
-
-      {/* Automatic updates – per server */}
-      {installedInstances.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Automatic updates</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Periodically check for and install updates for each server. Best suited for unmodded
-              servers.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <Label className="text-sm text-muted-foreground">Check every</Label>
-              <Select
-                value={String(settings?.auto_update_interval_hours ?? 12)}
-                onValueChange={(v) =>
-                  updateSettings.mutate({
-                    auto_update_interval_hours: Number(v),
-                  })
-                }
-              >
-                <SelectTrigger className="w-[130px] h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 hour</SelectItem>
-                  <SelectItem value="3">3 hours</SelectItem>
-                  <SelectItem value="6">6 hours</SelectItem>
-                  <SelectItem value="12">12 hours</SelectItem>
-                  <SelectItem value="24">24 hours</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <ul className="space-y-2">
-              {installedInstances.map((inst) => (
-                <li
-                  key={inst.name}
-                  className="flex items-center justify-between gap-4 rounded-lg border border-border/50 bg-muted/20 px-3 py-2"
-                >
-                  <span className="font-medium">{inst.name}</span>
-                  <Switch
-                    checked={instanceAutoUpdates[inst.name] ?? false}
-                    onCheckedChange={(checked) =>
-                      handleAutoUpdateToggle(inst.name, checked)
-                    }
-                  />
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Auto-update confirmation dialog – outside !notInstalled so it can show when toggling from Automatic updates card */}
-      <Dialog
-        open={autoUpdateConfirmOpen}
-        onOpenChange={(open) => {
-          setAutoUpdateConfirmOpen(open);
-          if (!open) {
-            setPendingAutoUpdateInstance(null);
-            setAutoUpdateDontShow(false);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Enable automatic updates?</DialogTitle>
-            <DialogDescription asChild>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>
-                  Automatic updates will install new server versions when they become available.
-                  This is best suited for <strong>unmodded servers</strong>.
-                </p>
-                <p>
-                  Hytale is still in active development, and game updates often introduce changes
-                  that can break mods until plugin authors release updates. If you run a modded
-                  server, consider leaving this off and updating manually when your plugins are
-                  compatible.
-                </p>
-                <p>Enable for {pendingAutoUpdateInstance}?</p>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-start gap-3 py-2">
-            <input
-              id="auto-update-dont-show"
-              type="checkbox"
-              checked={autoUpdateDontShow}
-              onChange={(e) => setAutoUpdateDontShow(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-2 border-white/70 bg-transparent accent-white focus:ring-2 focus:ring-white/60 focus:ring-offset-2 focus:ring-offset-background"
-            />
-            <Label htmlFor="auto-update-dont-show" className="cursor-pointer text-sm">
-              Don&apos;t show this again
-            </Label>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAutoUpdateConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAutoUpdateConfirm}>Enable</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
         </div>
       </div>
