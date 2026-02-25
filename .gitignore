@@ -13,6 +13,7 @@ __pycache__/
 *.pyo
 *.egg-info/
 .venv/
+.venv-backend/
 venv/
 backend/dist/
 backend/build/
@@ -20,7 +21,7 @@ backend/build/
 # ---- Tauri / Rust ----
 src-tauri/target/
 src-tauri/binaries/
-src-tauri/server-manager-backend-*.exe
+src-tauri/server-manager-backend-*
 
 # ---- Environment ----
 .env
@@ -50,6 +51,7 @@ backups/
 server_version.txt
 server_patchline.txt
 hytale-downloader-windows-amd64.exe
+hytale-downloader-linux-amd64
 .hytale-downloader-credentials.json
 temp_extract/
 temp_update.zip

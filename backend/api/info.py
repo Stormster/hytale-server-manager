@@ -36,6 +36,7 @@ def info():
         "github_repo": GITHUB_REPO,
         "report_url": REPORT_URL,
         "experimental_addon_loaded": experimental_addon_loaded,
+        "platform": sys.platform,
     }
 
 

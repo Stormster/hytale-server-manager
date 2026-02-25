@@ -73,9 +73,11 @@ def _extract(block: str, key: str) -> str:
 
 
 def get_default_root_dir() -> str:
-    """Return the default servers root folder: Documents/Hytale Servers."""
+    """Return the default servers root folder. Windows: Documents/Hytale Servers. Linux/macOS: ~/Hytale Servers."""
     base = os.environ.get("USERPROFILE", os.path.expanduser("~"))
-    return os.path.join(base, "Documents", "Hytale Servers")
+    if sys.platform == "win32":
+        return os.path.join(base, "Documents", "Hytale Servers")
+    return os.path.join(base, "Hytale Servers")
 
 
 class UpdateSettingsRequest(BaseModel):

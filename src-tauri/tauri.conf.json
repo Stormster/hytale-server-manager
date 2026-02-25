@@ -24,7 +24,13 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self' asset: https://asset.localhost",
+        "connect-src": "ipc: http://ipc.localhost http://127.0.0.1 http://localhost https://api.ipify.org",
+        "font-src": "'self' https://fonts.gstatic.com",
+        "style-src": "'unsafe-inline' 'self' https://fonts.googleapis.com",
+        "img-src": "'self' asset: https://asset.localhost data: blob:"
+      }
     }
   },
   "bundle": {
