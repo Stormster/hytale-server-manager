@@ -12,7 +12,7 @@ A modern desktop application for managing your Hytale dedicated servers.
 
 - **Dashboard** – Overview of all server instances with status, quick start/stop, backup, and drag-and-drop reordering
 - **Console** – Live-streaming console output, server start/stop controls, and command suggestions with sub-command panel
-- **Updates** – Check for server updates, switch between release and pre-release channels, install with live progress
+- **Updates** – Check for server updates, bulk update all instances, graceful shutdown (warn players before update), switch release/pre-release channels, install with live progress.
 - **Backups** – Create, restore, rename, and delete backups. Supports both server snapshots (full instance) and Hytale world snapshots (`--backup` / `/backup`).
 - **Mods** – View installed mods, upload .jar files (drag & drop), enable/disable mods, check Nitrado plugin updates, install required Nitrado mods, open mods folder
 - **Configuration** – Edit config.json, whitelist.json, bans.json, and world configs via form editors or raw JSON
