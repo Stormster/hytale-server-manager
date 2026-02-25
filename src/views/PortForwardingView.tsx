@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useInstances } from "@/api/hooks/useInstances";
-import { useLocalIp, usePublicIp } from "@/api/hooks/useInfo";
+import { useAppInfo, useLocalIp, usePublicIp } from "@/api/hooks/useInfo";
 import { api } from "@/api/client";
 import {
   Copy,
@@ -81,6 +81,8 @@ function isPrivateOrCgnat(ip: string): "private" | "cgnat" | false {
 type FirewallStatusLabel = "Allowed" | "Blocked" | "Partially allowed" | "Unknown";
 export function PortForwardingView() {
   const { data: instances, isLoading } = useInstances();
+  const { data: appInfo } = useAppInfo();
+  const isWindows = appInfo?.platform === "win32";
   const [firewallStatus, setFirewallStatus] = useState<Record<string, boolean>>({});
   const [firewallChecking, setFirewallChecking] = useState(false);
   const [upnpRunning, setUpnpRunning] = useState(false);
@@ -215,7 +217,9 @@ export function PortForwardingView() {
           <div className="mb-2">
             <h2 className="text-xl font-bold">Port Forwarding</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Allow players to connect by forwarding ports on your router and opening them in Windows Firewall.
+              {isWindows
+                ? "Allow players to connect by forwarding ports on your router and opening them in Windows Firewall."
+                : "Allow players to connect by forwarding ports on your router and opening them in your system firewall (e.g. ufw on Linux)."}
             </p>
             <nav className="flex items-center gap-2 text-sm mt-3" aria-label="Progress">
               <a href="#share-info" className="text-foreground font-medium hover:underline">
@@ -378,49 +382,53 @@ export function PortForwardingView() {
             </Card>
           </div>
 
-          {/* Windows Firewall & Ports per instance – combined */}
+          {/* Firewall – Windows (automatic) or Linux (manual ufw/iptables) */}
           <Card id="firewall">
             <CardHeader>
               <div className="flex items-start justify-between flex-wrap gap-4">
                 <div>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Shield className="h-4 w-4" />
-                    Windows Firewall & Ports per instance
+                    {isWindows ? "Windows Firewall & Ports per instance" : "Firewall (Linux)"}
                   </CardTitle>
-                  <div className="flex gap-2 flex-wrap mt-2">
-                    <Button
-                      variant="default"
-                      onClick={addFirewallRules}
-                      disabled={addRulesRunning || instancesWithPorts.length === 0}
+                  {isWindows && (
+                    <div className="flex gap-2 flex-wrap mt-2">
+                      <Button
+                        variant="default"
+                        onClick={addFirewallRules}
+                        disabled={addRulesRunning || instancesWithPorts.length === 0}
+                      >
+                        {addRulesRunning ? "Adding…" : "Add rules automatically"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {isWindows && (
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge
+                      variant={
+                        getFirewallStatusLabel() === "Allowed"
+                          ? "success"
+                          : getFirewallStatusLabel() === "Blocked" || getFirewallStatusLabel() === "Partially allowed"
+                            ? "warning"
+                            : "secondary"
+                      }
                     >
-                      {addRulesRunning ? "Adding…" : "Add rules automatically"}
+                      {getFirewallStatusLabel()}
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={checkFirewall}
+                      disabled={firewallChecking || instancesWithPorts.length === 0}
+                    >
+                      <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", firewallChecking && "animate-spin")} />
+                      Check
                     </Button>
                   </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <Badge
-                    variant={
-                      getFirewallStatusLabel() === "Allowed"
-                        ? "success"
-                        : getFirewallStatusLabel() === "Blocked" || getFirewallStatusLabel() === "Partially allowed"
-                          ? "warning"
-                          : "secondary"
-                    }
-                  >
-                    {getFirewallStatusLabel()}
-                  </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={checkFirewall}
-                    disabled={firewallChecking || instancesWithPorts.length === 0}
-                  >
-                    <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", firewallChecking && "animate-spin")} />
-                    Check
-                  </Button>
-                </div>
+                )}
               </div>
-              {addRulesResult && (
+              {isWindows && addRulesResult && (
                 <p
                   className={cn(
                     "text-sm mt-2",
@@ -434,105 +442,118 @@ export function PortForwardingView() {
             <CardContent className="space-y-6">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">
-                  If the automatic process fails, you can Run PowerShell or Terminal{" "}
-                  <span className="text-amber-600 dark:text-amber-400 font-medium">as Administrator</span>
-                  .<br></br>Paste each command from the dropdowns below to allow the ports.
+                  {isWindows ? (
+                    <>
+                      If the automatic process fails, you can Run PowerShell or Terminal{" "}
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">as Administrator</span>
+                      .<br></br>Paste each command from the dropdowns below to allow the ports.
+                    </>
+                  ) : (
+                    <>
+                      On Linux, use <code className="rounded bg-muted px-1 font-mono">ufw</code> or{" "}
+                      <code className="rounded bg-muted px-1 font-mono">iptables</code>. Run Terminal{" "}
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">with sudo</span> and paste the
+                      commands below.
+                    </>
+                  )}
                 </p>
               </div>
 
               <div>
                 {isLoading ? (
-                <p className="text-sm text-muted-foreground">Loading…</p>
-              ) : instancesWithPorts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No instances. Add a server first.</p>
-              ) : (
-                <div className="overflow-x-auto scrollbar-hide">
-                  <table className="w-full text-sm table-fixed">
-                    <thead>
-                      <tr className="border-b text-left text-muted-foreground">
-                        <th className="w-8 py-2"></th>
-                        <th className="py-2 pr-4">Instance</th>
-                        <th className="py-2 pr-4">Game UDP</th>
-                        <th className="py-2 pr-4">Web TCP</th>
-                        <th className="py-2 pr-4">Firewall</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {instancesWithPorts.map((inst) => {
-                        const expanded = expandedInstance === inst.name;
-                        const gameAllowed = isAllowed(inst.gamePort, "UDP");
-                        const webAllowed = isAllowed(inst.webserverPort, "TCP");
-                        const hasFirewallData = Object.keys(firewallStatus).length > 0;
-                        const gameLabel: FirewallStatusLabel = hasFirewallData ? (gameAllowed ? "Allowed" : "Blocked") : "Unknown";
-                        const webLabel: FirewallStatusLabel = hasFirewallData ? (webAllowed ? "Allowed" : "Blocked") : "Unknown";
-                        const instFirewallDisplay = gameLabel === webLabel ? gameLabel : `${gameLabel} / ${webLabel}`;
-                        const allRules = [
-                          `netsh advfirewall firewall add rule name="Hytale - ${inst.name} (Game)" dir=in action=allow protocol=UDP localport=${inst.gamePort}`,
-                          `netsh advfirewall firewall add rule name="Hytale - ${inst.name} (Web)" dir=in action=allow protocol=TCP localport=${inst.webserverPort}`,
-                        ].join("\n");
-                        return (
-                          <React.Fragment key={inst.name}>
-                            <tr
-                              className="border-b cursor-pointer hover:bg-muted/30"
-                              onClick={() => setExpandedInstance(expanded ? null : inst.name)}
-                            >
-                              <td className="py-2">
-                                {expanded ? (
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                                )}
-                              </td>
-                              <td className="py-2 pr-4 font-medium">{inst.name}</td>
-                              <td className="py-2 pr-4 font-mono">{inst.gamePort}</td>
-                              <td className="py-2 pr-4 font-mono">{inst.webserverPort}</td>
-                              <td className="py-2 pr-4">
-                                <span
-                                  className={cn(
-                                    "text-xs",
-                                    gameLabel === "Allowed" && webLabel === "Allowed"
-                                      ? "text-emerald-600 dark:text-emerald-400"
-                                      : gameLabel === "Blocked" || webLabel === "Blocked"
-                                        ? "text-amber-600 dark:text-amber-400"
-                                        : "text-muted-foreground"
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : instancesWithPorts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No instances. Add a server first.</p>
+                ) : (
+                  <div className="overflow-x-auto scrollbar-hide">
+                    <table className="w-full text-sm table-fixed">
+                      <thead>
+                        <tr className="border-b text-left text-muted-foreground">
+                          <th className="w-8 py-2"></th>
+                          <th className="py-2 pr-4">Instance</th>
+                          <th className="py-2 pr-4">Game UDP</th>
+                          <th className="py-2 pr-4">Web TCP</th>
+                          {isWindows && <th className="py-2 pr-4">Firewall</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {instancesWithPorts.map((inst) => {
+                          const expanded = expandedInstance === inst.name;
+                          const gameAllowed = isAllowed(inst.gamePort, "UDP");
+                          const webAllowed = isAllowed(inst.webserverPort, "TCP");
+                          const hasFirewallData = Object.keys(firewallStatus).length > 0;
+                          const gameLabel: FirewallStatusLabel = hasFirewallData ? (gameAllowed ? "Allowed" : "Blocked") : "Unknown";
+                          const webLabel: FirewallStatusLabel = hasFirewallData ? (webAllowed ? "Allowed" : "Blocked") : "Unknown";
+                          const instFirewallDisplay = gameLabel === webLabel ? gameLabel : `${gameLabel} / ${webLabel}`;
+                          const windowsRules = [
+                            `netsh advfirewall firewall add rule name="Hytale - ${inst.name} (Game)" dir=in action=allow protocol=UDP localport=${inst.gamePort}`,
+                            `netsh advfirewall firewall add rule name="Hytale - ${inst.name} (Web)" dir=in action=allow protocol=TCP localport=${inst.webserverPort}`,
+                          ];
+                          const linuxRules = [
+                            `sudo ufw allow ${inst.gamePort}/udp comment "Hytale - ${inst.name} (Game)"`,
+                            `sudo ufw allow ${inst.webserverPort}/tcp comment "Hytale - ${inst.name} (Web)"`,
+                          ];
+                          const allRules = isWindows ? windowsRules.join("\n") : linuxRules.join("\n");
+                          const rulePairs = isWindows
+                            ? ([
+                                [windowsRules[0], gameAllowed],
+                                [windowsRules[1], webAllowed],
+                              ] as [string, boolean][])
+                            : ([
+                                [linuxRules[0], false],
+                                [linuxRules[1], false],
+                              ] as [string, boolean][]);
+
+                          return (
+                            <React.Fragment key={inst.name}>
+                              <tr
+                                className="border-b cursor-pointer hover:bg-muted/30"
+                                onClick={() => setExpandedInstance(expanded ? null : inst.name)}
+                              >
+                                <td className="py-2">
+                                  {expanded ? (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                   )}
-                                >
-                                  {instFirewallDisplay}
-                                </span>
-                              </td>
-                            </tr>
-                            {expanded && (
-                              <tr>
-                                <td colSpan={5} className="bg-muted/20 px-6 py-4 align-top">
-                                  <div className="text-sm min-w-0 overflow-hidden">
-                                    <p className="font-medium mb-2">Firewall rules for {inst.name}</p>
-                                    <div className="space-y-2">
-                                      {[
-                                        [
-                                          `Hytale - ${inst.name} (Game)`,
-                                          inst.gamePort,
-                                          "UDP",
-                                          gameAllowed,
-                                        ],
-                                        [
-                                          `Hytale - ${inst.name} (Web)`,
-                                          inst.webserverPort,
-                                          "TCP",
-                                          webAllowed,
-                                        ],
-                                      ].map(([name, port, proto, allowed]) => {
-                                        const cmd = `netsh advfirewall firewall add rule name="${name}" dir=in action=allow protocol=${proto} localport=${port}`;
-                                        return (
-                                          <div key={String(port)} className="flex items-center gap-2 min-w-0">
+                                </td>
+                                <td className="py-2 pr-4 font-medium">{inst.name}</td>
+                                <td className="py-2 pr-4 font-mono">{inst.gamePort}</td>
+                                <td className="py-2 pr-4 font-mono">{inst.webserverPort}</td>
+                                {isWindows && (
+                                  <td className="py-2 pr-4">
+                                    <span
+                                      className={cn(
+                                        "text-xs",
+                                        gameLabel === "Allowed" && webLabel === "Allowed"
+                                          ? "text-emerald-600 dark:text-emerald-400"
+                                          : gameLabel === "Blocked" || webLabel === "Blocked"
+                                            ? "text-amber-600 dark:text-amber-400"
+                                            : "text-muted-foreground"
+                                      )}
+                                    >
+                                      {instFirewallDisplay}
+                                    </span>
+                                  </td>
+                                )}
+                              </tr>
+                              {expanded && (
+                                <tr>
+                                  <td colSpan={isWindows ? 5 : 4} className="bg-muted/20 px-6 py-4 align-top">
+                                    <div className="text-sm min-w-0 overflow-hidden">
+                                      <p className="font-medium mb-2">Firewall rules for {inst.name}</p>
+                                      <div className="space-y-2">
+                                        {rulePairs.map(([cmd, allowed], idx) => (
+                                          <div key={idx} className="flex items-center gap-2 min-w-0">
                                             <Copyable
                                               text={cmd}
-                                              tooltipLabel={allowed ? "Allowed" : undefined}
+                                              tooltipLabel={isWindows && allowed ? "Allowed" : undefined}
                                               className="min-w-0 w-full max-w-full"
                                             >
                                               <div
                                                 className={cn(
                                                   "flex items-center rounded border min-w-0 w-full overflow-hidden transition-colors scrollbar-hide",
-                                                  allowed
+                                                  isWindows && allowed
                                                     ? "bg-emerald-500/15 border-emerald-500/40"
                                                     : "bg-muted/80 border-border/60"
                                                 )}
@@ -540,10 +561,10 @@ export function PortForwardingView() {
                                                 <span
                                                   className={cn(
                                                     "shrink-0 p-2 transition-colors",
-                                                    allowed ? "text-emerald-600 dark:text-emerald-400" : "hover:bg-muted/80"
+                                                    isWindows && allowed ? "text-emerald-600 dark:text-emerald-400" : "hover:bg-muted/80"
                                                   )}
                                                 >
-                                                  {allowed ? (
+                                                  {isWindows && allowed ? (
                                                     <Check className="h-3.5 w-3.5" />
                                                   ) : (
                                                     <Copy className="h-3.5 w-3.5" />
@@ -555,26 +576,25 @@ export function PortForwardingView() {
                                               </div>
                                             </Copyable>
                                           </div>
-                                        );
-                                      })}
+                                        ))}
+                                      </div>
+                                      <Copyable text={allRules}>
+                                        <Button variant="ghost" size="sm" className="gap-2 mt-2">
+                                          <Copy className="h-3.5 w-3.5" />
+                                          Copy all rules
+                                        </Button>
+                                      </Copyable>
                                     </div>
-                                    <Copyable text={allRules}>
-                                      <Button variant="ghost" size="sm" className="gap-2 mt-2">
-                                        <Copy className="h-3.5 w-3.5" />
-                                        Copy all rules
-                                      </Button>
-                                    </Copyable>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -608,7 +628,7 @@ export function PortForwardingView() {
               <CardContent className="pt-0">
                 {upnpResult.discovery_ok ? (
                   <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 p-3 text-sm">
-                    Success – router port forwarding added. Allow these ports in Windows Firewall (step above).
+                    Success – router port forwarding added. Allow these ports in your firewall (step above).
                   </div>
                 ) : (
                   <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3 text-sm">
@@ -748,7 +768,7 @@ export function PortForwardingView() {
             </summary>
             <div className="px-4 pb-4 pt-1">
               <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                <li>Find your local IP (see above) or run <code className="rounded bg-muted px-1 font-mono">ipconfig</code></li>
+                <li>Find your local IP (see above) or run <code className="rounded bg-muted px-1 font-mono">{isWindows ? "ipconfig" : "ip addr"}</code></li>
                 <li>Open your router (e.g. 192.168.1.1)</li>
                 <li>Add UDP rule: game port → local IP</li>
                 <li>Add TCP rule: web port → local IP (optional)</li>

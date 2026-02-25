@@ -17,12 +17,20 @@ from typing import Callable, Optional
 import requests
 
 from config import (
-    DOWNLOADER_EXE,
+    DOWNLOADER_WINDOWS,
+    DOWNLOADER_LINUX,
     DOWNLOADER_ZIP_URL,
     CREDENTIALS_FILE,
 )
 from utils.paths import resolve_root
 from utils.process import run_capture, run_in_thread
+
+
+def get_downloader_exe() -> str:
+    """Return the downloader binary name for the current platform."""
+    if sys.platform == "linux":
+        return DOWNLOADER_LINUX
+    return DOWNLOADER_WINDOWS
 
 
 def _program_dir() -> str:
@@ -33,11 +41,12 @@ def _program_dir() -> str:
 
 
 def downloader_path() -> str:
-    """Path to the downloader exe. Prefer program dir (bundled/fetched), else root_dir (legacy)."""
-    prog = os.path.join(_program_dir(), DOWNLOADER_EXE)
+    """Path to the downloader binary. Prefer program dir (bundled/fetched), else root_dir (legacy)."""
+    exe_name = get_downloader_exe()
+    prog = os.path.join(_program_dir(), exe_name)
     if os.path.isfile(prog):
         return prog
-    return resolve_root(DOWNLOADER_EXE)
+    return resolve_root(exe_name)
 
 
 def credentials_path() -> str:
@@ -74,24 +83,38 @@ def fetch_downloader(
                 on_status("Extracting downloader...")
 
             with zipfile.ZipFile(data) as zf:
+                target_name = get_downloader_exe()
                 exe_name = None
                 for name in zf.namelist():
-                    if name.endswith(DOWNLOADER_EXE):
+                    if name.endswith(target_name) or (
+                        os.path.basename(name.rstrip("/")) == target_name
+                    ):
                         exe_name = name
                         break
-                    if "windows" in name.lower() and name.endswith(".exe"):
-                        exe_name = name
+                if not exe_name and sys.platform == "win32":
+                    for name in zf.namelist():
+                        if "windows" in name.lower() and name.endswith(".exe"):
+                            exe_name = name
+                            break
+                if not exe_name and sys.platform == "linux":
+                    for name in zf.namelist():
+                        if "linux" in name.lower() and "amd64" in name:
+                            exe_name = name
+                            break
 
                 if not exe_name:
                     if on_done:
-                        on_done(False, "Could not find downloader exe in zip.")
+                        on_done(False, "Could not find downloader binary in zip.")
                     return
 
                 dest_dir = _program_dir()
                 os.makedirs(dest_dir, exist_ok=True)
-                dest_path = os.path.join(dest_dir, DOWNLOADER_EXE)
+                dest_path = os.path.join(dest_dir, target_name)
                 with zf.open(exe_name) as src, open(dest_path, "wb") as dst:
                     dst.write(src.read())
+
+                if sys.platform == "linux":
+                    os.chmod(dest_path, 0o755)
 
             if on_done:
                 on_done(True, "Downloader ready.")

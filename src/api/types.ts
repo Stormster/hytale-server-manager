@@ -143,6 +143,8 @@ export interface AppInfo {
   report_url: string;
   /** True if Experimental addon loaded (addons/experimental_addon.whl or .pyz present) */
   experimental_addon_loaded?: boolean;
+  /** Platform from backend: win32, linux, darwin, etc. */
+  platform?: string;
 }
 
 export interface ManagerUpdateInfo {

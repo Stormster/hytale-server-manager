@@ -16,15 +16,32 @@ A modern desktop application for managing your Hytale dedicated servers.
 - **Backups** – Create, restore, rename, and delete backups. Supports both server snapshots (full instance) and Hytale world snapshots (`--backup` / `/backup`).
 - **Mods** – View installed mods, upload .jar files (drag & drop), enable/disable mods, check Nitrado plugin updates, install required Nitrado mods, open mods folder
 - **Configuration** – Edit config.json, whitelist.json, bans.json, and world configs via form editors or raw JSON
-- **Port Forwarding** – Check Windows Firewall status per port, add firewall rules, UPnP discovery, local/public IP with show-hide for privacy, copy connection info for players
+- **Port Forwarding** – Check firewall status per port (Windows: automatic rules; Linux: ufw commands), UPnP discovery, local/public IP with show-hide for privacy, copy connection info for players
 - **Multiple Instances** – Create, add, and import multiple servers; switch between them in one app
 - **Settings** – Hytale auth management, servers root folder, instance rename, Java status checks
 
 ## Requirements
 
-- **Windows**
+- **Windows** or **Linux** (Ubuntu 22.04+, Debian, Fedora, Arch, etc.)
 - **Java 25+** (Temurin recommended): https://adoptium.net/temurin/releases
 - **Hytale account** – Used for authentication and server downloads
+
+### Linux dependencies
+
+On Linux, install these system packages before running the app (for Tauri/WebKit):
+
+```bash
+# Debian/Ubuntu
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file xdg-utils \
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+# Fedora
+sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file xdg-utils \
+  libXdo-devel libappindicator-gtk3-devel librsvg2-devel
+```
+
+- **Default servers folder**: `~/Hytale Servers` (on Windows: `~/Documents/Hytale Servers`)
+- **Firewall**: On Linux, firewall rules are managed manually (e.g. `ufw`). The app shows copyable commands in the Port Forwarding view.
 
 ## Support
 
