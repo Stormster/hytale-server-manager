@@ -96,26 +96,9 @@ export function ServerAuthModal({
     navigator.clipboard.writeText(oauthUrl);
   };
 
-  const canClose = persistenceDone || authSuccess;
-
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!o && !canClose) return;
-        onOpenChange(o);
-      }}
-    >
-      <DialogContent
-        className="sm:max-w-lg overflow-hidden"
-        hideClose
-        onPointerDownOutside={(e) => {
-          if (!canClose) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          if (!canClose) e.preventDefault();
-        }}
-      >
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg overflow-hidden">
         <DialogHeader>
           <DialogTitle>Server authentication required</DialogTitle>
           <DialogDescription>
@@ -186,7 +169,7 @@ export function ServerAuthModal({
         </div>
 
         <DialogFooter>
-          <Button onClick={() => onOpenChange(false)} disabled={!canClose}>
+          <Button onClick={() => onOpenChange(false)}>
             {persistenceDone ? "Done" : "Close"}
           </Button>
         </DialogFooter>
