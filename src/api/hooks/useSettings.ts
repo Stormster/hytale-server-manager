@@ -19,8 +19,6 @@ export function useUpdateSettings() {
       instance_server_settings?: Record<string, unknown>;
       game_port?: number;
       webserver_port?: number;
-      instance_auto_updates?: Record<string, boolean>;
-      auto_update_interval_hours?: number;
     }) =>
       api<AppSettings>("/api/settings", {
         method: "PUT",

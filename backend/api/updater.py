@@ -4,7 +4,9 @@ Updater API routes – version checking, updates, first-time setup.
 
 import asyncio
 import json
-from fastapi import APIRouter
+from typing import Optional
+
+from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse
 
 from services import updater
@@ -33,7 +35,7 @@ def check_all():
     return updater.get_all_instances_update_status()
 
 
-def _sse_stream_for_operation(operation_fn, patchline: str):
+def _sse_stream_for_operation(operation_fn, patchline: str, graceful: bool = False):
     """Create an SSE StreamingResponse for a long-running updater operation."""
 
     async def generate():
@@ -60,6 +62,7 @@ def _sse_stream_for_operation(operation_fn, patchline: str):
             on_status=on_status,
             on_progress=on_progress,
             on_done=on_done,
+            graceful=graceful,
         )
 
         while True:
@@ -75,12 +78,17 @@ def _sse_stream_for_operation(operation_fn, patchline: str):
 
 
 @router.post("/update")
-async def update(patchline: str = "release"):
-    """Download and apply an update. Returns SSE stream of progress."""
-    return _sse_stream_for_operation(updater.perform_update, patchline)
+async def update(
+    patchline: str = "release",
+    body: Optional[dict] = Body(default=None),
+):
+    """Download and apply an update. Returns SSE stream of progress.
+    Body: { graceful?: bool } - if true, 1 min warning before stop when server running."""
+    graceful = bool((body or {}).get("graceful", False))
+    return _sse_stream_for_operation(updater.perform_update, patchline, graceful=graceful)
 
 
-def _sse_stream_for_update_all():
+def _sse_stream_for_update_all(graceful: bool = False):
     """Create an SSE StreamingResponse for update-all operation."""
     async def generate():
         queue = asyncio.Queue()
@@ -95,7 +103,13 @@ def _sse_stream_for_update_all():
         def on_done(ok: bool, msg: str):
             loop.call_soon_threadsafe(queue.put_nowait, ("done", {"ok": ok, "message": msg}))
 
-        updater.perform_update_all(on_status=on_status, on_progress=on_progress, on_done=on_done)
+        updater.perform_update_all(
+            on_status=on_status,
+            on_progress=on_progress,
+            on_done=on_done,
+            graceful=graceful,
+            graceful_minutes=1,
+        )
 
         while True:
             try:
@@ -110,9 +124,11 @@ def _sse_stream_for_update_all():
 
 
 @router.post("/update-all")
-async def update_all():
-    """Update all instances that have updates available. Uses cache. Returns SSE stream of progress."""
-    return _sse_stream_for_update_all()
+async def update_all(body: Optional[dict] = Body(default=None)):
+    """Update all instances that have updates available. Uses cache. Returns SSE stream of progress.
+    Body: { graceful?: bool } - if true, 1 min warning before stop when servers running."""
+    graceful = bool((body or {}).get("graceful", False))
+    return _sse_stream_for_update_all(graceful=graceful)
 
 
 @router.post("/setup")
