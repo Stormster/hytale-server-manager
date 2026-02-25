@@ -20,7 +20,7 @@ import { useInstances } from "@/api/hooks/useInstances";
 import { useServerStatus } from "@/api/hooks/useServer";
 import { useQueryClient } from "@tanstack/react-query";
 import { subscribeSSE } from "@/api/client";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export function UpdateView() {
@@ -29,11 +29,12 @@ export function UpdateView() {
   const { data: instances } = useInstances();
   const queryClient = useQueryClient();
 
-  const invalidateOnUpdateComplete = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["updater", "all-instances"] });
-    queryClient.invalidateQueries({ queryKey: ["instances"] });
-    queryClient.invalidateQueries({ queryKey: ["updater", "local-status"] });
-    queryClient.invalidateQueries({ queryKey: ["server", "status"] });
+  const refreshOnUpdateComplete = useCallback(() => {
+    const p = queryClient.refetchQueries({ queryKey: ["updater", "all-instances"] });
+    queryClient.refetchQueries({ queryKey: ["instances"] });
+    queryClient.refetchQueries({ queryKey: ["updater", "local-status"] });
+    queryClient.refetchQueries({ queryKey: ["server", "status"] });
+    return p;
   }, [queryClient]);
   const [installOpen, setInstallOpen] = useState(false);
   const { data: localStatus } = useUpdaterLocalStatus();
@@ -51,8 +52,18 @@ export function UpdateView() {
     : [];
 
   const { data: serverStatus } = useServerStatus();
-  const serverRunning = serverStatus?.running ?? false;
-  const runningCount = serverStatus?.running_instances?.length ?? 0;
+  const runningInstanceNames = new Set(
+    serverStatus?.running_instances?.map((r) => r.name) ?? []
+  );
+  /** True if the active instance (being updated) is running */
+  const activeInstanceRunning =
+    activeInstance !== "None" && runningInstanceNames.has(activeInstance);
+  /** Instances with updates that are currently running (for Update all dialog) */
+  const instancesToUpdateRunning = instancesWithUpdates.filter(([name]) =>
+    runningInstanceNames.has(name)
+  );
+  const runningCountForUpdateAll = instancesToUpdateRunning.length;
+  const backgroundUpdateInProgress = !!serverStatus?.update_in_progress;
 
   const [shutdownConfirmOpen, setShutdownConfirmOpen] = useState(false);
   const [updateLeaveWarningOpen, setUpdateLeaveWarningOpen] = useState(false);
@@ -120,7 +131,9 @@ export function UpdateView() {
             }
             // Always run these so they work when user navigated away (background update)
             if (ok) {
-              invalidateOnUpdateComplete();
+              refreshOnUpdateComplete().then(() => {
+                if (mountedRef.current) setUpdateDone(null);
+              });
               toast.success("Server update completed");
             } else {
               toast.error(msg || "Update failed");
@@ -137,7 +150,7 @@ export function UpdateView() {
       },
       { method: "POST", body: JSON.stringify({ graceful }) }
     );
-  }, [invalidateOnUpdateComplete]);
+  }, [refreshOnUpdateComplete]);
 
   const doUpdate = doUpdateActual;
 
@@ -169,7 +182,9 @@ export function UpdateView() {
             if (ok) setProgress(100);
           }
           if (ok) {
-            invalidateOnUpdateComplete();
+            refreshOnUpdateComplete().then(() => {
+              if (mountedRef.current) setUpdateDone(null);
+            });
             toast.success("Update all completed");
           } else {
             toast.error(msg || "Update failed");
@@ -184,7 +199,7 @@ export function UpdateView() {
         toast.error("Connection error");
       },
     }, { method: "POST", body: JSON.stringify({ graceful }) });
-  }, [invalidateOnUpdateComplete]);
+  }, [refreshOnUpdateComplete]);
 
   const confirmAndRunUpdate = useCallback(
     (update: { type: "current"; patchline: string; graceful?: boolean } | { type: "all"; graceful?: boolean }) => {
@@ -219,12 +234,12 @@ export function UpdateView() {
   }, [pendingUpdate, updateLeaveDontShow, doUpdateActual, runUpdateAll]);
 
   const doUpdateAll = useCallback(() => {
-    if (serverRunning || runningCount > 0) {
+    if (runningCountForUpdateAll > 0) {
       setShutdownConfirmOpen(true);
       return;
     }
     confirmAndRunUpdate({ type: "all" });
-  }, [serverRunning, runningCount, confirmAndRunUpdate]);
+  }, [runningCountForUpdateAll, confirmAndRunUpdate]);
 
   const handleUpdateChoice = useCallback(
     (graceful: boolean) => {
@@ -314,10 +329,16 @@ export function UpdateView() {
       </Card>
 
       {/* Action card - update on current channel */}
-      {hasStatus && (updateAvailable || instancesWithUpdates.length > 0) && !updating && !updateDone && (
-        <Card>
+      {hasStatus && !updating && !updateDone && !backgroundUpdateInProgress && (
+        <Card
+          className={
+            !updateAvailable && instancesWithUpdates.length === 0
+              ? "border-emerald-500/50 bg-emerald-500/10"
+              : undefined
+          }
+        >
           <CardContent className="pt-6 space-y-4">
-            {updateAvailable && (
+            {updateAvailable ? (
               <>
                 <div>
                   <p className="font-semibold">New {ip} version available</p>
@@ -328,7 +349,7 @@ export function UpdateView() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() => {
-                      if (serverRunning) {
+                      if (activeInstanceRunning) {
                         setPendingUpdateCurrentPatchline(ip);
                         setUpdateCurrentChoiceOpen(true);
                       } else {
@@ -372,8 +393,7 @@ export function UpdateView() {
                   )}
                 </div>
               </>
-            )}
-            {!updateAvailable && instancesWithUpdates.length > 0 && (
+            ) : instancesWithUpdates.length > 0 ? (
               <div className="space-y-3">
                 <p className="font-semibold">
                   {instancesWithUpdates.length} instance(s) have updates available
@@ -408,6 +428,10 @@ export function UpdateView() {
                   Update all ({instancesWithUpdates.length})
                 </Button>
               </div>
+            ) : (
+              <p className="text-sm font-semibold text-emerald-400">
+                All servers are up to date.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -461,9 +485,19 @@ export function UpdateView() {
         <DialogContent className="w-fit max-w-[min(32rem,90vw)]">
           <DialogHeader>
             <DialogTitle>Servers are running</DialogTitle>
-            <DialogDescription>
-              {runningCount} {runningCount === 1 ? "server is" : "servers are"} currently running. How would
-              you like to proceed?
+            <DialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  {runningCountForUpdateAll} {runningCountForUpdateAll === 1 ? "server is" : "servers are"} currently running. How would
+                  you like to proceed?
+                </p>
+                <p className="text-xs">
+                  <strong>Graceful:</strong> Notifies players in-game (1 min, 30s, 10s warnings), then shuts down—giving them time to save and disconnect safely.
+                </p>
+                <p className="text-xs">
+                  <strong>Update now:</strong> Stops immediately. Use only when no players are online.
+                </p>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-col items-stretch gap-3 pt-2 sm:flex-col">
@@ -495,8 +529,16 @@ export function UpdateView() {
         <DialogContent className="w-fit max-w-[min(32rem,90vw)]">
           <DialogHeader>
             <DialogTitle>Server is running</DialogTitle>
-            <DialogDescription>
-              The current server is running. How would you like to proceed?
+            <DialogDescription asChild>
+              <div className="space-y-2">
+                <p>The current server is running. How would you like to proceed?</p>
+                <p className="text-xs">
+                  <strong>Graceful:</strong> Notifies players in-game (1 min, 30s, 10s warnings), then shuts down—giving them time to save and disconnect safely.
+                </p>
+                <p className="text-xs">
+                  <strong>Update now:</strong> Stops immediately. Use only when no players are online.
+                </p>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-col items-stretch gap-3 pt-2 sm:flex-col">
@@ -523,31 +565,44 @@ export function UpdateView() {
       </Dialog>
 
       {/* Progress card */}
-      {(updating || updateDone) && (
+      {(updating || updateDone || backgroundUpdateInProgress) && (
         <Card>
           <CardContent className="pt-6 space-y-3">
             <p className="font-medium">
               {updateDone
                 ? updateDone.message
-                : progressStatus || "Preparing download..."}
+                : backgroundUpdateInProgress && !updating
+                  ? `Update in progress${serverStatus?.update_in_progress && serverStatus.update_in_progress !== "__update_all__" ? ` (${serverStatus.update_in_progress})` : ""}… (running in background)`
+                  : progressStatus || "Preparing download..."}
             </p>
-            {!updateDone && progressDetail && (
+            {!updateDone && progressDetail && updating && (
               <p className="text-sm text-muted-foreground">{progressDetail}</p>
             )}
             <div className="flex items-center gap-3">
-              <Progress
-                value={progress}
-                className={`flex-1 h-3 ${
-                  updateDone
-                    ? updateDone.ok
-                      ? "[&>div]:bg-emerald-500"
-                      : "[&>div]:bg-red-500"
-                    : ""
-                }`}
-              />
-              <span className="text-sm font-medium w-12 text-right">
-                {Math.round(progress)}%
-              </span>
+              {backgroundUpdateInProgress && !updating ? (
+                <div className="flex flex-1 items-center gap-2">
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                  <div className="flex-1 h-3 rounded-full bg-primary/20 overflow-hidden">
+                    <div className="h-full w-1/3 animate-pulse bg-primary/50 rounded-full" />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Progress
+                    value={progress}
+                    className={`flex-1 h-3 ${
+                      updateDone
+                        ? updateDone.ok
+                          ? "[&>div]:bg-emerald-500"
+                          : "[&>div]:bg-red-500"
+                        : ""
+                    }`}
+                  />
+                  <span className="text-sm font-medium w-12 text-right">
+                    {Math.round(progress)}%
+                  </span>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

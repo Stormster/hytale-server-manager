@@ -156,10 +156,27 @@ def get_all_instances_update_status() -> dict:
 
 # ---------------------------------------------------------------------------
 # Download cache – avoid re-downloading the same release for multiple instances
+#
+# Cache retention: Cached builds stay until a newer version on that branch
+# is available. When we download a new version, the old cache is cleared first.
+# Used for both updates and initial installs; a second instance on the same
+# branch reuses the cache if it's still the latest.
 # ---------------------------------------------------------------------------
 
 CACHE_ZIP = "server.zip"
 CACHE_VERSION_FILE = "version.txt"
+
+
+def _clear_patchline_cache(patchline: str) -> None:
+    """Remove cached files for this patchline. Called before downloading a new version."""
+    cache_dir = resolve_cache(patchline)
+    for name in (CACHE_ZIP, CACHE_VERSION_FILE):
+        path = os.path.join(cache_dir, name)
+        if os.path.isfile(path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 
 
 def _get_cached_zip(patchline: str) -> str | None:
@@ -191,6 +208,7 @@ def _ensure_cached_server(
         return cached
 
     cache_dir = resolve_cache(patchline)
+    _clear_patchline_cache(patchline)
     ensure_dir(cache_dir)
     zip_path = os.path.join(cache_dir, CACHE_ZIP)
 
@@ -328,12 +346,10 @@ def perform_update(
 
         instance_name = get_active_instance()
         root = get_root_dir()
-        was_running = False
         try:
             _set_update_in_progress(instance_name or "")
 
             if server_svc.is_running():
-                was_running = True
                 if on_status:
                     on_status("Stopping server for update...")
                 if graceful:
@@ -378,13 +394,8 @@ def perform_update(
 
             _save_version_for_instance(instance_name, new_ver, patchline)
 
-            if was_running and instance_name:
-                if on_status:
-                    on_status("Restarting server...")
-                server_svc.start(instance_name=instance_name)
-
             if on_done:
-                on_done(True, f"Update complete! Version: {new_ver}")
+                on_done(True, f"Update complete! Version: {new_ver}. You can start the server when ready.")
         except Exception as exc:
             if on_done:
                 on_done(False, str(exc))
@@ -402,6 +413,9 @@ def perform_first_time_setup(
     on_progress: Optional[Callable[[float, str], None]] = None,
     on_done: Optional[Callable[[bool, str], None]] = None,
 ) -> threading.Thread:
+    """Install server for the first time. Uses shared cache: if a build for this
+    branch was already downloaded (by another instance or update), reuses it
+    as long as it's still the latest. Checks remote version before deciding."""
     def _worker():
         from services.settings import get_active_instance
         from services import server as server_svc
@@ -472,7 +486,7 @@ def _graceful_shutdown_with_warning(
     on_status: Optional[Callable[[str], None]] = None,
 ) -> bool:
     """Announce shutdown via /say, wait, then stop. Returns True if server stopped.
-    minutes=1: single 1-min warning. minutes=10: 10, 5, 2, 1 min, 30s, 10s."""
+    minutes=1: 1 min, 30s, 10s warnings. minutes=10: 10, 5, 2, 1 min, 30s, 10s."""
     from services import server as server_svc
 
     inst = instance_name or server_svc.get_running_instance()
@@ -481,12 +495,36 @@ def _graceful_shutdown_with_warning(
 
     msg = "Server will shut down in {remaining} to update. Please update your client to rejoin."
 
-    if minutes <= 1:
+    def _say(remaining: str) -> None:
         server_svc.send_command(
-            f'/say {msg.format(remaining="1 minute")}\n',
+            f'/say {msg.format(remaining=remaining)}\n',
             instance_name=inst,
         )
+        if on_status:
+            on_status(f"Warned players: {remaining} until shutdown")
+
+    if minutes <= 1:
+        if on_status:
+            on_status("Sending shutdown warnings to players...")
+        _say("1 minute")
         deadline = time.time() + 60
+        # Wait 30 sec, send "30 seconds"
+        for _ in range(30):
+            if not server_svc.is_instance_running(inst):
+                return True
+            time.sleep(1)
+        if server_svc.is_instance_running(inst):
+            _say("30 seconds")
+        # Wait 20 more sec (50 total), send "10 seconds"
+        for _ in range(20):
+            if not server_svc.is_instance_running(inst):
+                return True
+            time.sleep(1)
+        if server_svc.is_instance_running(inst):
+            _say("10 seconds")
+        if on_status:
+            on_status("Shutting down server...")
+        # Wait remaining 10 sec to deadline
         while time.time() < deadline:
             if not server_svc.is_instance_running(inst):
                 return True
@@ -500,11 +538,6 @@ def _graceful_shutdown_with_warning(
             (30, "30 seconds"),
             (10, "10 seconds"),
         ]
-        def _say(remaining: str) -> None:
-            server_svc.send_command(
-                f'/say {msg.format(remaining=remaining)}\n',
-                instance_name=inst,
-            )
         _say("10 minutes")
         next_idx = 1
         deadline = time.time() + 600
@@ -575,8 +608,6 @@ def perform_update_all(
 
             success_count = 0
             errors: list[str] = []
-            updated_instances: list[str] = []
-            was_running_before: set[str] = set()
 
             for patchline, items in by_patchline.items():
                 try:
@@ -591,7 +622,6 @@ def perform_update_all(
 
                 for instance_name, info in items:
                     if server_svc.is_instance_running(instance_name):
-                        was_running_before.add(instance_name)
                         if on_status:
                             on_status(f"{instance_name}: stopping for update...")
                         if graceful:
@@ -626,17 +656,10 @@ def perform_update_all(
                         _extract_server_zip_to_instance(zip_path, instance_dir)
                         _save_version_for_instance(instance_name, new_ver, patchline)
                         success_count += 1
-                        updated_instances.append(instance_name)
                     except Exception as exc:
                         errors.append(f"{instance_name}: {exc}")
 
-            for inst in updated_instances:
-                if inst in was_running_before:
-                    if on_status:
-                        on_status(f"Restarting {inst}...")
-                    server_svc.start(instance_name=inst)
-
-            msg = f"Updated {success_count} instance(s)."
+            msg = f"Updated {success_count} instance(s). You can start the server(s) when ready."
             if errors:
                 msg += " " + "; ".join(errors)
             if on_done:
