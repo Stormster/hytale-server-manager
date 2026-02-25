@@ -1,6 +1,6 @@
 [package]
 name = "hytale-server-manager"
-version = "2.5.0"
+version = "2.6.0"
 description = "Hytale Server Manager"
 authors = ["HytaleLife"]
 edition = "2021"
