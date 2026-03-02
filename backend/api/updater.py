@@ -10,8 +10,29 @@ from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse
 
 from services import updater
+from services import downloader as dl
 
 router = APIRouter()
+
+
+@router.get("/setup-ready")
+def setup_ready():
+    """Pre-check before running setup. Returns specific errors for common issues.
+    Use a simple GET (no streaming) so we get immediate feedback even when SSE fails."""
+    from services.settings import get_root_dir, get_active_instance
+
+    ok, err = dl.check_downloader_runnable()
+    if not ok and err:
+        return {"ok": False, "error": err}
+    if not dl.has_credentials():
+        return {"ok": False, "error": "You need to sign in with your Hytale account first. Go to Settings."}
+    root = get_root_dir()
+    if not root:
+        return {"ok": False, "error": "No servers folder configured. Complete the setup first."}
+    instance = get_active_instance()
+    if not instance:
+        return {"ok": False, "error": "No server instance selected."}
+    return {"ok": True}
 
 
 @router.get("/status")
