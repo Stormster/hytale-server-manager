@@ -98,7 +98,7 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
                         await open(parsed.baseUrl!);
                       }
                     }}
-                    className="text-primary hover:underline cursor-pointer font-medium"
+                    className="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer font-medium"
                   >
                     oauth.accounts.hytale.com
                   </button>
