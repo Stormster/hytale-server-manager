@@ -40,26 +40,41 @@ async function getBaseUrl(): Promise<string> {
   return _portPromise;
 }
 
+const FETCH_TIMEOUT_MS = 15_000;
+
 /**
  * Typed fetch wrapper for the backend API.
+ * Uses AbortController to enforce a timeout so we never hang indefinitely.
  */
 export async function api<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
   const base = await getBaseUrl();
-  const res = await fetch(`${base}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${base}${path}`, {
+      ...options,
+      signal: ctrl.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+    }
+    return res.json();
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      throw new Error("Connection timed out");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json();
 }
 
 /**
