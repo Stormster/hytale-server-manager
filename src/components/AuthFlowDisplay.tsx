@@ -51,27 +51,27 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
 
   return (
     <div className={className}>
-      {/* Parsed OAuth UI */}
+      {/* Parsed OAuth UI – no inner box; flows within the parent Card */}
       {(parsed.authUrl || parsed.code) && (
-        <div className="rounded-lg border border-border bg-card/80 p-4 space-y-3">
+        <div className="space-y-3">
           {parsed.authUrl && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Visit this link to sign in:</p>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 justify-start gap-2 font-normal text-left truncate min-w-0 cursor-pointer"
+                <button
+                  type="button"
                   onClick={handleOpenUrl}
+                  className="flex-1 flex items-center gap-2 min-w-0 rounded-md border border-input bg-input px-3 py-2 text-left text-sm text-foreground hover:bg-input/80 transition-colors cursor-pointer truncate"
                 >
                   <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{parsed.authUrl}</span>
-                </Button>
+                </button>
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={handleCopyUrl}
                   title="Copy link"
+                  className="shrink-0"
                 >
                   <Copy className="h-4 w-4" />
                 </Button>
@@ -108,7 +108,7 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
                 :
               </p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded border border-input bg-input px-3 py-2 text-lg font-mono tracking-wider text-foreground">
+                <code className="flex-1 rounded-md border border-input bg-input px-3 py-2 text-lg font-mono tracking-wider text-foreground">
                   {parsed.code}
                 </code>
                 <Button variant="outline" size="icon" onClick={handleCopyCode}>
