@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,8 @@ import { useCreateInstance } from "@/api/hooks/useInstances";
 import { toast } from "sonner";
 import { subscribeSSE } from "@/api/client";
 
+const STUCK_TIMEOUT_MS = 30_000; // 30 seconds with no progress = show Cancel
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,13 +30,29 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("");
   const [detail, setDetail] = useState("");
+  const [statusLog, setStatusLog] = useState<string[]>([]);
+  const [stuck, setStuck] = useState(false);
   const [result, setResult] = useState<{
     ok: boolean;
     message: string;
   } | null>(null);
 
+  const abortRef = useRef<(() => void) | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
   const queryClient = useQueryClient();
   const createInstance = useCreateInstance();
+
+  // Detect when stuck (no progress for 90s) and allow cancel
+  useEffect(() => {
+    if (step !== "installing") return;
+    const iv = setInterval(() => {
+      const elapsed = Date.now() - lastActivityRef.current;
+      if (elapsed >= STUCK_TIMEOUT_MS) {
+        setStuck(true);
+      }
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [step]);
 
   const handleCreate = async () => {
     if (!name.trim()) return;
@@ -52,14 +70,20 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
     setProgress(0);
     setStatus("Preparing...");
     setDetail("");
+    setStatusLog([]);
+    setStuck(false);
+    lastActivityRef.current = Date.now();
 
-    subscribeSSE(
+    abortRef.current = subscribeSSE(
       `/api/updater/setup?patchline=${channel}`,
       {
         onEvent(event, data) {
+          lastActivityRef.current = Date.now();
           const d = data as Record<string, unknown>;
           if (event === "status") {
-            setStatus(d.message as string);
+            const msg = d.message as string;
+            setStatus(msg);
+            setStatusLog((prev) => [...prev, msg]);
           } else if (event === "progress") {
             setProgress(d.percent as number);
             setDetail(d.detail as string);
@@ -92,21 +116,34 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
     );
   };
 
+  const handleCancelInstall = () => {
+    abortRef.current?.();
+    abortRef.current = null;
+    toast.info("Installation cancelled. Check terminal for backend errors if it was stuck.");
+    handleClose();
+  };
+
   const handleClose = () => {
-    if (step === "installing") return; // Don't close during install
+    abortRef.current?.();
+    abortRef.current = null;
     setName("");
     setChannel("release");
     setStep("form");
     setProgress(0);
     setStatus("");
     setDetail("");
+    setStatusLog([]);
+    setStuck(false);
     setResult(null);
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent>
+      <DialogContent
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Add New Server</DialogTitle>
           <DialogDescription>
@@ -180,6 +217,37 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
             </div>
             {detail && (
               <p className="text-xs text-muted-foreground">{detail}</p>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCancelInstall}>
+                Cancel
+              </Button>
+            </DialogFooter>
+            {stuck && (
+              <div className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
+                <p className="text-sm text-amber-600 dark:text-amber-400">
+                  Taking longer than expected. The backend may be stuck (e.g.
+                  downloader, auth, or network).
+                </p>
+                {statusLog.length > 0 ? (
+                  <p className="text-xs text-muted-foreground font-mono">
+                    Last: {statusLog[statusLog.length - 1]}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No status received yet – check the terminal for backend
+                    output.
+                  </p>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelInstall}
+                  className="border-amber-500/50"
+                >
+                  Cancel
+                </Button>
+              </div>
             )}
           </div>
         )}
