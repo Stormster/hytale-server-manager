@@ -10,6 +10,8 @@ import logging
 import os
 import socket
 import sys
+import threading
+import time
 
 
 def parse_args():
@@ -118,23 +120,34 @@ def main():
             set_root_dir(os.path.abspath(args.root_dir))
 
     port = find_free_port(args.port)
-
-    # Signal to Tauri that the backend is ready
-    print(f"BACKEND_READY:{port}", flush=True)
-
     import uvicorn
 
-    if args.reload:
-        # Uvicorn requires import string for reload to work
-        uvicorn.run(
-            "main:app",
-            host="127.0.0.1",
-            port=port,
-            log_level="warning",
-            reload=True,
-        )
-    else:
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    def run_server():
+        if args.reload:
+            uvicorn.run(
+                "main:app",
+                host="127.0.0.1",
+                port=port,
+                log_level="warning",
+                reload=True,
+            )
+        else:
+            uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+
+    # Start uvicorn in a thread so we can wait for the port to be open before signalling
+    t = threading.Thread(target=run_server, daemon=False)
+    t.start()
+
+    # Only signal Tauri when the server is actually listening (avoids race on slow startup)
+    for _ in range(100):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                pass
+            break
+        except OSError:
+            time.sleep(0.05)
+    print(f"BACKEND_READY:{port}", flush=True)
+    t.join()
 
 
 if __name__ == "__main__":

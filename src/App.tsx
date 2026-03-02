@@ -20,8 +20,8 @@ import { useSettings } from "@/api/hooks/useSettings";
 import { useAuthStatus } from "@/api/hooks/useAuth";
 
 export default function App() {
-  const { data: settings, isLoading } = useSettings();
-  const { data: authStatus, isLoading: authLoading } = useAuthStatus();
+  const { data: settings, isLoading, isError, refetch } = useSettings();
+  const { data: authStatus, isLoading: authLoading, isError: authError, refetch: refetchAuth } = useAuthStatus();
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -85,6 +85,38 @@ export default function App() {
     })();
     return () => unlisten?.();
   }, []);
+
+  // Show error with retry when backend connection fails (e.g. WSL/VM graphics issues)
+  if (isError || authError) {
+    const retry = () => {
+      refetch();
+      refetchAuth();
+    };
+    return (
+      <div className="relative flex h-screen w-screen flex-col">
+        <div className="hytale-bg">
+          <div className="hytale-bg-image" />
+          <div className="hytale-bg-overlay" />
+        </div>
+        <div className="relative z-0 flex flex-1 flex-col items-center justify-center gap-4">
+          <p className="text-sm text-destructive">
+            Could not connect to the backend.
+          </p>
+          <p className="text-xs text-muted-foreground max-w-md text-center">
+            On WSL or VMs, try: LIBGL_AL_SOFTWARE=1 ./server-manager
+          </p>
+          <button
+            type="button"
+            onClick={retry}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Retry
+          </button>
+        </div>
+        <AppFooter />
+      </div>
+    );
+  }
 
   // Show loading while settings and auth are being fetched
   if (isLoading || authLoading) {
