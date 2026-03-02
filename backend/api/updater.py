@@ -162,7 +162,7 @@ async def update_all(body: Optional[dict] = Body(default=None)):
     return _sse_stream_for_update_all(graceful=graceful)
 
 
-@router.post("/setup")
+@router.get("/setup")
 async def setup(patchline: str = "release"):
     """First-time server setup. Returns SSE stream of progress."""
     return _sse_stream_for_operation(updater.perform_first_time_setup, patchline)

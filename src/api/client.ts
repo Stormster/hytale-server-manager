@@ -101,6 +101,8 @@ export async function apiUpload<T>(
 
 /**
  * Subscribe to an SSE endpoint. Returns an abort function.
+ * Uses native EventSource for GET requests (more reliable in Tauri WebView);
+ * falls back to fetch for POST or when EventSource fails.
  */
 export function subscribeSSE(
   path: string,
@@ -111,18 +113,19 @@ export function subscribeSSE(
   },
   options?: { method?: string; body?: string }
 ): () => void {
+  const method = options?.method || "GET";
+  const hasBody = !!options?.body;
+  let closed = false;
   const controller = new AbortController();
 
-  (async () => {
+  const doFetch = async (signal: AbortSignal) => {
+    const base = await getBaseUrl();
     try {
-      const base = await getBaseUrl();
       const res = await fetch(`${base}${path}`, {
-        method: options?.method || "GET",
-        headers: options?.body
-          ? { "Content-Type": "application/json" }
-          : undefined,
+        method,
+        headers: hasBody ? { "Content-Type": "application/json" } : undefined,
         body: options?.body,
-        signal: controller.signal,
+        signal,
       });
 
       if (!res.ok || !res.body) {
@@ -133,7 +136,7 @@ export function subscribeSSE(
       const decoder = new TextDecoder();
       let buffer = "";
 
-      while (true) {
+      while (!closed) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -162,11 +165,62 @@ export function subscribeSSE(
         }
       }
     } catch (err) {
-      if ((err as Error).name !== "AbortError") {
+      if (!closed && (err as Error).name !== "AbortError") {
         handlers.onError?.(err as Error);
       }
     }
-  })();
+  };
 
-  return () => controller.abort();
+  // Use native EventSource for GET with no body - more reliable in WebView2
+  if (method === "GET" && !hasBody) {
+    let eventSource: EventSource | null = null;
+    (async () => {
+      try {
+        const base = await getBaseUrl();
+        const url = `${base}${path}`;
+        eventSource = new EventSource(url);
+
+        eventSource.onerror = () => {
+          if (closed) return;
+          if (eventSource?.readyState === EventSource.CLOSED) return;
+          handlers.onError?.(new Error("EventSource connection failed"));
+          eventSource?.close();
+        };
+
+        for (const name of ["status", "progress", "done", "ping", "message"]) {
+          eventSource.addEventListener(name, (e: MessageEvent) => {
+            if (closed) return;
+            if (name === "ping") return;
+            try {
+              const data = JSON.parse(String((e as MessageEvent).data || "{}"));
+              handlers.onEvent?.(name, data);
+              if (name === "done") {
+                closed = true;
+                handlers.onDone?.();
+                eventSource?.close();
+              }
+            } catch {
+              // ignore parse errors
+            }
+          });
+        }
+      } catch (err) {
+        if (!closed) {
+          handlers.onError?.(err as Error);
+        }
+      }
+    })();
+
+    return () => {
+      closed = true;
+      eventSource?.close();
+    };
+  }
+
+  // Fallback to fetch for POST or when body is needed
+  doFetch(controller.signal);
+  return () => {
+    closed = true;
+    controller.abort();
+  };
 }

@@ -80,7 +80,7 @@ export function InstallServerDialog({
 
     setStatus("Starting installation...");
     abortRef.current = subscribeSSE(
-      `/api/updater/setup?patchline=${channel}`,
+      `/api/updater/setup?patchline=${encodeURIComponent(channel)}`,
       {
         onEvent(event, data) {
           lastActivityRef.current = Date.now();
@@ -106,8 +106,7 @@ export function InstallServerDialog({
           setResult({ ok: false, message: msg });
           setStep("done");
         },
-      },
-      { method: "POST" }
+      }
     );
   };
 
@@ -268,6 +267,26 @@ export function InstallServerDialog({
             >
               {result.message}
             </p>
+            {!result.ok && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const { api } = await import("@/api/client");
+                    const res = await api<{ logs: string }>("/api/debug/recent-logs");
+                    const header = `--- Install failed ---\nError: ${result.message}\n\nBackend logs:\n`;
+                    await navigator.clipboard.writeText(header + (res?.logs ?? "(failed to fetch)"));
+                    toast.success("Debug info copied");
+                  } catch {
+                    await navigator.clipboard.writeText(`--- Install failed ---\nError: ${result.message}`);
+                    toast.success("Copied");
+                  }
+                }}
+              >
+                Copy debug info
+              </Button>
+            )}
             <DialogFooter>
               <Button onClick={handleClose}>
                 {result.ok ? "Done" : "Close"}
