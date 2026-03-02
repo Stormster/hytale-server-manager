@@ -4,6 +4,10 @@ Runs as a sidecar process, started by Tauri.
 """
 
 import argparse
+
+# Capture stderr to in-memory buffer for debug log collection (when SSE fails)
+from utils.log_buffer import install_stderr_tee
+install_stderr_tee()
 import asyncio
 import contextlib
 import logging
@@ -64,6 +68,7 @@ def create_app():
     from api.upnp_routes import router as upnp_router
     from api.instances import router as instances_router
     from api.mods import router as mods_router
+    from api.debug_routes import router as debug_router
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
@@ -89,6 +94,7 @@ def create_app():
     app.include_router(upnp_router, prefix="/api/upnp", tags=["upnp"])
     app.include_router(instances_router, prefix="/api/instances", tags=["instances"])
     app.include_router(mods_router, prefix="/api/mods", tags=["mods"])
+    app.include_router(debug_router, prefix="/api/debug", tags=["debug"])
 
     # Load Experimental addon if present (addons/experimental_addon.whl or .pyz)
     try:
