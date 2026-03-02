@@ -85,7 +85,7 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
 
     setStatus("Starting installation...");
     abortRef.current = subscribeSSE(
-      `/api/updater/setup?patchline=${channel}`,
+      `/api/updater/setup?patchline=${encodeURIComponent(channel)}`,
       {
         onEvent(event, data) {
           lastActivityRef.current = Date.now();
@@ -122,8 +122,7 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
           toast.error(msg);
           setStep("done");
         },
-      },
-      { method: "POST" }
+      }
     );
   };
 
@@ -301,6 +300,26 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
             >
               {result.message}
             </p>
+            {!result.ok && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const { api } = await import("@/api/client");
+                    const res = await api<{ logs: string }>("/api/debug/recent-logs");
+                    const header = `--- Add server failed ---\nError: ${result.message}\n\nBackend logs:\n`;
+                    await navigator.clipboard.writeText(header + (res?.logs ?? "(failed to fetch)"));
+                    toast.success("Debug info copied");
+                  } catch {
+                    await navigator.clipboard.writeText(`--- Add server failed ---\nError: ${result.message}`);
+                    toast.success("Copied");
+                  }
+                }}
+              >
+                Copy debug info
+              </Button>
+            )}
             <DialogFooter>
               <Button onClick={handleClose}>
                 {result.ok ? "Done" : "Close"}

@@ -412,6 +412,7 @@ def perform_first_time_setup(
     on_status: Optional[Callable[[str], None]] = None,
     on_progress: Optional[Callable[[float, str], None]] = None,
     on_done: Optional[Callable[[bool, str], None]] = None,
+    graceful: bool = False,
 ) -> threading.Thread:
     """Install server for the first time. Uses shared cache: if a build for this
     branch was already downloaded (by another instance or update), reuses it
