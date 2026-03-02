@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { subscribeSSE } from "@/api/client";
+
+const STUCK_TIMEOUT_MS = 30_000;
 
 interface Props {
   open: boolean;
@@ -34,7 +36,20 @@ export function InstallServerDialog({
     ok: boolean;
     message: string;
   } | null>(null);
+  const [statusLog, setStatusLog] = useState<string[]>([]);
+  const [stuck, setStuck] = useState(false);
   const abortRef = useRef<(() => void) | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (step !== "installing") return;
+    const iv = setInterval(() => {
+      if (Date.now() - lastActivityRef.current >= STUCK_TIMEOUT_MS) {
+        setStuck(true);
+      }
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [step]);
 
   const handleInstall = () => {
     setStep("installing");
@@ -42,14 +57,20 @@ export function InstallServerDialog({
     setStatus("Preparing...");
     setDetail("");
     setResult(null);
+    setStatusLog([]);
+    setStuck(false);
+    lastActivityRef.current = Date.now();
 
     abortRef.current = subscribeSSE(
       `/api/updater/setup?patchline=${channel}`,
       {
         onEvent(event, data) {
+          lastActivityRef.current = Date.now();
           const d = data as Record<string, unknown>;
           if (event === "status") {
-            setStatus(d.message as string);
+            const msg = d.message as string;
+            setStatus(msg);
+            setStatusLog((prev) => [...prev, msg]);
           } else if (event === "progress") {
             setProgress(d.percent as number);
             setDetail(d.detail as string);
@@ -74,7 +95,7 @@ export function InstallServerDialog({
   const handleCancelInstall = () => {
     abortRef.current?.();
     abortRef.current = null;
-    toast.info("Installation cancelled. Check terminal for backend errors if it was stuck.");
+    toast.info("Installation cancelled.");
     handleClose();
   };
 
@@ -87,6 +108,8 @@ export function InstallServerDialog({
     setProgress(0);
     setStatus("");
     setDetail("");
+    setStatusLog([]);
+    setStuck(false);
     setResult(null);
     if (wasOk) onSuccess?.();
     onOpenChange(false);
@@ -159,6 +182,23 @@ export function InstallServerDialog({
                 Cancel
               </Button>
             </DialogFooter>
+            {stuck && (
+              <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 space-y-2">
+                <p className="text-sm text-amber-600 dark:text-amber-400">
+                  Taking longer than expected. Possible causes:
+                </p>
+                <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                  <li>Downloader missing or not executable (Linux: <code>chmod +x hytale-downloader-linux-amd64</code>)</li>
+                  <li>Hytale auth expired – sign in again from Settings</li>
+                  <li>Network or firewall blocking the download</li>
+                </ul>
+                {statusLog.length > 0 && (
+                  <p className="text-xs text-muted-foreground font-mono pt-1">
+                    Last: {statusLog[statusLog.length - 1]}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
