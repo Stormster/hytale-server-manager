@@ -61,20 +61,24 @@ export function InstallServerDialog({
     setStuck(false);
     lastActivityRef.current = Date.now();
 
-    // Quick check that backend is reachable before starting
+    const { api } = await import("@/api/client");
     try {
-      const { api } = await import("@/api/client");
       await api("/api/health");
     } catch {
-      setResult({
-        ok: false,
-        message:
-          "Unable to connect. Please try again.",
-      });
+      setResult({ ok: false, message: "Unable to connect. Please try again." });
       setStep("done");
       return;
     }
 
+    setStatus("Checking setup...");
+    const ready = await api<{ ok: boolean; error?: string }>("/api/updater/setup-ready");
+    if (!ready.ok && ready.error) {
+      setResult({ ok: false, message: ready.error });
+      setStep("done");
+      return;
+    }
+
+    setStatus("Starting installation...");
     abortRef.current = subscribeSSE(
       `/api/updater/setup?patchline=${channel}`,
       {
@@ -202,9 +206,9 @@ export function InstallServerDialog({
                   Taking longer than expected. Possible causes:
                 </p>
                 <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
-                  <li>Downloader missing or not installed</li>
-                  <li>Auth expired – try Refresh Auth in Settings</li>
                   <li>Network or firewall blocking the download</li>
+                  <li>Auth expired – try Refresh Auth in Settings</li>
+                  <li>On Linux/WSL: progress may not show. Try cancelling and running again</li>
                 </ul>
                 {statusLog.length > 0 ? (
                   <div className="pt-1">

@@ -61,6 +61,33 @@ def has_credentials() -> bool:
     return os.path.isfile(credentials_path())
 
 
+def check_downloader_runnable() -> tuple[bool, str | None]:
+    """Verify the downloader exists and can run. Returns (ok, error_message)."""
+    if not has_downloader():
+        return False, "Hytale downloader is missing. Go to Settings and download it first."
+    from services.settings import get_root_dir
+    root = (get_root_dir() or "").strip() or os.getcwd()
+    root = os.path.abspath(root)
+    os.makedirs(root, exist_ok=True)
+    rc, out = run_capture(
+        [downloader_path(), "-print-version", "-skip-update-check"],
+        cwd=root,
+        timeout=10,
+    )
+    if rc == 0:
+        return True, None
+    err = (out or "").strip()
+    if "Permission denied" in err or "PermissionError" in str(out):
+        return False, "The Hytale downloader cannot be run. Open Settings and try downloading it again, or check file permissions."
+    if "not found" in err.lower() or "no such file" in err.lower():
+        return False, "Hytale downloader is missing or incomplete. Go to Settings and download it again."
+    if "timed out" in err.lower() or rc == -1:
+        return False, "The Hytale downloader did not respond. It may be missing required libraries (on Linux, try installing dependencies)."
+    if "[ERROR]" in err:
+        return False, err.replace("[ERROR]", "").strip() or "The Hytale downloader failed to run."
+    return False, "The Hytale downloader could not be started. Go to Settings to download or re-download it."
+
+
 def fetch_downloader(
     on_status: Optional[Callable[[str], None]] = None,
     on_done: Optional[Callable[[bool, str], None]] = None,
