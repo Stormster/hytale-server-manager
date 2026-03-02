@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
 import { subscribeSSE } from "@/api/client";
 
 interface Props {
@@ -33,6 +34,7 @@ export function InstallServerDialog({
     ok: boolean;
     message: string;
   } | null>(null);
+  const abortRef = useRef<(() => void) | null>(null);
 
   const handleInstall = () => {
     setStep("installing");
@@ -41,7 +43,7 @@ export function InstallServerDialog({
     setDetail("");
     setResult(null);
 
-    subscribeSSE(
+    abortRef.current = subscribeSSE(
       `/api/updater/setup?patchline=${channel}`,
       {
         onEvent(event, data) {
@@ -69,8 +71,16 @@ export function InstallServerDialog({
     );
   };
 
+  const handleCancelInstall = () => {
+    abortRef.current?.();
+    abortRef.current = null;
+    toast.info("Installation cancelled. Check terminal for backend errors if it was stuck.");
+    handleClose();
+  };
+
   const handleClose = () => {
-    if (step === "installing") return;
+    abortRef.current?.();
+    abortRef.current = null;
     const wasOk = result?.ok;
     setChannel("release");
     setStep("form");
@@ -84,7 +94,10 @@ export function InstallServerDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent>
+      <DialogContent
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Install Server</DialogTitle>
           <DialogDescription>
@@ -141,6 +154,11 @@ export function InstallServerDialog({
                 {Math.round(progress)}%
               </span>
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCancelInstall}>
+                Cancel
+              </Button>
+            </DialogFooter>
           </div>
         )}
 
