@@ -417,11 +417,13 @@ def perform_first_time_setup(
     branch was already downloaded (by another instance or update), reuses it
     as long as it's still the latest. Checks remote version before deciding."""
     def _worker():
+        import sys
         from services.settings import get_active_instance
         from services import server as server_svc
 
         instance_name = get_active_instance()
         try:
+            print(f"[updater] First-time setup starting for instance: {instance_name}", file=sys.stderr, flush=True)
             _set_update_in_progress(instance_name or "")
 
             if instance_name and server_svc.is_instance_running(instance_name):
@@ -431,6 +433,7 @@ def perform_first_time_setup(
                 return
 
             if not dl.has_downloader():
+                print("[updater] Downloader not found, fetching...", file=sys.stderr, flush=True)
                 if on_status:
                     on_status("Downloading Hytale downloader...")
                 evt = threading.Event()
@@ -445,10 +448,12 @@ def perform_first_time_setup(
                 evt.wait()
 
                 if not fetch_result["ok"]:
+                    print(f"[updater] Fetch downloader failed: {fetch_result['msg']}", file=sys.stderr, flush=True)
                     if on_done:
                         on_done(False, fetch_result["msg"])
                     return
 
+            print(f"[updater] Ensuring cached server for {patchline}...", file=sys.stderr, flush=True)
             zip_path = _ensure_cached_server(patchline, on_status=on_status, on_progress=on_progress)
 
             rc, new_ver = dl.print_version(patchline)
@@ -470,6 +475,7 @@ def perform_first_time_setup(
             if on_done:
                 on_done(True, f"Setup complete! Version: {new_ver}")
         except Exception as exc:
+            print(f"[updater] Setup failed: {exc}", file=sys.stderr, flush=True)
             if on_done:
                 on_done(False, str(exc))
         finally:

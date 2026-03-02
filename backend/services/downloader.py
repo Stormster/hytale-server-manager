@@ -139,13 +139,11 @@ def download_server(
     on_output: Optional[Callable[[str], None]] = None,
     on_done: Optional[Callable[[int], None]] = None,
 ) -> threading.Thread:
+    import sys
     from services.settings import get_root_dir
-    cmd = [
-        downloader_path(),
-        "-download-path", dest_zip,
-        "-patchline", patchline,
-        "-skip-update-check",
-    ]
+    path = downloader_path()
+    print(f"[downloader] Running: {path} (cwd={get_root_dir()})", file=sys.stderr, flush=True)
+    cmd = [path, "-download-path", dest_zip, "-patchline", patchline, "-skip-update-check"]
     return run_in_thread(cmd, cwd=get_root_dir(), on_output=on_output, on_done=on_done)
 
 
