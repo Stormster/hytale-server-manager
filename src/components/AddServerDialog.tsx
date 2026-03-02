@@ -229,13 +229,13 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
                   Taking longer than expected. Possible causes:
                 </p>
                 <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
-                  <li>Downloader missing or not executable (Linux: <code>chmod +x hytale-downloader-linux-amd64</code>)</li>
-                  <li>Auth – we check credentials at startup, but tokens can expire; try Refresh Auth in Settings</li>
+                  <li>Downloader missing or not installed</li>
+                  <li>Auth expired – try Refresh Auth in Settings</li>
                   <li>Network or firewall blocking the download</li>
                 </ul>
                 {statusLog.length > 0 ? (
                   <div className="pt-1">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Backend output:</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Log:</p>
                     <pre className="text-xs text-muted-foreground font-mono bg-background/50 rounded p-2 max-h-24 overflow-y-auto whitespace-pre-wrap break-words">
                       {statusLog.join("\n")}
                     </pre>
@@ -253,7 +253,7 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground pt-1">
-                    No output received from backend – connection may have failed before it could respond.
+                    No output received. Please try again.
                   </p>
                 )}
               </div>
