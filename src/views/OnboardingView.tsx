@@ -68,7 +68,7 @@ export function OnboardingView() {
                 value={rootDir}
                 onChange={(e) => setRootDir(e.target.value)}
                 placeholder={DEFAULT_PLACEHOLDER}
-                className="flex-1 rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="flex-1 rounded-md border border-input bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <Button variant="outline" size="icon" onClick={handleBrowse}>
                 <FolderOpen className="h-4 w-4" />
