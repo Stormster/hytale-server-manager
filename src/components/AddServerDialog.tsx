@@ -119,7 +119,7 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
   const handleCancelInstall = () => {
     abortRef.current?.();
     abortRef.current = null;
-    toast.info("Installation cancelled. Check terminal for backend errors if it was stuck.");
+    toast.info("Installation cancelled.");
     handleClose();
   };
 
@@ -226,27 +226,18 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
             {stuck && (
               <div className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
                 <p className="text-sm text-amber-600 dark:text-amber-400">
-                  Taking longer than expected. The backend may be stuck (e.g.
-                  downloader, auth, or network).
+                  Taking longer than expected. Possible causes:
                 </p>
-                {statusLog.length > 0 ? (
-                  <p className="text-xs text-muted-foreground font-mono">
+                <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                  <li>Downloader missing or not executable (Linux: <code>chmod +x hytale-downloader-linux-amd64</code>)</li>
+                  <li>Hytale auth expired – sign in again from Settings</li>
+                  <li>Network or firewall blocking the download</li>
+                </ul>
+                {statusLog.length > 0 && (
+                  <p className="text-xs text-muted-foreground font-mono pt-1">
                     Last: {statusLog[statusLog.length - 1]}
                   </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No status received yet – check the terminal for backend
-                    output.
-                  </p>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCancelInstall}
-                  className="border-amber-500/50"
-                >
-                  Cancel
-                </Button>
               </div>
             )}
           </div>
