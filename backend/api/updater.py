@@ -57,6 +57,9 @@ def _sse_stream_for_operation(operation_fn, patchline: str, graceful: bool = Fal
                 queue.put_nowait, ("done", {"ok": ok, "message": msg})
             )
 
+        # Send immediate status so the client knows the connection works
+        on_status("Starting backend...")
+
         operation_fn(
             patchline,
             on_status=on_status,

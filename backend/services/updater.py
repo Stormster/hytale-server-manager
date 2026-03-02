@@ -423,6 +423,8 @@ def perform_first_time_setup(
 
         instance_name = get_active_instance()
         try:
+            if on_status:
+                on_status("Setup starting...")
             print(f"[updater] First-time setup starting for instance: {instance_name}", file=sys.stderr, flush=True)
             _set_update_in_progress(instance_name or "")
 
