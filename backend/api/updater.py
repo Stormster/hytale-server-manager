@@ -60,6 +60,8 @@ def _sse_stream_for_operation(operation_fn, patchline: str, graceful: bool = Fal
     """Create an SSE StreamingResponse for a long-running updater operation."""
 
     async def generate():
+        from utils.log_buffer import append
+        append(f"[SSE] setup/update stream started, patchline={patchline}")
         queue: asyncio.Queue = asyncio.Queue()
         loop = asyncio.get_event_loop()
 
@@ -80,6 +82,7 @@ def _sse_stream_for_operation(operation_fn, patchline: str, graceful: bool = Fal
 
         # Send immediate status so the client knows the connection works
         on_status("Starting backend...")
+        append("[SSE] first event (Starting backend...) queued")
 
         operation_fn(
             patchline,
@@ -89,9 +92,13 @@ def _sse_stream_for_operation(operation_fn, patchline: str, graceful: bool = Fal
             graceful=graceful,
         )
 
+        event_count = 0
         while True:
             try:
                 event_type, data = await asyncio.wait_for(queue.get(), timeout=60)
+                event_count += 1
+                if event_count <= 3 or event_type == "done":
+                    append(f"[SSE] yielding event #{event_count}: {event_type}")
                 yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
                 if event_type == "done":
                     break

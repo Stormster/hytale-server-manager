@@ -208,29 +208,49 @@ export function InstallServerDialog({
                 <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
                   <li>Network or firewall blocking the download</li>
                   <li>Auth expired – try Refresh Auth in Settings</li>
-                  <li>On Linux/WSL: progress may not show. Try cancelling and running again</li>
                 </ul>
-                {statusLog.length > 0 ? (
-                  <div className="pt-1">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Log:</p>
-                    <pre className="text-xs text-muted-foreground font-mono bg-background/50 rounded p-2 max-h-24 overflow-y-auto whitespace-pre-wrap break-words">
-                      {statusLog.join("\n")}
-                    </pre>
+                <div className="pt-1 flex flex-wrap gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={async () => {
+                      try {
+                        const { api } = await import("@/api/client");
+                        const res = await api<{ logs: string }>("/api/debug/recent-logs");
+                        const header = `--- Install stuck, no output ---\nFrontend log: ${statusLog.join(" | ") || "(none)"}\n\nBackend logs:\n`;
+                        await navigator.clipboard.writeText(header + (res?.logs ?? "(failed to fetch)"));
+                        toast.success("Debug info copied");
+                      } catch {
+                        const header = `--- Install stuck ---\nFrontend: ${statusLog.join(" | ") || "no output"}\n`;
+                        await navigator.clipboard.writeText(header);
+                        toast.success("Debug info copied");
+                      }
+                    }}
+                  >
+                    Copy debug info
+                  </Button>
+                  {statusLog.length > 0 && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="mt-1 h-7 text-xs"
+                      className="h-7 text-xs"
                       onClick={() => {
                         navigator.clipboard.writeText(statusLog.join("\n"));
                         toast.success("Log copied");
                       }}
                     >
-                      Copy log
+                      Copy frontend log
                     </Button>
-                  </div>
+                  )}
+                </div>
+                {statusLog.length > 0 ? (
+                  <pre className="text-xs text-muted-foreground font-mono bg-background/50 rounded p-2 max-h-24 overflow-y-auto whitespace-pre-wrap break-words">
+                    {statusLog.join("\n")}
+                  </pre>
                 ) : (
                   <p className="text-xs text-muted-foreground pt-1">
-                    No output received. Please try again.
+                    No output received. Copy debug info and share when reporting the issue.
                   </p>
                 )}
               </div>
