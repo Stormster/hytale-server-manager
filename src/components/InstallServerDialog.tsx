@@ -101,8 +101,9 @@ export function InstallServerDialog({
             if (d.ok) setProgress(100);
           }
         },
-        onError() {
-          setResult({ ok: false, message: "Connection error" });
+        onError(err) {
+          const msg = err?.message || "Connection error";
+          setResult({ ok: false, message: msg });
           setStep("done");
         },
       },
