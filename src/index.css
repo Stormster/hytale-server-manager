@@ -5,6 +5,14 @@
 @tailwind utilities;
 
 @layer base {
+  /* Tell WebKitGTK which scheme we use – prevents Linux grey/washed-out colors */
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+
   :root {
     /* Hytale primary: #152339 */
     --hytale-primary: 217 46% 15%;
