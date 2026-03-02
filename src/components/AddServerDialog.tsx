@@ -116,9 +116,10 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
             }
           }
         },
-        onError() {
-          setResult({ ok: false, message: "Connection error" });
-          toast.error("Connection error");
+        onError(err) {
+          const msg = err?.message || "Connection error";
+          setResult({ ok: false, message: msg });
+          toast.error(msg);
           setStep("done");
         },
       },
