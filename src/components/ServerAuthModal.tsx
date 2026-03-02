@@ -7,6 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Copy, Loader2, CheckCircle2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -91,9 +92,14 @@ export function ServerAuthModal({
     }
   };
 
-  const handleCopyUrl = () => {
+  const handleCopyUrl = async () => {
     if (!oauthUrl) return;
-    navigator.clipboard.writeText(oauthUrl);
+    try {
+      await navigator.clipboard.writeText(oauthUrl);
+      toast.success("Link copied to clipboard");
+    } catch {
+      toast.error("Failed to copy");
+    }
   };
 
   return (

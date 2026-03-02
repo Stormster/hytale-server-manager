@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LogConsole } from "@/components/LogConsole";
 import { parseAuthOutput } from "@/lib/authOutput";
@@ -30,19 +31,29 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
 
   const handleCopyUrl = async () => {
     if (!parsed.authUrl) return;
-    await navigator.clipboard.writeText(parsed.authUrl);
+    try {
+      await navigator.clipboard.writeText(parsed.authUrl);
+      toast.success("Link copied to clipboard");
+    } catch {
+      toast.error("Failed to copy");
+    }
   };
 
   const handleCopyCode = async () => {
     if (!parsed.code) return;
-    await navigator.clipboard.writeText(parsed.code);
+    try {
+      await navigator.clipboard.writeText(parsed.code);
+      toast.success("Code copied to clipboard");
+    } catch {
+      toast.error("Failed to copy");
+    }
   };
 
   return (
     <div className={className}>
       {/* Parsed OAuth UI */}
       {(parsed.authUrl || parsed.code) && (
-        <div className="rounded-lg border border-white/10 bg-muted/30 p-4 space-y-3">
+        <div className="rounded-lg border border-border bg-card/80 p-4 space-y-3">
           {parsed.authUrl && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Visit this link to sign in:</p>
@@ -87,7 +98,7 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
                         await open(parsed.baseUrl!);
                       }
                     }}
-                    className="text-blue-400 hover:underline cursor-pointer font-medium"
+                    className="text-primary hover:underline cursor-pointer font-medium"
                   >
                     oauth.accounts.hytale.com
                   </button>
@@ -97,7 +108,7 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
                 :
               </p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded border border-white/20 bg-background/50 px-3 py-2 text-lg font-mono tracking-wider">
+                <code className="flex-1 rounded border border-input bg-input px-3 py-2 text-lg font-mono tracking-wider text-foreground">
                   {parsed.code}
                 </code>
                 <Button variant="outline" size="icon" onClick={handleCopyCode}>
