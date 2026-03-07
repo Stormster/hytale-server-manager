@@ -38,18 +38,30 @@ async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function collectExeAndMsi(dir, baseDir, list = []) {
+async function collectExeAndMsi(dir, list = []) {
   const entries = await readdir(dir, { withFileTypes: true });
   for (const e of entries) {
     const full = join(dir, e.name);
     if (e.isDirectory()) {
-      await collectExeAndMsi(full, baseDir, list);
+      await collectExeAndMsi(full, list);
     } else if (e.isFile()) {
       const ext = extname(e.name).toLowerCase();
       if (ext === ".exe" || ext === ".msi") list.push(full);
     }
   }
   return list;
+}
+
+/** Keep only the newest file per extension (.exe and .msi) by mtime. */
+async function keepNewestPerExtension(filePaths) {
+  const byExt = new Map();
+  for (const p of filePaths) {
+    const ext = extname(p).toLowerCase();
+    const s = await stat(p);
+    const existing = byExt.get(ext);
+    if (!existing || s.mtimeMs > existing.mtimeMs) byExt.set(ext, { path: p, mtimeMs: s.mtimeMs });
+  }
+  return [...byExt.values()].map((x) => x.path);
 }
 
 async function getUploadUrl(apiKey) {
@@ -166,7 +178,8 @@ async function main() {
     process.exit(1);
   }
 
-  const files = await collectExeAndMsi(BUNDLE_DIR, BUNDLE_DIR);
+  let files = await collectExeAndMsi(BUNDLE_DIR);
+  files = await keepNewestPerExtension(files);
   if (files.length === 0) {
     console.log("No .exe or .msi found in bundle (e.g. building on non-Windows). Skipping VirusTotal.");
     process.exit(0);
