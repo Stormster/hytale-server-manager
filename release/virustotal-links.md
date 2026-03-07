@@ -3,5 +3,5 @@ Build: 2026-03-07
 
 | Artifact | Report |
 | -------- | ------ |
-| msi/Hytale Server Manager_2.7.0_x64_en-US.msi | [View on VirusTotal](https://www.virustotal.com/gui/file/3c2c9f464537d4f7406fbd375f05194788342a6dc1b62c75966e53ac41f48d80)  |
-| nsis/Hytale Server Manager_2.7.0_x64-setup.exe | [View on VirusTotal](https://www.virustotal.com/gui/file/e170eaf005b4ad0713f6b08170e07d60655fc91a9a3ff0d0aa4b1e4ed08047be)  |
+| msi/Hytale Server Manager_2.7.0_x64_en-US.msi | [View on VirusTotal](https://www.virustotal.com/gui/file/1eda0b90ceddfba6c1475d7c0e616b93dfc29044bbb86feaf766a5c48683a2e1)  |
+| nsis/Hytale Server Manager_2.7.0_x64-setup.exe | [View on VirusTotal](https://www.virustotal.com/gui/file/5c4d13046ed3a0d63f399e580d4090ef2c032ba46bcb15ef090d93185d2185e4)  |
