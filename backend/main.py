@@ -83,11 +83,17 @@ def create_app():
 
     app = FastAPI(title="Hytale Server Manager Backend", lifespan=lifespan)
 
-    # Restrict CORS to localhost (defense-in-depth; auth token is primary)
+    # Restrict CORS to trusted local app origins (token auth is still primary).
+    # Dev uses localhost:*; installed Tauri uses tauri.localhost / tauri://localhost.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["null"],
-        allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$",
+        allow_origins=[
+            "null",
+            "tauri://localhost",
+            "https://tauri.localhost",
+            "http://tauri.localhost",
+        ],
+        allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost|tauri\.localhost)(:\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
