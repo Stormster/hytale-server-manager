@@ -137,19 +137,16 @@ export function ConfigView() {
       <div className="mb-4 flex shrink-0 items-start justify-between gap-4">
         <h2 className="text-xl font-bold">Configuration</h2>
         {serverPath && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-9 w-9 shrink-0"
-                onClick={handleOpenFolder}
-              >
-                <FolderOpen className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Open Server folder in File Explorer</TooltipContent>
-          </Tooltip>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 shrink-0"
+            onClick={handleOpenFolder}
+            title="Open Server folder in File Explorer"
+          >
+            <FolderOpen className="h-4 w-4" />
+            View Server Folder
+          </Button>
         )}
       </div>
 

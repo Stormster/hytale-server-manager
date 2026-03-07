@@ -310,6 +310,7 @@ function SortableInstanceCard({
                 <TooltipTrigger asChild>
                   <Button
                     size="sm"
+                    className="border border-white/25 shadow-sm group-[.bg-accent]:border-white/45 group-[.bg-accent]:shadow-md"
                     onClick={() => {
                       if (thisRunning) {
                         stopServer.mutate(inst.name);
