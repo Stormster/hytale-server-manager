@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { AuthFlowDisplay } from "@/components/AuthFlowDisplay";
 import { InfoRow } from "@/components/InfoRow";
 import {
@@ -364,6 +365,56 @@ export function SettingsView() {
           </CardContent>
         </Card>
       )}
+
+      {/* Experimental addon features (only when addon loaded) */}
+      {appInfo?.experimental_addon_loaded &&
+        (appInfo.experimental_addon_features?.length ?? 0) > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Experimental addon features</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Toggle individual addon features. All are on by default.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(appInfo.experimental_addon_features ?? []).map((featureId) => {
+                const enabled =
+                  appInfo.experimental_addon_feature_flags?.[featureId] !== false;
+                const label =
+                  featureId === "json_checker"
+                    ? "JSON Checker (raw config editor)"
+                    : featureId;
+                return (
+                  <div
+                    key={featureId}
+                    className="flex items-center justify-between gap-4"
+                  >
+                    <Label
+                      htmlFor={`addon-feature-${featureId}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {label}
+                    </Label>
+                    <Switch
+                      id={`addon-feature-${featureId}`}
+                      checked={enabled}
+                      onCheckedChange={(checked) => {
+                        const flags = {
+                          ...(appInfo.experimental_addon_feature_flags ?? {}),
+                          [featureId]: checked,
+                        };
+                        updateSettings.mutate({
+                          experimental_addon_feature_flags: flags,
+                        });
+                      }}
+                      disabled={updateSettings.isPending}
+                    />
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
       {/* Auth card */}
       <Card>

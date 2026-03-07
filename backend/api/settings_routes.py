@@ -83,6 +83,7 @@ def get_default_root_dir() -> str:
 class UpdateSettingsRequest(BaseModel):
     root_dir: Optional[str] = None
     experimental_addon_license_key: Optional[str] = None
+    experimental_addon_feature_flags: Optional[dict[str, bool]] = None
     instance_name: Optional[str] = None
     instance_server_settings: Optional[dict[str, Any]] = None
     game_port: Optional[int] = None
@@ -219,6 +220,8 @@ def update_settings(body: UpdateSettingsRequest):
         settings.set_root_dir(path)
     if body.experimental_addon_license_key is not None:
         settings.set_experimental_addon_license_key(body.experimental_addon_license_key)
+    if body.experimental_addon_feature_flags is not None:
+        settings.set_experimental_addon_feature_flags(body.experimental_addon_feature_flags)
     if body.instance_name and body.instance_server_settings is not None:
         settings.set_instance_server_settings(body.instance_name, body.instance_server_settings)
     if body.instance_name:

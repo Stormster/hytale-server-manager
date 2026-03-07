@@ -23,7 +23,7 @@ class ExperimentalAddon(ABC):
     """
 
     @abstractmethod
-    def register(self, app: AppLike, license_key: str | None = None) -> None:
+    def register(self, app: AppLike, license_key: str | None = None) -> list[str]:
         """
         Register Experimental addon routes, middleware, and features with the app.
 
@@ -31,5 +31,8 @@ class ExperimentalAddon(ABC):
             app: The FastAPI application instance.
             license_key: License key from settings (None if not configured).
                        The addon should validate this before enabling features.
+
+        Returns:
+            List of feature IDs (e.g. ["json_checker"]) when license is valid; empty list otherwise.
         """
         pass

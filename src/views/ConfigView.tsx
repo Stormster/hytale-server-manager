@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FolderOpen, Code, FormInput } from "lucide-react";
 import {
@@ -11,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useConfigFile, useSaveConfigFile, useWorldsList, useWorldConfig, useSaveWorldConfig } from "@/api/hooks/useConfigFiles";
 import { useSettings } from "@/api/hooks/useSettings";
+import { Textarea } from "@/components/ui/textarea";
 import { ConfigEditor } from "@/components/config/ConfigEditor";
 import { WhitelistEditor } from "@/components/config/WhitelistEditor";
 import { BansEditor } from "@/components/config/BansEditor";
@@ -50,6 +50,19 @@ export function ConfigView() {
     !isWorldsView &&
     FORM_EDITABLE_FILES.has(activeFile as (typeof CONFIG_FILES)[number]) &&
     !rawMode;
+
+  const isRawJsonView = rawMode && (FORM_EDITABLE_FILES.has(activeFile as string) || (isWorldsView && !!activeWorld));
+  const isJsonInvalid = useMemo(() => {
+    if (!isRawJsonView) return false;
+    try {
+      const t = editorContent.trim();
+      if (!t) return true;
+      JSON.parse(editorContent);
+      return false;
+    } catch {
+      return true;
+    }
+  }, [isRawJsonView, editorContent]);
 
   // Sync editor when file data loads
   useEffect(() => {
@@ -100,6 +113,7 @@ export function ConfigView() {
 
   const handleSave = () => {
     if (!activeFile) return;
+    if (isJsonInvalid) return;
     if (isWorldsView && activeWorld) {
       saveWorldConfig.mutate(
         { content: editorContent },
@@ -213,15 +227,19 @@ export function ConfigView() {
                     <Textarea
                       value={editorContent}
                       onChange={(e) => setEditorContent(e.target.value)}
-                      className="flex-1 min-h-0 font-mono text-sm resize-none"
-                      spellCheck={false}
+                      className="flex-1 min-h-[200px] font-mono text-sm resize-none"
+                      placeholder="{}"
+                      aria-label="World config JSON"
                     />
+                    {isJsonInvalid && (
+                      <p className="text-sm text-destructive shrink-0">Invalid JSON</p>
+                    )}
                     <div className="flex items-center justify-between shrink-0">
                       <span className="text-xs text-muted-foreground">{statusMsg}</span>
                       <Button
                         size="sm"
                         onClick={handleSave}
-                        disabled={saveWorldConfig.isPending}
+                        disabled={saveWorldConfig.isPending || isJsonInvalid}
                       >
                         {saveWorldConfig.isPending ? "Saving..." : "Save"}
                       </Button>
@@ -274,16 +292,20 @@ export function ConfigView() {
               <Textarea
                 value={editorContent}
                 onChange={(e) => setEditorContent(e.target.value)}
-                className="flex-1 min-h-0 font-mono text-sm resize-none"
-                spellCheck={false}
+                className="flex-1 min-h-[200px] font-mono text-sm resize-none"
+                placeholder="{}"
+                aria-label="Config JSON"
               />
+              {isJsonInvalid && (
+                <p className="text-sm text-destructive shrink-0">Invalid JSON</p>
+              )}
               <div className="flex items-center justify-between shrink-0">
                 <span className="text-xs text-muted-foreground">{statusMsg}</span>
                 {!isLogView && (
                   <Button
                     size="sm"
                     onClick={handleSave}
-                    disabled={!activeFile || saveConfig.isPending}
+                    disabled={!activeFile || saveConfig.isPending || isJsonInvalid}
                   >
                     {saveConfig.isPending ? "Saving..." : "Save"}
                   </Button>
