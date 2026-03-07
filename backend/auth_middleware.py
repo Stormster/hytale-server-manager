@@ -34,6 +34,11 @@ class BackendAuthMiddleware(BaseHTTPMiddleware):
         if not expected:
             return await call_next(request)
 
+        # Allow CORS preflight without auth so browser can send the real request.
+        # The actual API request still requires the token.
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Allow health check without auth
         if request.url.path == "/api/health":
             return await call_next(request)

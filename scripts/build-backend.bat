@@ -19,7 +19,12 @@ if not %PYINSTALLER_EXIT%==0 (
 )
 
 if not exist "backend\dist\server-manager-backend.exe" (
+    echo Exe not found immediately; waiting 3s in case of AV/filesystem delay...
+    timeout /t 3 /nobreak >nul
+)
+if not exist "backend\dist\server-manager-backend.exe" (
     echo ERROR: Build failed - backend\dist\server-manager-backend.exe not found.
+    echo PyInstaller reported success but the file is missing. Try running build:backend again.
     exit /b 1
 )
 

@@ -3,6 +3,7 @@
  * Before `tauri dev`, copy the backend sidecar from binaries/ to target/debug/
  * so the dev process always uses the latest built backend (e.g. correct MANAGER_VERSION).
  * build.rs only runs when Cargo recompiles; this runs every time you start tauri dev.
+ * Fails if binaries/ has no backend so we never start dev without a backend (avoids "no backend" UI).
  */
 import { copyFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -24,7 +25,7 @@ const destDir = join(srcTauri, "target", "debug");
 const dest = join(destDir, sidecarName);
 
 if (!existsSync(src)) {
-  // No built backend; build.rs will warn when compiling
+  // Dev mode runs backend from Python source; binary only needed for release build
   process.exit(0);
 }
 
