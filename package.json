@@ -17,8 +17,8 @@
     "postversion": "npm run version:sync",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:dev:no-watch": "tauri dev --no-watch"
+    "tauri:dev": "node scripts/ensure-backend-dev.js && tauri dev",
+    "tauri:dev:no-watch": "node scripts/ensure-backend-dev.js && tauri dev --no-watch"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
