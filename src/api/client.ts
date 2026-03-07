@@ -2,11 +2,15 @@ import { invoke } from "@tauri-apps/api/core";
 
 let _baseUrl: string | null = null;
 let _portPromise: Promise<string> | null = null;
+let _authToken: string | null = null;
+let _authTokenPromise: Promise<string | null> | null = null;
 
 /** Clear cached backend URL so next request re-resolves port (e.g. after backend restart). */
 export function clearBackendUrlCache(): void {
   _baseUrl = null;
   _portPromise = null;
+  _authToken = null;
+  _authTokenPromise = null;
 }
 
 function isConnectionError(err: unknown): boolean {
@@ -59,6 +63,29 @@ async function getBaseUrl(): Promise<string> {
   return _portPromise;
 }
 
+/** Get backend auth token (when running under Tauri). Null in dev or when backend has no auth. */
+export async function getBackendAuthToken(): Promise<string | null> {
+  if (_authToken !== null) return _authToken;
+  if (!_authTokenPromise) {
+    _authTokenPromise = (async () => {
+      try {
+        const token = await invoke<string | null>("get_backend_auth_token");
+        _authToken = token ?? null;
+        return _authToken;
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return _authTokenPromise;
+}
+
+/** Auth header (X-Backend-Token) when running under Tauri; empty object otherwise. */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getBackendAuthToken();
+  return token ? { "X-Backend-Token": token } : {};
+}
+
 const FETCH_TIMEOUT_MS = 15_000;
 
 /**
@@ -73,13 +100,11 @@ export async function api<T>(
   const ctrl = new AbortController();
   const timeoutId = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
+    const headers = { "Content-Type": "application/json", ...(await getAuthHeaders()), ...(options?.headers as Record<string, string>) };
     const res = await fetch(`${base}${path}`, {
       ...options,
       signal: ctrl.signal,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
+      headers,
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -110,11 +135,12 @@ export async function apiUpload<T>(
   options?: Omit<RequestInit, "body">
 ): Promise<T> {
   const base = await getBaseUrl();
+  const headers = { ...(await getAuthHeaders()), ...(options?.headers as Record<string, string>) };
   const res = await fetch(`${base}${path}`, {
     ...options,
     method: options?.method ?? "POST",
     body,
-    headers: options?.headers,
+    headers,
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -144,10 +170,11 @@ export function subscribeSSE(
 
   const doFetch = async (signal: AbortSignal) => {
     const base = await getBaseUrl();
+    const headers: Record<string, string> = { ...(await getAuthHeaders()), ...(hasBody ? { "Content-Type": "application/json" } : {}) };
     try {
       const res = await fetch(`${base}${path}`, {
         method,
-        headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+        headers,
         body: options?.body,
         signal,
       });
@@ -201,7 +228,9 @@ export function subscribeSSE(
     (async () => {
       try {
         const base = await getBaseUrl();
-        const url = `${base}${path}`;
+        const token = await getBackendAuthToken();
+        const sep = path.includes("?") ? "&" : "?";
+        const url = token ? `${base}${path}${sep}token=${encodeURIComponent(token)}` : `${base}${path}`;
         eventSource = new EventSource(url);
 
         eventSource.onerror = () => {

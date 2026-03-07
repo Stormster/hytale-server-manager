@@ -14,16 +14,18 @@ fn main() {
     let target = env::var("TARGET").unwrap_or_else(|_| String::new());
 
     // Tauri externalBin naming: server-manager-backend-{target_triple}[.exe]
+    // Windows: keep fixed name for backward compatibility with existing installs.
+    // Linux: use TARGET so multiple arches (e.g. aarch64) work.
     let sidecar_name = if target.contains("windows") {
-        "server-manager-backend-x86_64-pc-windows-msvc.exe"
+        "server-manager-backend-x86_64-pc-windows-msvc.exe".to_string()
     } else if target.contains("linux") {
-        "server-manager-backend-x86_64-unknown-linux-gnu"
+        format!("server-manager-backend-{}", target)
     } else {
         return; // macOS or other: no sidecar built yet
     };
 
-    let sidecar_src = manifest_dir.join("binaries").join(sidecar_name);
-    let sidecar_dest = target_dir.join(&profile).join(sidecar_name);
+    let sidecar_src = manifest_dir.join("binaries").join(&sidecar_name);
+    let sidecar_dest = target_dir.join(&profile).join(&sidecar_name);
 
     if sidecar_src.is_file() {
         fs::copy(&sidecar_src, &sidecar_dest).ok();

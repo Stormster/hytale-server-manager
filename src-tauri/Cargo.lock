@@ -1490,6 +1490,7 @@ dependencies = [
 name = "hytale-server-manager"
 version = "2.6.6"
 dependencies = [
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "tauri",

@@ -4,9 +4,11 @@ use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 use tokio::sync::Mutex;
 
-/// Shared state holding the backend port once the sidecar reports ready.
+/// Shared state holding the backend port and auth token once the sidecar reports ready.
 struct BackendState {
     port: Mutex<Option<u16>>,
+    /// Token required for API requests; only set when backend is started by Tauri.
+    auth_token: Mutex<Option<String>>,
 }
 
 /// Inner state so we can replace the child when restarting the backend.
@@ -154,6 +156,13 @@ async fn get_backend_port(state: tauri::State<'_, Arc<BackendState>>) -> Result<
     lock.ok_or_else(|| "Backend not ready yet".into())
 }
 
+/// Tauri command: return the backend auth token (for API requests). Empty when not running under Tauri or auth disabled.
+#[tauri::command]
+async fn get_backend_auth_token(state: tauri::State<'_, Arc<BackendState>>) -> Result<Option<String>, String> {
+    let lock = state.auth_token.lock().await;
+    Ok(lock.clone())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
@@ -161,18 +170,35 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            let auth_token: String = {
+                use rand::Rng;
+                let mut bytes = [0u8; 32];
+                rand::thread_rng().fill(&mut bytes);
+                bytes.iter().map(|b| format!("{:02x}", b)).collect()
+            };
             let state = Arc::new(BackendState {
                 port: Mutex::new(None),
+                auth_token: Mutex::new(Some(auth_token.clone())),
             });
             app.manage(state.clone());
 
             // Spawn the Python sidecar backend (restarted automatically if it exits)
             let shell = app.shell();
-            let sidecar = shell
-                .sidecar("server-manager-backend")
-                .expect("failed to create sidecar command");
+            let sidecar = match shell.sidecar("server-manager-backend") {
+                Ok(s) => s.env("HYTALE_BACKEND_TOKEN", &auth_token),
+                Err(e) => {
+                    eprintln!("[Tauri] Failed to create sidecar command: {e}");
+                    return Ok(());
+                }
+            };
 
-            let (first_rx, child) = sidecar.spawn().expect("failed to spawn sidecar");
+            let (first_rx, child) = match sidecar.spawn() {
+                Ok(pair) => pair,
+                Err(e) => {
+                    eprintln!("[Tauri] Failed to spawn backend: {e}");
+                    return Ok(());
+                }
+            };
 
             #[cfg(windows)]
             let job_guard = {
@@ -224,13 +250,17 @@ pub fn run() {
                     }
                     eprintln!("[Tauri] Backend process exited; restarting...");
                     let shell = app_handle.shell();
-                    let sidecar = match shell.sidecar("server-manager-backend") {
+                    let token = state_clone.auth_token.lock().await.clone();
+                    let mut sidecar = match shell.sidecar("server-manager-backend") {
                         Ok(s) => s,
                         Err(e) => {
                             eprintln!("[Tauri] Failed to create sidecar: {e}");
                             break;
                         }
                     };
+                    if let Some(t) = &token {
+                        sidecar = sidecar.env("HYTALE_BACKEND_TOKEN", t);
+                    }
                     let (new_rx, new_child) = match sidecar.spawn() {
                         Ok(pair) => pair,
                         Err(e) => {
@@ -252,7 +282,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_backend_port])
+        .invoke_handler(tauri::generate_handler![get_backend_port, get_backend_auth_token])
         // Backend is killed gracefully in ExitRequested, and again in Exit as a
         // safety net. The Job Object (Windows) handles the truly catastrophic cases.
         .build(tauri::generate_context!())

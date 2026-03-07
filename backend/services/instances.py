@@ -24,6 +24,35 @@ def _sanitize_folder_name(name: str) -> str:
     return safe or name.strip() or "instance"
 
 
+def _validate_instance_name(name: str) -> None:
+    """Raise ValueError if name is not safe (path traversal, separators, etc.)."""
+    if not name or not name.strip():
+        raise ValueError("Instance name is required")
+    if name != name.strip():
+        raise ValueError("Instance name must not have leading/trailing whitespace")
+    if ".." in name or name == "." or "/" in name or "\\" in name:
+        raise ValueError("Invalid instance name")
+    if os.path.isabs(name):
+        raise ValueError("Invalid instance name")
+    if len(name) >= 2 and name[1] == ":":
+        raise ValueError("Invalid instance name")
+
+
+def _resolve_instance_path(root: str, name: str) -> str:
+    """Return canonical path for instance. Raises ValueError if outside root."""
+    _validate_instance_name(name)
+    root_abs = os.path.abspath(root)
+    path = os.path.abspath(os.path.join(root, name))
+    if not path.startswith(root_abs + os.sep) and path != root_abs:
+        if root_abs.endswith(os.sep) and path.startswith(root_abs):
+            pass
+        else:
+            raise ValueError("Invalid instance name")
+    if path == root_abs:
+        raise ValueError("Invalid instance name")
+    return path
+
+
 def list_instances() -> list[dict]:
     """Scan root_dir for instance subfolders (excluding ignored). Ordered by instance_order."""
     root = settings.get_root_dir()
@@ -175,6 +204,7 @@ def reorder_instances(names: list[str]) -> None:
     )
     valid -= set(settings.get_ignored_instances())
     for n in names:
+        _validate_instance_name(n)
         if n not in valid:
             raise ValueError(f"Instance '{n}' not found")
     settings.set_instance_order(names)
@@ -273,7 +303,7 @@ def delete_instance(name: str, delete_files: bool = True) -> None:
     if not root:
         raise ValueError("Root directory not configured")
 
-    dest = os.path.join(root, name)
+    dest = _resolve_instance_path(root, name)
     if not os.path.isdir(dest):
         raise ValueError(f"Instance '{name}' not found")
 
@@ -295,8 +325,11 @@ def rename_instance(old_name: str, new_name: str) -> dict:
         raise ValueError("Root directory not configured")
 
     new_name = _sanitize_folder_name(new_name)
-    old = os.path.join(root, old_name)
-    new_path = os.path.join(root, new_name)
+    _validate_instance_name(new_name)
+    old = _resolve_instance_path(root, old_name)
+    new_path = os.path.abspath(os.path.join(root, new_name))
+    if not new_path.startswith(os.path.abspath(root) + os.sep):
+        raise ValueError("Invalid instance name")
 
     if not os.path.isdir(old):
         raise ValueError(f"Instance '{old_name}' not found")

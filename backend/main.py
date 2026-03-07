@@ -22,6 +22,12 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Hytale Server Manager Backend")
     parser.add_argument("--port", type=int, default=21342, help="Port to listen on")
     parser.add_argument(
+        "--auth-token",
+        type=str,
+        default=None,
+        help="Required token for API requests (set by Tauri; omit for dev)",
+    )
+    parser.add_argument(
         "--root-dir",
         type=str,
         default=None,
@@ -58,6 +64,7 @@ def create_app():
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
 
+    from auth_middleware import BackendAuthMiddleware, set_expected_token
     from api.server import router as server_router
     from api.updater import router as updater_router
     from api.backups import router as backups_router
@@ -76,13 +83,16 @@ def create_app():
 
     app = FastAPI(title="Hytale Server Manager Backend", lifespan=lifespan)
 
+    # Restrict CORS to localhost (defense-in-depth; auth token is primary)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=["null"],
+        allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(BackendAuthMiddleware)
 
     app.include_router(server_router, prefix="/api/server", tags=["server"])
     app.include_router(updater_router, prefix="/api/updater", tags=["updater"])
@@ -117,6 +127,11 @@ app = create_app()
 
 def main():
     args = parse_args()
+
+    # Auth token: required when set by Tauri (env or CLI); omit for standalone dev
+    token = (args.auth_token or os.environ.get("HYTALE_BACKEND_TOKEN") or "").strip() or None
+    from auth_middleware import set_expected_token
+    set_expected_token(token)
 
     # Optionally pre-seed root_dir for dev convenience (pass to reload subprocess via env)
     if args.root_dir:

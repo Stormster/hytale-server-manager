@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { FolderOpen } from "lucide-react";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 
-const DEFAULT_PLACEHOLDER = "Documents\\Hytale Servers";
+const DEFAULT_PLACEHOLDER = "e.g. Documents / Hytale Servers";
 
 export function OnboardingView() {
   const { data: settings } = useSettings();

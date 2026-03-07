@@ -421,8 +421,8 @@ def restore_hytale_world_backup(filename: str) -> None:
 
     # 3) Extract the selected backup
     with tempfile.TemporaryDirectory() as tmp:
-        with zipfile.ZipFile(source_zip, "r") as zf:
-            zf.extractall(tmp)
+        from utils.safe_zip import safe_extractall
+        safe_extractall(source_zip, tmp)
         # Zip may contain "universe/" at root or contents at root
         extracted_universe = os.path.join(tmp, "universe")
         if os.path.isdir(extracted_universe):
