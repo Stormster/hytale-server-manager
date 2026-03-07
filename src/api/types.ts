@@ -143,6 +143,10 @@ export interface AppInfo {
   report_url: string;
   /** True if Experimental addon loaded (addons/experimental_addon.whl or .pyz present) */
   experimental_addon_loaded?: boolean;
+  /** Feature IDs reported by addon when license is valid (e.g. ["json_checker"]) */
+  experimental_addon_features?: string[];
+  /** Per-feature overrides: feature_id -> false = off. Unset = on by default. */
+  experimental_addon_feature_flags?: Record<string, boolean>;
   /** Platform from backend: win32, linux, darwin, etc. */
   platform?: string;
 }

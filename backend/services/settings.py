@@ -180,6 +180,18 @@ def set_experimental_addon_license_key(key: str) -> None:
     _save(s)
 
 
+def get_experimental_addon_feature_flags() -> dict:
+    """Return per-feature flags: { feature_id: bool }. Unset = enabled by default."""
+    return dict(load().get("experimental_addon_feature_flags", {}))
+
+
+def set_experimental_addon_feature_flags(flags: dict) -> None:
+    """Store per-feature flags. Only stored keys are overrides; omit key = default on."""
+    s = load()
+    s["experimental_addon_feature_flags"] = {k: bool(v) for k, v in (flags or {}).items()}
+    _save(s)
+
+
 # -- Instance server settings (RAM limits, startup args) ---------------------------------
 
 def get_instance_server_settings() -> dict:

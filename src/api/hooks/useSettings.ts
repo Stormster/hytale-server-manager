@@ -15,6 +15,7 @@ export function useUpdateSettings() {
   return useMutation({
     mutationFn: (body: {
       root_dir?: string;
+      experimental_addon_feature_flags?: Record<string, boolean>;
       instance_name?: string;
       instance_server_settings?: Record<string, unknown>;
       game_port?: number;
@@ -26,6 +27,9 @@ export function useUpdateSettings() {
       }),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["settings"] });
+      if (variables.experimental_addon_feature_flags !== undefined) {
+        qc.invalidateQueries({ queryKey: ["info"] });
+      }
       if (variables.instance_name) {
         qc.invalidateQueries({ queryKey: ["instances"] });
         qc.invalidateQueries({ queryKey: ["server-status"] });

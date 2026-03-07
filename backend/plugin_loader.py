@@ -23,6 +23,7 @@ _EXPERIMENTAL_ADDON_NAMES = ("experimental_addon.whl", "experimental_addon.pyz")
 
 # Set by load_experimental_addon; read by /api/info for frontend
 experimental_addon_loaded = False
+experimental_addon_features: list[str] = []
 
 
 def _get_addons_dir() -> Path:
@@ -85,9 +86,16 @@ def load_experimental_addon(app: "FastAPI") -> bool:
 
     Returns True if the addon was loaded and registered, False otherwise.
     """
-    addons_dir = _get_addons_dir()
-    addons_dir.mkdir(parents=True, exist_ok=True)
-    addon_path = _find_experimental_addon(addons_dir)
+    addon_path = None
+    dev_path = os.environ.get("HSM_DEV_ADDON")
+    if dev_path:
+        p = Path(dev_path)
+        if p.is_file():
+            addon_path = p
+    if addon_path is None:
+        addons_dir = _get_addons_dir()
+        addons_dir.mkdir(parents=True, exist_ok=True)
+        addon_path = _find_experimental_addon(addons_dir)
     if addon_path is None:
         return False
 
@@ -102,7 +110,8 @@ def load_experimental_addon(app: "FastAPI") -> bool:
     if addon is None:
         return False
 
-    global experimental_addon_loaded
-    addon.register(app, license_key=license_key)
+    global experimental_addon_loaded, experimental_addon_features
+    features = addon.register(app, license_key=license_key)
+    experimental_addon_features = list(features) if features else []
     experimental_addon_loaded = True
     return True

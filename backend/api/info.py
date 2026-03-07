@@ -25,9 +25,15 @@ router = APIRouter()
 def info():
     java_ok, java_version = check_java()
     try:
-        from plugin_loader import experimental_addon_loaded
+        from plugin_loader import experimental_addon_loaded, experimental_addon_features
     except ImportError:
         experimental_addon_loaded = False
+        experimental_addon_features = []
+    try:
+        from services import settings
+        feature_flags = settings.get_experimental_addon_feature_flags()
+    except Exception:
+        feature_flags = {}
     return {
         "manager_version": MANAGER_VERSION,
         "java_ok": java_ok,
@@ -36,6 +42,8 @@ def info():
         "github_repo": GITHUB_REPO,
         "report_url": REPORT_URL,
         "experimental_addon_loaded": experimental_addon_loaded,
+        "experimental_addon_features": experimental_addon_features,
+        "experimental_addon_feature_flags": feature_flags,
         "platform": sys.platform,
     }
 
