@@ -3,6 +3,25 @@ import { invoke } from "@tauri-apps/api/core";
 let _baseUrl: string | null = null;
 let _portPromise: Promise<string> | null = null;
 
+/** Clear cached backend URL so next request re-resolves port (e.g. after backend restart). */
+export function clearBackendUrlCache(): void {
+  _baseUrl = null;
+  _portPromise = null;
+}
+
+function isConnectionError(err: unknown): boolean {
+  if (err instanceof TypeError && (err.message === "Failed to fetch" || err.message === "Load failed")) {
+    return true;
+  }
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes("network") || msg.includes("connection") || msg.includes("refused") || msg.includes("timed out")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Get the backend base URL. In Tauri, queries the sidecar port.
  * Falls back to localhost:21342 for standalone dev.
@@ -69,7 +88,12 @@ export async function api<T>(
     return res.json();
   } catch (err) {
     if ((err as Error).name === "AbortError") {
+      clearBackendUrlCache();
       throw new Error("Connection timed out");
+    }
+    // Network/connection failure – backend may have restarted with a new port
+    if (isConnectionError(err)) {
+      clearBackendUrlCache();
     }
     throw err;
   } finally {

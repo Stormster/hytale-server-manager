@@ -18,6 +18,7 @@ import { InstancesModal } from "@/components/InstancesModal";
 import { Loader2 } from "lucide-react";
 import { useSettings } from "@/api/hooks/useSettings";
 import { useAuthStatus } from "@/api/hooks/useAuth";
+import { clearBackendUrlCache } from "@/api/client";
 
 export default function App() {
   const { data: settings, isLoading, isError, refetch } = useSettings();
@@ -89,6 +90,7 @@ export default function App() {
   // Show error with retry when backend connection fails (e.g. WSL/VM graphics issues)
   if (isError || authError) {
     const retry = () => {
+      clearBackendUrlCache();
       refetch();
       refetchAuth();
     };
@@ -112,6 +114,14 @@ export default function App() {
           >
             Retry
           </button>
+          <a
+            href="https://github.com/Stormster/hytale-server-manager/issues"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Report issue
+          </a>
         </div>
         <AppFooter />
       </div>
