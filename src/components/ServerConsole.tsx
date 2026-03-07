@@ -244,7 +244,7 @@ export function ServerConsole({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden font-mono text-sm rounded-[inherit] [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden font-mono text-sm rounded-[inherit]"
       >
         <div className="p-4 min-h-[200px] select-text">
           {lines.length === 0 ? (
