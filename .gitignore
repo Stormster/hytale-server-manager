@@ -23,7 +23,7 @@ src-tauri/target/
 src-tauri/binaries/
 src-tauri/server-manager-backend-*
 
-# ---- Environment ----
+# ---- Environment (secrets: VIRUSTOTAL_API_KEY, etc.) ----
 .env
 .env.local
 .env.*.local
@@ -67,3 +67,4 @@ Desktop.ini
 .DS_Store
 server info/config.json
 server info/output.txt
+.env.example

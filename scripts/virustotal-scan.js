@@ -17,6 +17,18 @@ const POLL_INTERVAL_MS = 15_000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 min per file
 const LARGE_FILE_THRESHOLD = 32 * 1024 * 1024; // 32MB
 
+// Load .env from project root if present (file is gitignored; never commit API key)
+try {
+  const envPath = join(ROOT, ".env");
+  const env = await readFile(envPath, "utf8").catch(() => null);
+  if (env) {
+    for (const line of env.split("\n")) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (m) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "").trim();
+    }
+  }
+} catch (_) {}
+
 const apiKey = process.env.VIRUSTOTAL_API_KEY;
 const failOnDetection =
   process.env.VIRUSTOTAL_FAIL_ON_DETECTION !== "0" &&
