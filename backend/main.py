@@ -145,14 +145,22 @@ def main():
     t.start()
 
     # Only signal Tauri when the server is actually listening (avoids race on slow startup)
+    ready = False
     for _ in range(100):
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=0.2):
                 pass
+            ready = True
             break
         except OSError:
             time.sleep(0.05)
-    print(f"BACKEND_READY:{port}", flush=True)
+
+    if ready:
+        print(f"BACKEND_READY:{port}", flush=True)
+    else:
+        print("BACKEND_FAILED: server did not start in time", file=sys.stderr, flush=True)
+        sys.exit(1)
+
     t.join()
 
 
