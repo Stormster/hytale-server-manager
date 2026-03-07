@@ -187,7 +187,7 @@ export function subscribeSSE(
           eventSource?.close();
         };
 
-        for (const name of ["status", "progress", "done", "ping", "message"]) {
+        for (const name of ["status", "progress", "done", "ping", "message", "output"]) {
           eventSource.addEventListener(name, (e: MessageEvent) => {
             if (closed) return;
             if (name === "ping") return;
