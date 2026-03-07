@@ -129,16 +129,31 @@ def main():
     import uvicorn
 
     def run_server():
-        if args.reload:
-            uvicorn.run(
-                "main:app",
-                host="127.0.0.1",
-                port=port,
-                log_level="warning",
-                reload=True,
-            )
-        else:
-            uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+        # Run uvicorn in a loop so one unhandled exception (e.g. in a request handler)
+        # does not exit the whole process – same process keeps serving (was not an issue in 2.6.1
+        # before threading; now the server thread exiting would cause main() to return and process exit).
+        while True:
+            try:
+                if args.reload:
+                    uvicorn.run(
+                        "main:app",
+                        host="127.0.0.1",
+                        port=port,
+                        log_level="warning",
+                        reload=True,
+                    )
+                else:
+                    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+            except Exception as e:
+                import traceback
+                print(
+                    f"[Backend] Uvicorn exited with error: {e}\n{traceback.format_exc()}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                time.sleep(1)
+                continue
+            break
 
     # Start uvicorn in a thread so we can wait for the port to be open before signalling
     t = threading.Thread(target=run_server, daemon=False)

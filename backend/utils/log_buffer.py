@@ -37,15 +37,26 @@ def install_stderr_tee() -> None:
 
     class TeeStderr:
         def write(self, data: str) -> int:
-            n = _original_stderr.write(data)
-            _original_stderr.flush()
-            if data and data.strip():
-                for line in data.strip().splitlines():
-                    append(line)
-            return n
+            try:
+                n = _original_stderr.write(data)
+                _original_stderr.flush()
+                if data and data.strip():
+                    for line in data.strip().splitlines():
+                        append(line)
+                return n
+            except Exception:
+                try:
+                    _original_stderr.write(data)
+                    _original_stderr.flush()
+                except Exception:
+                    pass
+                return len(data) if isinstance(data, str) else 0
 
         def flush(self) -> None:
-            _original_stderr.flush()
+            try:
+                _original_stderr.flush()
+            except Exception:
+                pass
 
         def __getattr__(self, name: str):
             return getattr(_original_stderr, name)
