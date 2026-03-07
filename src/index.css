@@ -102,20 +102,39 @@
   );
 }
 
-/* Custom scrollbar for dark mode */
+/* ---------------------------------------------------------------------------
+   App-wide scrollbar (standardized). All scrollable areas use this unless
+   they use .scrollbar-hide. Do not override in components.
+   --------------------------------------------------------------------------- */
+:root {
+  --scrollbar-size: 8px;
+  --scrollbar-thumb: hsl(var(--muted-foreground) / 0.45);
+  --scrollbar-thumb-hover: hsl(var(--muted-foreground) / 0.7);
+  --scrollbar-track: transparent;
+  --scrollbar-radius: 4px;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--scrollbar-track);
+  cursor: pointer;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted));
-  border-radius: 4px;
+  background: var(--scrollbar-thumb);
+  border-radius: var(--scrollbar-radius);
+  cursor: pointer;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: var(--scrollbar-thumb-hover);
+  cursor: pointer;
+}
+
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
 }
 
 /* Hide scrollbars while keeping scroll functionality */
