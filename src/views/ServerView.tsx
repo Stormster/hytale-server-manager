@@ -39,6 +39,7 @@ export function ServerView() {
   const authPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linesRef = useRef<string[]>([]);
   const abortRef = useRef<(() => void) | null>(null);
+  const exitedRef = useRef(false);
 
   linesRef.current = lines;
   const running = status?.running ?? false;
@@ -83,6 +84,7 @@ export function ServerView() {
   useEffect(() => {
     if (!running) {
       authShownRef.current = false;
+      exitedRef.current = false;
       if (authPendingRef.current) {
         clearTimeout(authPendingRef.current);
         authPendingRef.current = null;
@@ -102,6 +104,8 @@ export function ServerView() {
         if (event === "output") {
           setLines((prev) => [...prev, d.line as string]);
         } else if (event === "done") {
+          if (exitedRef.current) return;
+          exitedRef.current = true;
           setLines((prev) => [
             ...prev,
             `\n[Manager] Server exited (code ${d.code}).`,
@@ -127,11 +131,12 @@ export function ServerView() {
     if (abortRef.current) abortRef.current();
     setLines([]);
     setConnected(false);
+    exitedRef.current = false;
   }, [activeInstance]);
 
   // Auto-connect when the active instance is running (any of the running instances)
   useEffect(() => {
-    if (isActiveInstanceRunning && running && !connected && activeInstance) {
+    if (isActiveInstanceRunning && running && !connected && !exitedRef.current && activeInstance) {
       doConnect();
     }
   }, [isActiveInstanceRunning, running, connected, activeInstance, doConnect]);
@@ -145,6 +150,7 @@ export function ServerView() {
 
   const handleStart = () => {
     setLines([]);
+    exitedRef.current = false;
     startServer.mutate(activeInstance || undefined, {
       onSuccess: () => {
         if (activeInstance) {
