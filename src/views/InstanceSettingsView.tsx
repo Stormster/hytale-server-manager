@@ -24,9 +24,10 @@ export function InstanceSettingsView() {
   const activeInstance = settings?.active_instance || "";
   const instance = instances?.find((i) => i.name === activeInstance);
   const rootDir = settings?.root_dir || "";
+  const pathSep = rootDir.includes("\\") ? "\\" : "/";
   const instancePath =
     rootDir && activeInstance
-      ? `${rootDir.replace(/[/\\]+$/, "")}\\${activeInstance}`
+      ? [rootDir.replace(/[/\\]+$/, ""), activeInstance].join(pathSep)
       : "";
 
   const handleOpenFolder = async () => {

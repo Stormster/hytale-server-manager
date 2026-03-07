@@ -2,6 +2,7 @@
 Instance management API routes – list, create, import, delete, set active.
 """
 
+import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -92,8 +93,10 @@ def set_active_instance(body: SetActiveRequest):
     if not root:
         raise HTTPException(status_code=400, detail="Root directory not configured")
 
-    import os
-    inst_dir = os.path.join(root, body.name)
+    try:
+        inst_dir = inst_svc._resolve_instance_path(root, body.name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if not os.path.isdir(inst_dir):
         raise HTTPException(status_code=404, detail=f"Instance '{body.name}' not found")
 

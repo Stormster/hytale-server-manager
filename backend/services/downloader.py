@@ -40,9 +40,24 @@ def _program_dir() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _downloader_app_data_dir() -> str:
+    """Writable app-data dir for the downloader (used on Linux when program dir is read-only)."""
+    if sys.platform == "linux":
+        base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    else:
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+    return os.path.join(base, "HytaleServerManager", "downloader")
+
+
 def downloader_path() -> str:
-    """Path to the downloader binary. Prefer program dir (bundled/fetched), else root_dir (legacy)."""
+    """Path to the downloader binary. Order: program dir (existing installs), then app-data (Linux writable), then root_dir (legacy)."""
     exe_name = get_downloader_exe()
+    # Windows: program dir then root (backward compatible)
+    # Linux: app-data then program dir then root (app-data is writable when program dir is not)
+    if sys.platform == "linux":
+        app_data = os.path.join(_downloader_app_data_dir(), exe_name)
+        if os.path.isfile(app_data):
+            return app_data
     prog = os.path.join(_program_dir(), exe_name)
     if os.path.isfile(prog):
         return prog
@@ -134,7 +149,11 @@ def fetch_downloader(
                         on_done(False, "Could not find downloader binary in zip.")
                     return
 
-                dest_dir = _program_dir()
+                # On Linux use app-data (writable); on Windows use program dir (backward compatible)
+                if sys.platform == "linux":
+                    dest_dir = _downloader_app_data_dir()
+                else:
+                    dest_dir = _program_dir()
                 os.makedirs(dest_dir, exist_ok=True)
                 dest_path = os.path.join(dest_dir, target_name)
                 with zf.open(exe_name) as src, open(dest_path, "wb") as dst:

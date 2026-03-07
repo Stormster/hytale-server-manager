@@ -27,9 +27,10 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
   } | null>(null);
   const importInstance = useImportInstance();
   const { data: settings } = useSettings();
+  const pathSep = settings?.root_dir?.includes("\\") ? "\\" : "/";
   const destPath =
     settings?.root_dir && name.trim()
-      ? `${settings.root_dir.replace(/[/\\]+$/, "")}\\${name.trim()}`
+      ? [settings.root_dir.replace(/[/\\]+$/, ""), name.trim()].join(pathSep)
       : "";
   const isSuccess = !!successResult;
 
@@ -60,8 +61,9 @@ export function ImportServerDialog({ open, onOpenChange }: Props) {
         onSuccess: (data: unknown) => {
           const d = data as { name?: string; copied?: boolean };
           if (d?.name && settings?.root_dir) {
+            const sep = settings.root_dir.includes("\\") ? "\\" : "/";
             setSuccessResult({
-              path: `${settings.root_dir.replace(/[/\\]+$/, "")}\\${d.name}`,
+              path: [settings.root_dir.replace(/[/\\]+$/, ""), d.name].join(sep),
               copied: d.copied !== false,
             });
           }

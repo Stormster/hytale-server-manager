@@ -50,9 +50,10 @@ export function SettingsView() {
   const activeInstance = settings?.active_instance || "";
   const instance = instances?.find((i) => i.name === activeInstance);
   const rootDirPath = settings?.root_dir || "";
+  const pathSep = rootDirPath.includes("\\") ? "\\" : "/";
   const instancePath =
     rootDirPath && activeInstance
-      ? `${rootDirPath.replace(/[/\\]+$/, "")}\\${activeInstance}`
+      ? [rootDirPath.replace(/[/\\]+$/, ""), activeInstance].join(pathSep)
       : "";
 
   const currentRoot = settings?.root_dir || "";

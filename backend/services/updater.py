@@ -5,6 +5,7 @@ Version checking, downloading updates, and extracting them into the Server folde
 import os
 import re
 import shutil
+import sys
 import threading
 import time
 import zipfile
@@ -278,8 +279,8 @@ def _extract_server_zip_to_instance(zip_path: str, instance_dir: str) -> None:
         shutil.rmtree(temp_dir)
     os.makedirs(temp_dir)
 
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        zf.extractall(temp_dir)
+    from utils.safe_zip import safe_extractall
+    safe_extractall(zip_path, temp_dir)
 
     extracted_server = os.path.join(temp_dir, "Server")
     if not os.path.isdir(extracted_server):
@@ -301,8 +302,11 @@ def _extract_server_zip_to_instance(zip_path: str, instance_dir: str) -> None:
 
     for name in ("Assets.zip", "start.bat", "start.sh"):
         src = os.path.join(temp_dir, name)
+        dst = os.path.join(instance_dir, name)
         if os.path.isfile(src):
-            shutil.copy2(src, os.path.join(instance_dir, name))
+            shutil.copy2(src, dst)
+            if name == "start.sh" and sys.platform != "win32":
+                os.chmod(dst, 0o755)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
 
