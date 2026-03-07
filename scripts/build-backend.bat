@@ -8,8 +8,15 @@ taskkill /F /IM server-manager-backend.exe 2>nul
 
 echo ==^> Building backend with PyInstaller...
 cd backend
-python -m PyInstaller build.spec --noconfirm
+py -3 -m PyInstaller build.spec --noconfirm
+set PYINSTALLER_EXIT=%ERRORLEVEL%
 cd ..
+
+if not %PYINSTALLER_EXIT%==0 (
+    echo ERROR: PyInstaller exited with code %PYINSTALLER_EXIT%.
+    echo Install deps for launcher Python if needed: py -3 -m pip install -r backend\requirements.txt
+    exit /b 1
+)
 
 if not exist "backend\dist\server-manager-backend.exe" (
     echo ERROR: Build failed - backend\dist\server-manager-backend.exe not found.
