@@ -131,10 +131,10 @@ export function ConfigView() {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-6 py-8">
-      <div className="mb-4 flex items-start justify-between gap-4">
+    <div className="flex h-full flex-col min-h-0">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col mx-auto max-w-4xl w-full px-6 py-8">
+      <div className="mb-4 flex shrink-0 items-start justify-between gap-4">
         <h2 className="text-xl font-bold">Configuration</h2>
         {serverPath && (
           <Tooltip>
@@ -154,7 +154,7 @@ export function ConfigView() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+      <div className="flex shrink-0 items-center justify-between mb-4 gap-4 flex-wrap">
         <Tabs
           value={activeFile || "none"}
           onValueChange={(v) => v !== "none" && setActiveFile(v)}
@@ -187,15 +187,15 @@ export function ConfigView() {
       </div>
 
       {/* Editor */}
-      <Card>
-        <CardContent className="flex flex-col pt-4 pb-4 gap-3">
+      <Card className="flex-1 min-h-0 flex flex-col">
+        <CardContent className="flex-1 min-h-0 flex flex-col pt-4 pb-4 gap-3">
           {!activeFile && statusMsg && (
             <p className="text-xs text-muted-foreground shrink-0">{statusMsg}</p>
           )}
 
           {isWorldsView ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col flex-1 min-h-0 gap-4">
+              <div className="flex flex-wrap gap-2 shrink-0">
                 <Tabs value={activeWorld || "none"} onValueChange={(v) => v !== "none" && setActiveWorld(v)}>
                   <TabsList className="h-9">
                     {worlds.map((w) => (
@@ -207,19 +207,19 @@ export function ConfigView() {
                 </Tabs>
               </div>
               {worlds.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground shrink-0">
                   No worlds found. Worlds are created in Server/universe/worlds/
                 </p>
               ) : activeWorld ? (
                 rawMode ? (
-                  <>
+                  <div className="flex flex-col flex-1 min-h-0 gap-3">
                     <Textarea
                       value={editorContent}
                       onChange={(e) => setEditorContent(e.target.value)}
-                      className="min-h-48 font-mono text-sm resize-y"
+                      className="flex-1 min-h-0 font-mono text-sm resize-none"
                       spellCheck={false}
                     />
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between shrink-0">
                       <span className="text-xs text-muted-foreground">{statusMsg}</span>
                       <Button
                         size="sm"
@@ -229,7 +229,7 @@ export function ConfigView() {
                         {saveWorldConfig.isPending ? "Saving..." : "Save"}
                       </Button>
                     </div>
-                  </>
+                  </div>
                 ) : (
                   <WorldConfigEditor
                     content={editorContent}
@@ -243,7 +243,7 @@ export function ConfigView() {
               ) : null}
             </div>
           ) : showFormEditor ? (
-            <div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {activeFile === "config.json" && (
                 <ConfigEditor
                   content={editorContent}
@@ -273,11 +273,11 @@ export function ConfigView() {
               )}
             </div>
           ) : (
-            <>
+            <div className="flex flex-col flex-1 min-h-0 gap-3">
               <Textarea
                 value={editorContent}
                 onChange={(e) => setEditorContent(e.target.value)}
-                className="min-h-48 font-mono text-sm resize-y"
+                className="flex-1 min-h-0 font-mono text-sm resize-none"
                 spellCheck={false}
               />
               <div className="flex items-center justify-between shrink-0">
@@ -292,7 +292,7 @@ export function ConfigView() {
                   </Button>
                 )}
               </div>
-            </>
+            </div>
           )}
         </CardContent>
       </Card>
