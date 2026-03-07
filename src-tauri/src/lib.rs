@@ -4,11 +4,17 @@ use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 use tokio::sync::Mutex;
 
-/// Shared state holding the backend port and auth token once the sidecar reports ready.
+/// Shared state holding the backend port and auth token once the backend reports ready.
+/// Port uses std::sync::Mutex so both the async runtime and dev-mode thread can set/read it.
 struct BackendState {
-    port: Mutex<Option<u16>>,
+    port: Arc<std::sync::Mutex<Option<u16>>>,
     /// Token required for API requests; only set when backend is started by Tauri.
     auth_token: Mutex<Option<String>>,
+}
+
+/// In dev (debug build): holds the Python process so we can kill it on exit.
+struct DevBackendChild {
+    child: std::sync::Mutex<Option<std::process::Child>>,
 }
 
 /// Inner state so we can replace the child when restarting the backend.
@@ -61,7 +67,7 @@ impl Drop for BackendChild {
     }
 }
 
-/// Kill the backend sidecar if it's still running. Safe to call multiple times.
+/// Kill the backend (sidecar or dev Python process) if it's still running. Safe to call multiple times.
 fn kill_backend_child<R: tauri::Runtime>(app: &impl tauri::Manager<R>) {
     if let Some(backend) = app.try_state::<BackendChild>() {
         if let Ok(mut guard) = backend.inner.lock() {
@@ -71,6 +77,13 @@ fn kill_backend_child<R: tauri::Runtime>(app: &impl tauri::Manager<R>) {
             #[cfg(windows)]
             {
                 guard.job = None;
+            }
+        }
+    }
+    if let Some(dev) = app.try_state::<DevBackendChild>() {
+        if let Ok(mut guard) = dev.child.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
             }
         }
     }
@@ -152,8 +165,11 @@ mod job {
 /// Tauri command: return the backend port (or 0 if not ready yet).
 #[tauri::command]
 async fn get_backend_port(state: tauri::State<'_, Arc<BackendState>>) -> Result<u16, String> {
-    let lock = state.port.lock().await;
-    lock.ok_or_else(|| "Backend not ready yet".into())
+    state
+        .port
+        .lock()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Backend not ready yet".into())
 }
 
 /// Tauri command: return the backend auth token (for API requests). Empty when not running under Tauri or auth disabled.
@@ -176,13 +192,84 @@ pub fn run() {
                 rand::thread_rng().fill(&mut bytes);
                 bytes.iter().map(|b| format!("{:02x}", b)).collect()
             };
+            let port = Arc::new(std::sync::Mutex::new(None));
             let state = Arc::new(BackendState {
-                port: Mutex::new(None),
+                port: port.clone(),
                 auth_token: Mutex::new(Some(auth_token.clone())),
             });
             app.manage(state.clone());
 
-            // Spawn the Python sidecar backend (restarted automatically if it exits)
+            if cfg!(debug_assertions) {
+                // Dev mode: run backend from Python source so we see output and avoid frozen-exe issues
+                // Exe is at repo/src-tauri/target/debug/app.exe -> go up to repo and join backend
+                let backend_dir = match std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.parent().map(|q| q.to_path_buf()))
+                    .and_then(|p| p.parent().map(|q| q.to_path_buf()))
+                    .and_then(|p| p.parent().map(|q| q.to_path_buf()))
+                    .and_then(|p| p.parent().map(|q| q.to_path_buf()))
+                    .map(|p| p.join("backend"))
+                {
+                    Some(d) if d.is_dir() => d,
+                    _ => {
+                        eprintln!("[Tauri] Dev backend: could not find backend dir next to exe");
+                        return Ok(());
+                    }
+                };
+                let dev_child = Arc::new(DevBackendChild {
+                    child: std::sync::Mutex::new(None),
+                });
+                app.manage(dev_child.clone());
+                let auth = auth_token.clone();
+                std::thread::spawn(move || {
+                    use std::io::{BufRead, BufReader};
+                    use std::process::{Command, Stdio};
+                    loop {
+                        *port.lock().unwrap() = None;
+                        let mut cmd = Command::new(if cfg!(windows) { "py" } else { "python3" });
+                        cmd.current_dir(&backend_dir)
+                            .env("HYTALE_BACKEND_TOKEN", &auth)
+                            .stdout(Stdio::piped())
+                            .stderr(Stdio::inherit());
+                        if cfg!(windows) {
+                            cmd.args(["-3", "main.py"]);
+                        } else {
+                            cmd.arg("main.py");
+                        }
+                        let mut child = match cmd.spawn() {
+                            Ok(c) => c,
+                            Err(e) => {
+                                eprintln!("[Tauri] Dev backend spawn failed: {e}");
+                                std::thread::sleep(std::time::Duration::from_secs(2));
+                                continue;
+                            }
+                        };
+                        let stdout = child.stdout.take();
+                        *dev_child.child.lock().unwrap() = Some(child);
+                        if let Some(stdout) = stdout {
+                            let reader = BufReader::new(stdout);
+                            for line in reader.lines().filter_map(Result::ok) {
+                                if let Some(port_str) = line.trim().strip_prefix("BACKEND_READY:") {
+                                    if let Ok(port_num) = port_str.parse::<u16>() {
+                                        *port.lock().unwrap() = Some(port_num);
+                                        println!("[Tauri] Backend ready on port {port_num}");
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        let child = dev_child.child.lock().unwrap().take();
+                        if let Some(mut c) = child {
+                            let _ = c.wait();
+                        }
+                        eprintln!("[Tauri] Backend process exited; restarting...");
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                    }
+                });
+                return Ok(());
+            }
+
+            // Release: spawn the bundled sidecar backend (restarted automatically if it exits)
             let shell = app.shell();
             let sidecar = match shell.sidecar("server-manager-backend") {
                 Ok(s) => s.env("HYTALE_BACKEND_TOKEN", &auth_token),
@@ -231,23 +318,35 @@ pub fn run() {
                 use tauri_plugin_shell::process::CommandEvent;
                 let mut rx = first_rx;
                 loop {
+                    let mut saw_terminated = false;
                     while let Some(event) = rx.recv().await {
-                        if let CommandEvent::Stdout(line_bytes) = event {
-                            let line = String::from_utf8_lossy(&line_bytes);
-                            if let Some(port_str) = line.trim().strip_prefix("BACKEND_READY:") {
-                                if let Ok(port) = port_str.parse::<u16>() {
-                                    let mut lock = state_clone.port.lock().await;
-                                    *lock = Some(port);
-                                    println!("[Tauri] Backend ready on port {port}");
+                        match event {
+                            CommandEvent::Stdout(line_bytes) => {
+                                let line = String::from_utf8_lossy(&line_bytes);
+                                if let Some(port_str) = line.trim().strip_prefix("BACKEND_READY:") {
+                                    if let Ok(port_num) = port_str.parse::<u16>() {
+                                        *state_clone.port.lock().unwrap() = Some(port_num);
+                                        println!("[Tauri] Backend ready on port {port_num}");
+                                    }
                                 }
                             }
+                            CommandEvent::Terminated(_) => {
+                                saw_terminated = true;
+                                break;
+                            }
+                            _ => {}
                         }
                     }
-                    // Backend process exited (crash or normal) – clear port and restart
-                    {
-                        let mut lock = state_clone.port.lock().await;
-                        *lock = None;
+                    if !saw_terminated {
+                        // Stream ended without explicit process termination. Keep current port/state.
+                        // This avoids false "backend exited" restarts that can cause frontend disconnects.
+                        eprintln!(
+                            "[Tauri] Backend event stream ended without termination event; not restarting."
+                        );
+                        break;
                     }
+                    // Backend process exited (crash or normal) – clear port and restart
+                    *state_clone.port.lock().unwrap() = None;
                     eprintln!("[Tauri] Backend process exited; restarting...");
                     let shell = app_handle.shell();
                     let token = state_clone.auth_token.lock().await.clone();
