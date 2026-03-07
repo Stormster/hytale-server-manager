@@ -43,11 +43,13 @@ function CommandRow({
       </button>
       <button
         type="button"
-        className="flex-1 min-w-0 px-2 py-1.5 text-left font-mono text-sm hover:bg-zinc-800"
+        className="flex-1 min-w-0 overflow-hidden px-2 py-1.5 text-left font-mono text-sm hover:bg-zinc-800 flex items-center"
         onClick={onInsert}
       >
-        {command.trim()}
-        {hint && <span className="text-zinc-500 ml-1">{hint}</span>}
+        <span className="truncate min-w-0">
+          {command.trim()}
+          {hint && <span className="text-zinc-500 ml-1">{hint}</span>}
+        </span>
       </button>
     </div>
   );
@@ -289,7 +291,7 @@ export function ServerConsole({
                 >
                   <div
                     className={cn(
-                      "w-56 max-h-72 overflow-y-auto border border-white/20 bg-zinc-900 shadow-lg py-1 transition-[border-radius]",
+                      "min-w-56 w-max max-w-[min(28rem,85vw)] max-h-72 overflow-y-auto overflow-x-hidden border border-white/20 bg-zinc-900 shadow-lg py-1 transition-[border-radius]",
                       hoveredWithSubs?.subCommands?.length ? "rounded-l-md border-r-0" : "rounded-md"
                     )}
                   >
@@ -325,7 +327,7 @@ export function ServerConsole({
                   {hoveredWithSubs?.subCommands && hoveredWithSubs.subCommands.length > 0 && (
                     <div
                       key={hoveredWithSubs.command}
-                      className="w-56 max-h-72 overflow-y-auto rounded-r-md border border-white/20 bg-zinc-900 shadow-lg py-1"
+                      className="min-w-56 w-max max-w-[min(28rem,85vw)] max-h-72 overflow-y-auto overflow-x-hidden rounded-r-md border border-white/20 bg-zinc-900 shadow-lg py-1"
                     >
                       <div className="px-2 py-1.5 text-xs text-zinc-500 uppercase tracking-wider">
                         Sub-commands
@@ -419,15 +421,15 @@ function MainCommandRow({
       </button>
       <button
         type="button"
-        className="flex-1 min-w-0 px-2 py-1.5 text-left font-mono text-sm hover:bg-zinc-800 flex items-center gap-1.5"
+        className="flex-1 min-w-0 overflow-hidden px-2 py-1.5 text-left font-mono text-sm hover:bg-zinc-800 flex items-center gap-1.5"
         onClick={() => onInsert(item.command, item.hint)}
       >
-        {item.command.trim()}
-        {item.hint && !item.subCommands && <span className="text-zinc-500 ml-1">{item.hint}</span>}
-        {item.subCommands?.length ? (
-          <span title="Hover for sub-commands">
-          <ChevronRight className="h-3 w-3 text-zinc-500 shrink-0 ml-auto" aria-label="Has sub-commands" />
+        <span className="truncate min-w-0">
+          {item.command.trim()}
+          {item.hint && !item.subCommands && <span className="text-zinc-500 ml-1">{item.hint}</span>}
         </span>
+        {item.subCommands?.length ? (
+          <ChevronRight className="h-3 w-3 text-zinc-500 shrink-0 ml-auto" aria-label="Has sub-commands" />
         ) : null}
       </button>
     </div>

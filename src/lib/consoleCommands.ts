@@ -84,6 +84,18 @@ export const CONSOLE_COMMANDS: ConsoleCommand[] = [
   },
   { command: "/unban ", hint: "(player)" },
   {
+    command: "/voice",
+    subCommands: [
+      { command: "/voice enabled ", hint: "(enabled)" },
+      { command: "/voice maxdistance ", hint: "(blocks)" },
+      { command: "/voice fullvolumedistance ", hint: "(blocks)" },
+      { command: "/voice mute ", hint: "(player)" },
+      { command: "/voice unmute ", hint: "(player)" },
+      { command: "/voice muted" },
+      { command: "/voice status" },
+    ],
+  },
+  {
     command: "/warp",
     subCommands: [
       { command: "/warp ", hint: "(warpName)" },
