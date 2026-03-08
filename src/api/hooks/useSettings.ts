@@ -15,6 +15,7 @@ export function useUpdateSettings() {
   return useMutation({
     mutationFn: (body: {
       root_dir?: string;
+      experimental_addon_license_key?: string;
       experimental_addon_feature_flags?: Record<string, boolean>;
       instance_name?: string;
       instance_server_settings?: Record<string, unknown>;
@@ -27,7 +28,10 @@ export function useUpdateSettings() {
       }),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["settings"] });
-      if (variables.experimental_addon_feature_flags !== undefined) {
+      if (
+        variables.experimental_addon_feature_flags !== undefined ||
+        variables.experimental_addon_license_key !== undefined
+      ) {
         qc.invalidateQueries({ queryKey: ["info"] });
       }
       if (variables.instance_name) {

@@ -26,7 +26,7 @@ experimental_addon_loaded = False
 experimental_addon_features: list[str] = []
 
 
-def _get_addons_dir() -> Path:
+def get_addons_dir() -> Path:
     """
     Addons directory. Uses %APPDATA%/HytaleServerManager/addons/ so the addon
     persists across app updates (user data, not install dir).
@@ -36,6 +36,10 @@ def _get_addons_dir() -> Path:
         app_data = Path(os.environ.get("APPDATA", os.path.expanduser("~"))) / "HytaleServerManager"
         return app_data / "addons"
     return Path(__file__).resolve().parent / "addons"
+
+
+def _get_addons_dir() -> Path:
+    return get_addons_dir()
 
 
 def _find_experimental_addon(addons_dir: Path) -> Path | None:
@@ -100,11 +104,15 @@ def load_experimental_addon(app: "FastAPI") -> bool:
         return False
 
     license_key = None
-    try:
-        from services import settings
-        license_key = settings.get_experimental_addon_license_key().strip() or None
-    except Exception:
-        pass
+    # When running with tauri:dev:addons (HSM_DEV_ADDON set), auto-enable addon without user license
+    if os.environ.get("HSM_DEV_ADDON"):
+        license_key = "dev"
+    else:
+        try:
+            from services import settings
+            license_key = settings.get_experimental_addon_license_key().strip() or None
+        except Exception:
+            pass
 
     addon = _load_addon_module(addon_path)
     if addon is None:

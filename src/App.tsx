@@ -9,6 +9,7 @@ import { ModsView } from "@/views/ModsView";
 import { ConfigView } from "@/views/ConfigView";
 import { PortForwardingView } from "@/views/PortForwardingView";
 import { SettingsView } from "@/views/SettingsView";
+import { ExperimentalView } from "@/views/ExperimentalView";
 import { OnboardingView } from "@/views/OnboardingView";
 import { AuthRequiredView } from "@/views/AuthRequiredView";
 import { AddServerDialog } from "@/components/AddServerDialog";
@@ -191,6 +192,7 @@ export default function App() {
           {activeView === "mods" && <ModsView />}
           {activeView === "config" && <ConfigView />}
           {activeView === "port-forwarding" && <PortForwardingView />}
+          {activeView === "experimental" && <ExperimentalView />}
           {activeView === "settings" && <SettingsView />}
           </div>
         </main>

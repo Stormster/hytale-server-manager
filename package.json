@@ -18,7 +18,6 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "node scripts/ensure-backend-dev.js && tauri dev",
-    "tauri:dev:addons": "node scripts/tauri-dev-addons.js",
     "tauri:dev:no-watch": "node scripts/ensure-backend-dev.js && tauri dev --no-watch"
   },
   "dependencies": {

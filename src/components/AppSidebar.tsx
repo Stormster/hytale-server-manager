@@ -7,6 +7,7 @@ import {
   FileText,
   Package,
   Shield,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InstanceSwitcher } from "@/components/InstanceSwitcher";
@@ -19,6 +20,7 @@ export type ViewName =
   | "mods"
   | "config"
   | "port-forwarding"
+  | "experimental"
   | "settings";
 
 interface NavItem {
@@ -38,6 +40,7 @@ const topNav: NavItem[] = [
 ];
 
 const bottomNav: NavItem[] = [
+  { name: "experimental", label: "Experimental", icon: Sparkles },
   { name: "settings", label: "Settings", icon: Settings },
 ];
 

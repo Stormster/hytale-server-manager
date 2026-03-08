@@ -34,9 +34,10 @@ src-tauri/server-manager-backend-*
 .cursor/
 *.code-workspace
 
-# ---- Experimental addon (private repo: hytale-server-manager-pro) ----
-# Never commit Experimental addon implementation or docs to public repo.
+# ---- Experimental addon (private repo) ----
+# Never commit addon dev launcher or implementation to public repo.
 docs/
+scripts/tauri-dev-addons.js
 backend/addons/README.md
 backend/addons/*.whl
 backend/addons/*.pyz
