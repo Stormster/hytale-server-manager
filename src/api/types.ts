@@ -12,6 +12,8 @@ export interface AppSettings {
   onboarding_completed?: boolean;
   instance_server_settings?: Record<string, InstanceServerSettings>;
   instance_ports?: Record<string, { game?: number; webserver?: number }>;
+  /** License key for Experimental addon (Patreon). */
+  experimental_addon_license_key?: string;
 }
 
 // ---- Instances ----
