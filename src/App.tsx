@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AppSidebar, type ViewName } from "@/components/AppSidebar";
+import { AuthExpiredBanner } from "@/components/AuthExpiredBanner";
 import { DownloaderMissingBanner } from "@/components/DownloaderMissingBanner";
 import { DashboardView } from "@/views/DashboardView";
 import { ServerView } from "@/views/ServerView";
@@ -177,6 +178,9 @@ export default function App() {
           onManageInstances={() => setManageInstancesOpen(true)}
         />
         <main className="relative z-0 flex flex-1 flex-col overflow-hidden">
+          <AuthExpiredBanner
+            onNavigateToSettings={() => handleNavigate("settings")}
+          />
           <DownloaderMissingBanner
             onNavigateToSettings={() => handleNavigate("settings")}
           />

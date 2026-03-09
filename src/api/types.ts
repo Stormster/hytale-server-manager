@@ -85,6 +85,8 @@ export interface UpdaterFullStatus {
   installed_patchline: string;
   remote_release: string | null;
   remote_prerelease: string | null;
+  remote_error?: string | null;
+  remote_error_kind?: string | null;
   update_available: boolean;
   can_switch_release: boolean;
   can_switch_prerelease: boolean;
@@ -133,6 +135,14 @@ export interface LatestLog {
 // ---- Auth ----
 export interface AuthStatus {
   has_credentials: boolean;
+}
+
+export interface AuthHealth {
+  has_credentials: boolean;
+  auth_valid: boolean;
+  auth_expired: boolean;
+  error_kind: string | null;
+  error: string | null;
 }
 
 // ---- Info ----

@@ -21,6 +21,7 @@ import { useServerStatus } from "@/api/hooks/useServer";
 import { useQueryClient } from "@tanstack/react-query";
 import { subscribeSSE } from "@/api/client";
 import { Download, Loader2, RefreshCw } from "lucide-react";
+import { parseAuthOutput } from "@/lib/authOutput";
 import { toast } from "sonner";
 
 export function UpdateView() {
@@ -44,6 +45,8 @@ export function UpdateView() {
   const activeStatus = activeInstance !== "None" ? allUpdateStatus?.instances?.[activeInstance] : undefined;
   const rr = allUpdateStatus?.remote_release ?? null;
   const rp = allUpdateStatus?.remote_prerelease ?? null;
+  const remoteError = allUpdateStatus?.remote_error ?? null;
+  const remoteErrorKind = allUpdateStatus?.remote_error_kind ?? null;
   const updateAvailable = activeStatus?.update_available ?? false;
   const hasStatus = !!allUpdateStatus;
 
@@ -70,6 +73,9 @@ export function UpdateView() {
   const [updateLeaveDontShow, setUpdateLeaveDontShow] = useState(false);
   const [updateCurrentChoiceOpen, setUpdateCurrentChoiceOpen] = useState(false);
   const [pendingUpdateCurrentPatchline, setPendingUpdateCurrentPatchline] = useState<string>("release");
+  const [reauthRunning, setReauthRunning] = useState(false);
+  const authLinesRef = useRef<string[]>([]);
+  const autoOpenedAuthRef = useRef(false);
   const [pendingUpdate, setPendingUpdate] = useState<{
     type: "current";
     patchline: string;
@@ -101,6 +107,56 @@ export function UpdateView() {
     setUpdateDone(null);
     refetchUpdates();
   };
+
+  const handleReauth = useCallback(() => {
+    if (reauthRunning) return;
+    setReauthRunning(true);
+    authLinesRef.current = [];
+    autoOpenedAuthRef.current = false;
+
+    subscribeSSE(
+      "/api/auth/refresh",
+      {
+        onEvent(event, data) {
+          const d = data as Record<string, unknown>;
+          if (event === "output") {
+            const line = String(d.line ?? "");
+            authLinesRef.current = [...authLinesRef.current, line];
+            if (!autoOpenedAuthRef.current) {
+              const { authUrl } = parseAuthOutput(authLinesRef.current);
+              if (authUrl) {
+                autoOpenedAuthRef.current = true;
+                import("@tauri-apps/plugin-opener")
+                  .then(({ openUrl }) => openUrl(authUrl))
+                  .catch(() =>
+                    import("@tauri-apps/plugin-shell").then(({ open }) =>
+                      open(authUrl)
+                    )
+                  )
+                  .catch(() => {});
+              }
+            }
+          } else if (event === "done") {
+            const code = Number(d.code ?? 1);
+            setReauthRunning(false);
+            queryClient.invalidateQueries({ queryKey: ["auth", "status"] });
+            queryClient.invalidateQueries({ queryKey: ["auth", "health"] });
+            queryClient.invalidateQueries({ queryKey: ["updater", "all-instances"] });
+            if (code === 0) {
+              toast.success("Auth refreshed successfully");
+            } else {
+              toast.error("Auth refresh failed. Please try again.");
+            }
+          }
+        },
+        onError() {
+          setReauthRunning(false);
+          toast.error("Connection error");
+        },
+      },
+      { method: "POST" }
+    );
+  }, [queryClient, reauthRunning]);
 
   const doUpdateActual = useCallback((patchline: string, graceful = false) => {
     setUpdating(true);
@@ -319,12 +375,43 @@ export function UpdateView() {
           <Separator className="my-3" />
           <InfoRow
             label="Latest release"
-            value={rr ?? (hasStatus ? "unavailable" : "--")}
+            value={
+              rr ??
+              (hasStatus
+                ? remoteErrorKind === "auth_expired"
+                  ? "auth expired"
+                  : "unavailable"
+                : "--")
+            }
           />
           <InfoRow
             label="Latest pre-release"
-            value={rp ?? (hasStatus ? "unavailable" : "--")}
+            value={
+              rp ??
+              (hasStatus
+                ? remoteErrorKind === "auth_expired"
+                  ? "auth expired"
+                  : "unavailable"
+                : "--")
+            }
           />
+          {remoteError && (
+            <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+              <p className="text-xs text-amber-700 dark:text-amber-200">{remoteError}</p>
+              {remoteErrorKind === "auth_expired" && (
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleReauth}
+                    disabled={reauthRunning}
+                  >
+                    {reauthRunning ? "Re-authenticating..." : "Re-auth now"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
