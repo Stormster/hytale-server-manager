@@ -179,6 +179,45 @@ def print_version(patchline: str = "release") -> tuple[int, str]:
     return run_capture(cmd, cwd=get_root_dir(), timeout=30)
 
 
+def classify_version_error(output: str) -> tuple[str, str]:
+    """
+    Classify downloader -print-version failure output.
+    Returns (error_kind, user_friendly_message).
+    """
+    raw = (output or "").strip()
+    low = raw.lower()
+
+    if "invalid_grant" in low or "refresh token is" in low:
+        return (
+            "auth_expired",
+            "Hytale auth expired. Click Re-auth to sign in again.",
+        )
+    if "no server tokens configured" in low:
+        return (
+            "auth_missing",
+            "No Hytale credentials found. Click Re-auth to sign in.",
+        )
+    if "command timed out" in low or "timed out" in low:
+        return (
+            "timeout",
+            "Version check timed out. Check your internet connection and try again.",
+        )
+    if "command not found" in low or "no such file" in low:
+        return (
+            "downloader_missing",
+            "Hytale downloader not found. Install it in Settings.",
+        )
+    if "permission denied" in low:
+        return (
+            "permission",
+            "Downloader cannot run due to file permissions. Reinstall downloader in Settings.",
+        )
+    if "[error]" in low:
+        # Keep original downloader message visible for troubleshooting.
+        return ("upstream_error", raw.replace("[ERROR]", "").strip() or raw)
+    return ("unknown", raw or "Could not fetch remote server version.")
+
+
 def download_server(
     dest_zip: str,
     patchline: str = "release",

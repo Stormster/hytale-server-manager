@@ -20,28 +20,34 @@ function CommandRow({
   isFavorite,
   onInsert,
   onToggleFavorite,
+  showFavorite = true,
 }: {
   command: string;
   hint?: string;
   isFavorite: boolean;
   onInsert: () => void;
   onToggleFavorite: () => void;
+  showFavorite?: boolean;
 }) {
   return (
     <div className="flex items-center gap-1">
-      <button
-        type="button"
-        className="shrink-0 p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-amber-400 transition-colors"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFavorite();
-        }}
-        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
-      >
-        <Star
-          className={cn("h-3.5 w-3.5", isFavorite && "fill-amber-500 text-amber-500")}
-        />
-      </button>
+      {showFavorite ? (
+        <button
+          type="button"
+          className="shrink-0 p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-amber-400 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
+          title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+        >
+          <Star
+            className={cn("h-3.5 w-3.5", isFavorite && "fill-amber-500 text-amber-500")}
+          />
+        </button>
+      ) : (
+        <span className="shrink-0 w-6" aria-hidden />
+      )}
       <button
         type="button"
         className="flex-1 min-w-0 overflow-hidden px-2 py-1.5 text-left font-mono text-sm hover:bg-zinc-800 flex items-center"
@@ -183,19 +189,23 @@ export function ServerConsole({
     userScrolledUpRef.current = !checkAtBottom();
   }, [checkAtBottom]);
 
-  const insertCommand = useCallback((cmd: string, hint?: string) => {
-    setCommand(cmd);
-    setHelperText(hint ?? null);
-    setCommandsOpen(false);
-    setHoveredWithSubs(null);
-    requestAnimationFrame(() => {
-      const input = inputRef.current;
-      if (input) {
-        input.focus();
-        input.setSelectionRange(cmd.length, cmd.length);
-      }
-    });
-  }, []);
+  const insertCommand = useCallback(
+    (cmd: string, hint?: string) => {
+      if (!running) return;
+      setCommand(cmd);
+      setHelperText(hint ?? null);
+      setCommandsOpen(false);
+      setHoveredWithSubs(null);
+      requestAnimationFrame(() => {
+        const input = inputRef.current;
+        if (input) {
+          input.focus();
+          input.setSelectionRange(cmd.length, cmd.length);
+        }
+      });
+    },
+    [running]
+  );
 
   const handleCommandChange = useCallback((value: string) => {
     setCommand(value);
@@ -264,18 +274,16 @@ export function ServerConsole({
       restList.push(item);
     }
   }
-  const isCustomFavorited = (cmd: ConsoleCommand) =>
-    isFavorite(cmd.command) || (cmd.subCommands?.some((sub) => isFavorite(sub.command)) ?? false);
-  const customFavoritesTree = customCommands.filter(isCustomFavorited);
-  const customRestTree = customCommands
-    .filter((cmd) => !isCustomFavorited(cmd))
-    .sort((a, b) => a.command.localeCompare(b.command));
-
   type FavoriteEntry = { type: "builtin"; item: ConsoleCommand } | { type: "custom"; item: ConsoleCommand };
   const displayKey = (item: ConsoleCommand): string =>
     item.subCommands?.length
       ? item.command + (item.command.endsWith(" ") ? "" : " ")
       : item.command;
+  const isCustomFavorited = (cmd: ConsoleCommand) => isFavorite(displayKey(cmd));
+  const customFavoritesTree = customCommands.filter(isCustomFavorited);
+  const customRestTree = customCommands
+    .filter((cmd) => !isCustomFavorited(cmd))
+    .sort((a, b) => a.command.localeCompare(b.command));
   const allFavoritesSorted: FavoriteEntry[] = [
     ...favoritesList.map((item): FavoriteEntry => ({ type: "builtin", item })),
     ...customFavoritesTree.map((item): FavoriteEntry => ({ type: "custom", item })),
@@ -314,7 +322,7 @@ export function ServerConsole({
                 "rounded-md border border-white/20 bg-zinc-900 px-3 py-2 font-mono text-sm flex items-center gap-1.5 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
                 commandsOpen && "bg-zinc-800"
               )}
-              disabled={sending || !running}
+              disabled={sending}
               title="View commands"
               >
                 <List className="h-3.5 w-3.5" />
@@ -383,7 +391,7 @@ export function ServerConsole({
                         <MainCommandRow
                           key={item.command}
                           item={item}
-                          isFavorite={false}
+                          isFavorite={favoritesSet.has(displayKey(item))}
                           onInsert={insertCommand}
                           onToggleFavorite={toggleFavorite}
                           onHover={setHoveredWithSubs}
@@ -427,9 +435,10 @@ export function ServerConsole({
                           key={sub.command}
                           command={sub.command}
                           hint={sub.hint}
-                          isFavorite={isFavorite(sub.command)}
+                          isFavorite={false}
                           onInsert={() => insertCommand(sub.command, sub.hint)}
-                          onToggleFavorite={() => toggleFavorite(sub.command)}
+                          onToggleFavorite={() => {}}
+                          showFavorite={false}
                         />
                       ))}
                     </div>

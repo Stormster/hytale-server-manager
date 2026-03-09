@@ -18,6 +18,8 @@ export interface AllInstancesUpdateStatus {
   instances: Record<string, InstanceUpdateInfo>;
   remote_release: string | null;
   remote_prerelease: string | null;
+  remote_error?: string | null;
+  remote_error_kind?: string | null;
 }
 
 export function useAllInstancesUpdateStatus() {

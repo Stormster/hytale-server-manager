@@ -63,10 +63,21 @@ def _save_version(version: str, patchline: str) -> None:
 
 def check_remote_versions() -> dict:
     result = {}
+    remote_error = None
+    remote_error_kind = None
     for pl in ("release", "pre-release"):
         rc, out = dl.print_version(pl)
-        result[pl] = out.strip() if rc == 0 and out and not out.startswith("[ERROR]") else None
-    return result
+        ok = rc == 0 and out and not out.startswith("[ERROR]")
+        result[pl] = out.strip() if ok else None
+        if not ok and remote_error is None:
+            kind, msg = dl.classify_version_error(out or "")
+            remote_error_kind = kind
+            remote_error = msg
+    return {
+        "versions": result,
+        "remote_error": remote_error,
+        "remote_error_kind": remote_error_kind,
+    }
 
 
 def version_greater(a: str, b: str) -> bool:
@@ -89,7 +100,8 @@ def version_less(a: str, b: str) -> bool:
 def get_update_status() -> dict:
     iv = read_installed_version()
     ip = read_installed_patchline()
-    remote = check_remote_versions()
+    remote_info = check_remote_versions()
+    remote = remote_info.get("versions", {})
     rr = remote.get("release")
     rp = remote.get("pre-release")
 
@@ -108,6 +120,8 @@ def get_update_status() -> dict:
         "installed_patchline": ip,
         "remote_release": rr,
         "remote_prerelease": rp,
+        "remote_error": remote_info.get("remote_error"),
+        "remote_error_kind": remote_info.get("remote_error_kind"),
         "update_available": update_available,
         "can_switch_release": can_switch_release,
         "can_switch_prerelease": can_switch_prerelease,
@@ -120,7 +134,8 @@ def get_all_instances_update_status() -> dict:
     """Check update availability for all installed instances. Fetches remote versions once."""
     from services import instances as inst_svc
 
-    remote = check_remote_versions()
+    remote_info = check_remote_versions()
+    remote = remote_info.get("versions", {})
     rr = remote.get("release")
     rp = remote.get("pre-release")
 
@@ -152,6 +167,8 @@ def get_all_instances_update_status() -> dict:
         "instances": result,
         "remote_release": rr,
         "remote_prerelease": rp,
+        "remote_error": remote_info.get("remote_error"),
+        "remote_error_kind": remote_info.get("remote_error_kind"),
     }
 
 

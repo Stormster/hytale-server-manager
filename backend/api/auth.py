@@ -17,6 +17,12 @@ def auth_status():
     return {"has_credentials": auth_svc.has_credentials()}
 
 
+@router.get("/health")
+def auth_health():
+    """Return auth validity details (including expired-token detection)."""
+    return auth_svc.get_auth_health()
+
+
 @router.post("/refresh")
 async def refresh_auth():
     """Delete credentials and re-authenticate. Returns SSE stream of output."""
