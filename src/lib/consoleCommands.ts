@@ -161,3 +161,9 @@ export function getAllCommandsFlat(customCommands: ConsoleCommand[] = []): FlatC
 export function getAllCommandsSorted(customCommands: ConsoleCommand[] = []): FlatCommand[] {
   return [...getAllCommandsFlat(customCommands)].sort((a, b) => a.command.localeCompare(b.command));
 }
+
+/** Custom commands only, flattened and sorted A–Z (for the CUSTOM COMMANDS list). */
+export function getCustomCommandsFlatSorted(customCommands: ConsoleCommand[] = []): FlatCommand[] {
+  const custom = Array.isArray(customCommands) ? customCommands : [];
+  return [...flattenCommands(custom)].sort((a, b) => a.command.localeCompare(b.command));
+}

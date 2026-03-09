@@ -25,6 +25,7 @@ export default function App() {
   const { data: settings, isLoading, isError, refetch } = useSettings();
   const { data: authStatus, isLoading: authLoading, isError: authError, refetch: refetchAuth } = useAuthStatus();
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
+  const [experimentalScrollTo, setExperimentalScrollTo] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [manageInstancesOpen, setManageInstancesOpen] = useState(false);
@@ -156,8 +157,9 @@ export default function App() {
     return <AuthRequiredView />;
   }
 
-  const handleNavigate = (view: ViewName) => {
+  const handleNavigate = (view: ViewName, scrollTo?: string) => {
     setActiveView(view);
+    if (view === "experimental" && scrollTo) setExperimentalScrollTo(scrollTo);
   };
 
   return (
@@ -186,13 +188,22 @@ export default function App() {
               onImportServer={() => setImportOpen(true)}
             />
           )}
-          {activeView === "server" && <ServerView />}
+          {activeView === "server" && (
+            <ServerView
+              onNavigateToCustomCommands={() => handleNavigate("experimental", "custom-commands")}
+            />
+          )}
           {activeView === "updates" && <UpdateView />}
           {activeView === "backups" && <BackupView onNavigate={handleNavigate} />}
           {activeView === "mods" && <ModsView />}
           {activeView === "config" && <ConfigView />}
           {activeView === "port-forwarding" && <PortForwardingView />}
-          {activeView === "experimental" && <ExperimentalView />}
+          {activeView === "experimental" && (
+            <ExperimentalView
+              scrollToSection={experimentalScrollTo}
+              onScrollDone={() => setExperimentalScrollTo(null)}
+            />
+          )}
           {activeView === "settings" && <SettingsView />}
           </div>
         </main>

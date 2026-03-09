@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
-import { List, ChevronDown, ChevronRight, Star } from "lucide-react";
+import { List, ChevronDown, ChevronRight, Star, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
 import { parseAnsi } from "@/lib/ansiParser";
@@ -119,12 +119,15 @@ interface ServerConsoleProps {
   lines: string[];
   running: boolean;
   className?: string;
+  /** Navigate to Experimental page and scroll to Custom Console Commands (e.g. "Add New +"). */
+  onNavigateToCustomCommands?: () => void;
 }
 
 export function ServerConsole({
   lines,
   running,
   className,
+  onNavigateToCustomCommands,
 }: ServerConsoleProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -141,6 +144,7 @@ export function ServerConsole({
   const programmaticScrollRef = useRef(false);
   const [customCommands, setCustomCommands] = useState<ConsoleCommand[]>([]);
 
+  const builtInCommands = getMainCommandsList([]);
   const mainCommands = getMainCommandsList(customCommands);
   const allFlat = getAllCommandsFlat(customCommands);
 
@@ -250,7 +254,7 @@ export function ServerConsole({
   const favoritesSet = new Set(allFlat.filter((c) => isFavorite(c.command)).map((c) => c.command));
   const favoritesList: ConsoleCommand[] = [];
   const restList: ConsoleCommand[] = [];
-  for (const item of mainCommands) {
+  for (const item of builtInCommands) {
     const baseCmd = item.subCommands?.length
       ? item.command + (item.command.endsWith(" ") ? "" : " ")
       : item.command;
@@ -260,6 +264,22 @@ export function ServerConsole({
       restList.push(item);
     }
   }
+  const isCustomFavorited = (cmd: ConsoleCommand) =>
+    isFavorite(cmd.command) || (cmd.subCommands?.some((sub) => isFavorite(sub.command)) ?? false);
+  const customFavoritesTree = customCommands.filter(isCustomFavorited);
+  const customRestTree = customCommands
+    .filter((cmd) => !isCustomFavorited(cmd))
+    .sort((a, b) => a.command.localeCompare(b.command));
+
+  type FavoriteEntry = { type: "builtin"; item: ConsoleCommand } | { type: "custom"; item: ConsoleCommand };
+  const displayKey = (item: ConsoleCommand): string =>
+    item.subCommands?.length
+      ? item.command + (item.command.endsWith(" ") ? "" : " ")
+      : item.command;
+  const allFavoritesSorted: FavoriteEntry[] = [
+    ...favoritesList.map((item): FavoriteEntry => ({ type: "builtin", item })),
+    ...customFavoritesTree.map((item): FavoriteEntry => ({ type: "custom", item })),
+  ].sort((a, b) => displayKey(a.item).localeCompare(displayKey(b.item)));
 
   return (
     <div className={cn("flex flex-col rounded-lg border bg-zinc-950", className)}>
@@ -318,18 +338,29 @@ export function ServerConsole({
                     <div className="px-2 py-1.5 text-xs text-zinc-500 uppercase tracking-wider">
                       Click to insert
                     </div>
-                    {favoritesList.length > 0 && (
+                    {allFavoritesSorted.length > 0 && (
                       <>
-                        {favoritesList.map((item) => (
-                          <MainCommandRow
-                            key={item.command}
-                            item={item}
-                            isFavorite={favoritesSet.has(item.subCommands?.length ? item.command + (item.command.endsWith(" ") ? "" : " ") : item.command)}
-                            onInsert={insertCommand}
-                            onToggleFavorite={toggleFavorite}
-                            onHover={setHoveredWithSubs}
-                          />
-                        ))}
+                        {allFavoritesSorted.map((entry) =>
+                          entry.item.subCommands?.length ? (
+                            <MainCommandRow
+                              key={`${entry.type}-${entry.item.command}`}
+                              item={entry.item}
+                              isFavorite={favoritesSet.has(displayKey(entry.item))}
+                              onInsert={insertCommand}
+                              onToggleFavorite={toggleFavorite}
+                              onHover={setHoveredWithSubs}
+                            />
+                          ) : (
+                            <CommandRow
+                              key={`${entry.type}-${entry.item.command}`}
+                              command={entry.item.command}
+                              hint={entry.item.hint}
+                              isFavorite={isFavorite(entry.item.command)}
+                              onInsert={() => insertCommand(entry.item.command, entry.item.hint)}
+                              onToggleFavorite={() => toggleFavorite(entry.item.command)}
+                            />
+                          )
+                        )}
                         <div className="my-1 border-t border-white/10" aria-hidden />
                       </>
                     )}
@@ -343,6 +374,45 @@ export function ServerConsole({
                         onHover={setHoveredWithSubs}
                       />
                     ))}
+                    <div className="my-1 border-t border-white/10" aria-hidden />
+                    <div className="px-2 py-1.5 text-xs text-zinc-500 uppercase tracking-wider">
+                      CUSTOM COMMANDS
+                    </div>
+                    {customRestTree.map((item) =>
+                      item.subCommands?.length ? (
+                        <MainCommandRow
+                          key={item.command}
+                          item={item}
+                          isFavorite={false}
+                          onInsert={insertCommand}
+                          onToggleFavorite={toggleFavorite}
+                          onHover={setHoveredWithSubs}
+                        />
+                      ) : (
+                        <CommandRow
+                          key={item.command}
+                          command={item.command}
+                          hint={item.hint}
+                          isFavorite={false}
+                          onInsert={() => insertCommand(item.command, item.hint)}
+                          onToggleFavorite={() => toggleFavorite(item.command)}
+                        />
+                      )
+                    )}
+                    {onNavigateToCustomCommands && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onNavigateToCustomCommands();
+                          setCommandsOpen(false);
+                        }}
+                        className="mx-2 mb-1 mt-0.5 flex w-[calc(100%-0.5rem)] items-center justify-center gap-1.5 rounded-md border border-dashed border-white/20 py-1.5 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+                        title="Add or edit custom commands (Experimental)"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add New
+                      </button>
+                    )}
                   </div>
                   {hoveredWithSubs?.subCommands && hoveredWithSubs.subCommands.length > 0 && (
                     <div
