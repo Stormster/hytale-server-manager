@@ -33,6 +33,7 @@ export function ConfigView() {
   const [editorContent, setEditorContent] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [rawMode, setRawMode] = useState(false);
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   const { data: settings } = useSettings();
   const { data: appInfo } = useAppInfo();
@@ -70,6 +71,11 @@ export function ConfigView() {
       return true;
     }
   }, [isRawJsonView, editorContent]);
+
+  // Clear JSON error when switching context
+  useEffect(() => {
+    setJsonError(null);
+  }, [activeFile, activeWorld]);
 
   // Sync editor when file data loads
   useEffect(() => {
@@ -235,6 +241,7 @@ export function ConfigView() {
                       <AddonJsonEditor
                         value={editorContent}
                         onChange={setEditorContent}
+                        onError={(msg) => setJsonError(msg ?? null)}
                         className="flex-1 min-h-0 rounded-md border border-input overflow-hidden"
                       />
                     ) : (
@@ -249,12 +256,14 @@ export function ConfigView() {
                     {!useJsonCheckerEditor && isJsonInvalid && (
                       <p className="text-sm text-destructive shrink-0">Invalid JSON</p>
                     )}
-                    <div className="flex items-center justify-between shrink-0">
-                      <span className="text-xs text-muted-foreground">{statusMsg}</span>
+                    <div className="flex items-center justify-between shrink-0 gap-2">
+                      <span className={jsonError ? "text-sm text-red-400 truncate min-w-0" : "text-xs text-muted-foreground"}>
+                        {useJsonCheckerEditor && jsonError ? jsonError : statusMsg}
+                      </span>
                       <Button
                         size="sm"
                         onClick={handleSave}
-                        disabled={saveWorldConfig.isPending || isJsonInvalid}
+                        disabled={saveWorldConfig.isPending || isJsonInvalid || !!jsonError}
                       >
                         {saveWorldConfig.isPending ? "Saving..." : "Save"}
                       </Button>
@@ -308,6 +317,7 @@ export function ConfigView() {
                 <AddonJsonEditor
                   value={editorContent}
                   onChange={setEditorContent}
+                  onError={(msg) => setJsonError(msg ?? null)}
                   className="flex-1 min-h-0 rounded-md border border-input overflow-hidden"
                 />
               ) : (
@@ -322,13 +332,15 @@ export function ConfigView() {
               {!useJsonCheckerEditor && isJsonInvalid && (
                 <p className="text-sm text-destructive shrink-0">Invalid JSON</p>
               )}
-              <div className="flex items-center justify-between shrink-0">
-                <span className="text-xs text-muted-foreground">{statusMsg}</span>
+              <div className="flex items-center justify-between shrink-0 gap-2">
+                <span className={jsonError ? "text-sm text-red-400 truncate min-w-0" : "text-xs text-muted-foreground"}>
+                  {useJsonCheckerEditor && jsonError ? jsonError : statusMsg}
+                </span>
                 {!isLogView && (
                   <Button
                     size="sm"
                     onClick={handleSave}
-                    disabled={!activeFile || saveConfig.isPending || isJsonInvalid}
+                    disabled={!activeFile || saveConfig.isPending || isJsonInvalid || !!jsonError}
                   >
                     {saveConfig.isPending ? "Saving..." : "Save"}
                   </Button>
