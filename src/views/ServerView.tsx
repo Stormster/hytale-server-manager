@@ -18,7 +18,11 @@ import { toast } from "sonner";
 const AUTH_NEEDED = /no server tokens configured/i;
 const AUTH_ALREADY_LOADED = /token refresh scheduled|session service client initialized/i;
 
-export function ServerView() {
+interface ServerViewProps {
+  onNavigateToCustomCommands?: () => void;
+}
+
+export function ServerView({ onNavigateToCustomCommands }: ServerViewProps = {}) {
   const { data: settings } = useSettings();
   const { data: status } = useServerStatus();
   const startServer = useStartServer();
@@ -265,6 +269,7 @@ export function ServerView() {
         lines={lines}
         running={viewingRunningInstance && running}
         className="flex-1 min-h-0"
+        onNavigateToCustomCommands={onNavigateToCustomCommands}
       />
 
       <ServerAuthModal

@@ -18,7 +18,14 @@ const FEATURE_LABELS: Record<string, string> = {
 
 const PATREON_URL = "https://www.patreon.com/";
 
-export function ExperimentalView() {
+export const CUSTOM_COMMANDS_SECTION_ID = "hsm-custom-commands-section";
+
+interface ExperimentalViewProps {
+  scrollToSection?: string | null;
+  onScrollDone?: () => void;
+}
+
+export function ExperimentalView({ scrollToSection, onScrollDone }: ExperimentalViewProps = {}) {
   const { data: appInfo } = useAppInfo();
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
@@ -35,6 +42,19 @@ export function ExperimentalView() {
       setLicenseKey(settings.experimental_addon_license_key);
     }
   }, [settings?.experimental_addon_license_key]);
+
+  useEffect(() => {
+    if (scrollToSection !== "custom-commands" || !onScrollDone) return;
+    const el = document.getElementById(CUSTOM_COMMANDS_SECTION_ID);
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        onScrollDone();
+      });
+    } else {
+      onScrollDone();
+    }
+  }, [scrollToSection, onScrollDone]);
 
   const handleInstallFile = useCallback(
     async (file: File) => {
@@ -243,12 +263,14 @@ export function ExperimentalView() {
       )}
 
       {/* Custom Console Commands management */}
-      {addonLoaded &&
-        hasFeatures &&
-        features.includes("custom_commands") &&
-        appInfo?.experimental_addon_feature_flags?.["custom_commands"] !== false && (
-          <AddonCustomCommandsManager />
-        )}
+      <div id={CUSTOM_COMMANDS_SECTION_ID}>
+        {addonLoaded &&
+          hasFeatures &&
+          features.includes("custom_commands") &&
+          appInfo?.experimental_addon_feature_flags?.["custom_commands"] !== false && (
+            <AddonCustomCommandsManager />
+          )}
+      </div>
     </div>
   );
 }
