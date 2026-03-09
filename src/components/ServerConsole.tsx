@@ -21,6 +21,7 @@ function CommandRow({
   onInsert,
   onToggleFavorite,
   showFavorite = true,
+  onHover,
 }: {
   command: string;
   hint?: string;
@@ -28,9 +29,14 @@ function CommandRow({
   onInsert: () => void;
   onToggleFavorite: () => void;
   showFavorite?: boolean;
+  /** When provided, called on mouse enter to clear sub-command panel (e.g. when this row is in the main list). */
+  onHover?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-1">
+    <div
+      className="flex items-center gap-1"
+      onMouseEnter={() => onHover?.()}
+    >
       {showFavorite ? (
         <button
           type="button"
@@ -366,6 +372,7 @@ export function ServerConsole({
                               isFavorite={isFavorite(entry.item.command)}
                               onInsert={() => insertCommand(entry.item.command, entry.item.hint)}
                               onToggleFavorite={() => toggleFavorite(entry.item.command)}
+                              onHover={() => setHoveredWithSubs(null)}
                             />
                           )
                         )}
@@ -404,6 +411,7 @@ export function ServerConsole({
                           isFavorite={false}
                           onInsert={() => insertCommand(item.command, item.hint)}
                           onToggleFavorite={() => toggleFavorite(item.command)}
+                          onHover={() => setHoveredWithSubs(null)}
                         />
                       )
                     )}
