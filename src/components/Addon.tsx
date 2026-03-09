@@ -59,7 +59,10 @@ async function ensureAddonFeature(
   const pending = (async () => {
     const resp = await fetchRaw(scriptPath);
     if (!resp.ok) throw new Error(`Failed to load addon script: ${resp.status}`);
-    await runScript(await resp.text());
+    const text = await resp.text();
+    if (text.trimStart().startsWith("<"))
+      throw new Error("Addon script URL returned HTML (wrong server or 404). Check backend is running and addon .whl includes frontend assets.");
+    await runScript(text);
   })();
 
   pending.catch(() => loadCache.delete(scriptPath));
