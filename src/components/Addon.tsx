@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchRaw } from "@/api/client";
+import { fetchRaw, getBaseUrl, getAuthHeaders } from "@/api/client";
 import type { ConsoleCommand } from "@/lib/consoleCommands";
 
 type JsonEditorHandle = {
@@ -118,6 +118,13 @@ export function AddonJsonEditor({
   return <div ref={containerRef} className={className} style={{ minHeight: 200 }} />;
 }
 
+/** Set globals so addon scripts can call the backend (they run in page origin, backend is another port). */
+async function ensureAddonApiGlobals(): Promise<void> {
+  if ((window as any).__HSM_API_BASE) return;
+  (window as any).__HSM_API_BASE = await getBaseUrl();
+  (window as any).__HSM_AUTH_HEADERS = await getAuthHeaders();
+}
+
 export function AddonCustomCommandsManager() {
   const containerRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<SettingsHandle | null>(null);
@@ -125,10 +132,13 @@ export function AddonCustomCommandsManager() {
 
   useEffect(() => {
     let cancelled = false;
-    ensureAddonFeature(
-      CUSTOM_COMMANDS_SCRIPT,
-      () => Boolean(getComponents()?.custom_commands)
-    )
+    ensureAddonApiGlobals()
+      .then(() =>
+        ensureAddonFeature(
+          CUSTOM_COMMANDS_SCRIPT,
+          () => Boolean(getComponents()?.custom_commands)
+        )
+      )
       .then(() => {
         if (!cancelled) setReady(true);
       })
@@ -154,6 +164,7 @@ export function AddonCustomCommandsManager() {
 
 export async function fetchAddonCustomCommands(): Promise<ConsoleCommand[]> {
   try {
+    await ensureAddonApiGlobals();
     await ensureAddonFeature(
       CUSTOM_COMMANDS_SCRIPT,
       () => Boolean(getComponents()?.custom_commands)
