@@ -15,7 +15,11 @@ type AddonComponents = {
   json_checker?: {
     create(
       container: HTMLElement,
-      options: { value: string; onChange: (v: string) => void }
+      options: {
+        value: string;
+        onChange: (v: string) => void;
+        onError?: (message: string | null, line?: number, column?: number) => void;
+      }
     ): JsonEditorHandle;
   };
   custom_commands?: {
@@ -73,16 +77,21 @@ async function ensureAddonFeature(
 export function AddonJsonEditor({
   value,
   onChange,
+  onError,
   className,
 }: {
   value: string;
   onChange: (value: string) => void;
+  /** Called when JSON parse error appears or clears. Shown below editor (e.g. same line as Save). */
+  onError?: (message: string | null, line?: number, column?: number) => void;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<JsonEditorHandle | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -107,6 +116,7 @@ export function AddonJsonEditor({
     editorRef.current = feature.create(containerRef.current, {
       value,
       onChange: (v: string) => onChangeRef.current(v),
+      onError: (msg, line, col) => onErrorRef.current?.(msg, line, col),
     });
     return () => {
       editorRef.current?.destroy();
