@@ -111,7 +111,9 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           <Sparkles className="h-6 w-6 text-amber-500" />
@@ -131,7 +133,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
           <p className="text-sm text-muted-foreground">
             {hasFeatures
               ? "Your support helps keep development going. If you run into any problems with the addon or have feedback, please report issues on Patreon."
-              : "Support development and get the addon with JSON Checker, auto-updates, and more. Download the addon and your license key from Patreon."}
+              : "Support development and get the addon with a enhanced JSON Editor, Custom Console Commands, and more. Download the addon and your license key from Patreon."}
           </p>
         </CardHeader>
         <CardContent>
@@ -205,7 +207,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Restart the app after saving so the addon can validate your key.
+                  Restart the app after saving so the addons can load.
                 </p>
               </div>
             </CardContent>
@@ -270,6 +272,8 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
           appInfo?.experimental_addon_feature_flags?.["custom_commands"] !== false && (
             <AddonCustomCommandsManager />
           )}
+      </div>
+        </div>
       </div>
     </div>
   );
