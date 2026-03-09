@@ -1,0 +1,7 @@
+[allowlist]
+description = "Allow obvious placeholders in docs/examples"
+regexes = [
+  '''YOUR_API_KEY''',
+  '''<token>''',
+  '''VIRUSTOTAL_API_KEY='''
+]
