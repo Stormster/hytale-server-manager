@@ -9,9 +9,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useConfigFile, useSaveConfigFile, useWorldsList, useWorldConfig, useSaveWorldConfig } from "@/api/hooks/useConfigFiles";
+import { useAppInfo } from "@/api/hooks/useInfo";
 import { useSettings } from "@/api/hooks/useSettings";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfigEditor } from "@/components/config/ConfigEditor";
+import { AddonJsonEditor } from "@/components/Addon";
 import { WhitelistEditor } from "@/components/config/WhitelistEditor";
 import { BansEditor } from "@/components/config/BansEditor";
 import { WorldConfigEditor } from "@/components/config/WorldConfigEditor";
@@ -33,6 +35,11 @@ export function ConfigView() {
   const [rawMode, setRawMode] = useState(false);
 
   const { data: settings } = useSettings();
+  const { data: appInfo } = useAppInfo();
+  const useJsonCheckerEditor =
+    appInfo?.experimental_addon_loaded === true &&
+    (appInfo?.experimental_addon_features ?? []).includes("json_checker") &&
+    appInfo?.experimental_addon_feature_flags?.["json_checker"] !== false;
   const { data: fileData, isError, error } = useConfigFile(
     activeFile && FORM_EDITABLE_FILES.has(activeFile) ? activeFile : null
   );
@@ -224,14 +231,22 @@ export function ConfigView() {
               ) : activeWorld ? (
                 rawMode ? (
                   <div className="flex flex-col flex-1 min-h-0 gap-3">
-                    <Textarea
-                      value={editorContent}
-                      onChange={(e) => setEditorContent(e.target.value)}
-                      className="flex-1 min-h-[200px] font-mono text-sm resize-none"
-                      placeholder="{}"
-                      aria-label="World config JSON"
-                    />
-                    {isJsonInvalid && (
+                    {useJsonCheckerEditor ? (
+                      <AddonJsonEditor
+                        value={editorContent}
+                        onChange={setEditorContent}
+                        className="flex-1 min-h-0 rounded-md border border-input overflow-hidden"
+                      />
+                    ) : (
+                      <Textarea
+                        value={editorContent}
+                        onChange={(e) => setEditorContent(e.target.value)}
+                        className="flex-1 min-h-[200px] font-mono text-sm resize-none"
+                        placeholder="{}"
+                        aria-label="World config JSON"
+                      />
+                    )}
+                    {!useJsonCheckerEditor && isJsonInvalid && (
                       <p className="text-sm text-destructive shrink-0">Invalid JSON</p>
                     )}
                     <div className="flex items-center justify-between shrink-0">
@@ -289,14 +304,22 @@ export function ConfigView() {
             </div>
           ) : (
             <div className="flex flex-col flex-1 min-h-0 gap-3">
-              <Textarea
-                value={editorContent}
-                onChange={(e) => setEditorContent(e.target.value)}
-                className="flex-1 min-h-[200px] font-mono text-sm resize-none"
-                placeholder="{}"
-                aria-label="Config JSON"
-              />
-              {isJsonInvalid && (
+              {useJsonCheckerEditor ? (
+                <AddonJsonEditor
+                  value={editorContent}
+                  onChange={setEditorContent}
+                  className="flex-1 min-h-0 rounded-md border border-input overflow-hidden"
+                />
+              ) : (
+                <Textarea
+                  value={editorContent}
+                  onChange={(e) => setEditorContent(e.target.value)}
+                  className="flex-1 min-h-[200px] font-mono text-sm resize-none"
+                  placeholder="{}"
+                  aria-label="Config JSON"
+                />
+              )}
+              {!useJsonCheckerEditor && isJsonInvalid && (
                 <p className="text-sm text-destructive shrink-0">Invalid JSON</p>
               )}
               <div className="flex items-center justify-between shrink-0">

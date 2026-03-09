@@ -9,6 +9,12 @@ import { useAppInfo } from "@/api/hooks/useInfo";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 import { apiUpload } from "@/api/client";
 import { toast } from "sonner";
+import { AddonCustomCommandsManager } from "@/components/Addon";
+
+const FEATURE_LABELS: Record<string, string> = {
+  json_checker: "JSON Checker (raw config editor)",
+  custom_commands: "Custom Console Commands",
+};
 
 const PATREON_URL = "https://www.patreon.com/";
 
@@ -203,10 +209,7 @@ export function ExperimentalView() {
             {features.map((featureId) => {
               const enabled =
                 appInfo?.experimental_addon_feature_flags?.[featureId] !== false;
-              const label =
-                featureId === "json_checker"
-                  ? "JSON Checker (raw config editor)"
-                  : featureId;
+              const label = FEATURE_LABELS[featureId] ?? featureId;
               return (
                 <div
                   key={featureId}
@@ -238,6 +241,14 @@ export function ExperimentalView() {
           </CardContent>
         </Card>
       )}
+
+      {/* Custom Console Commands management */}
+      {addonLoaded &&
+        hasFeatures &&
+        features.includes("custom_commands") &&
+        appInfo?.experimental_addon_feature_flags?.["custom_commands"] !== false && (
+          <AddonCustomCommandsManager />
+        )}
     </div>
   );
 }

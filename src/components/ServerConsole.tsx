@@ -9,6 +9,7 @@ import {
   type ConsoleCommand,
 } from "@/lib/consoleCommands";
 import { useConsoleFavorites } from "@/lib/useConsoleFavorites";
+import { fetchAddonCustomCommands } from "@/components/Addon";
 
 const URL_RE = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
 const SCROLL_AT_BOTTOM_THRESHOLD = 120;
@@ -138,9 +139,18 @@ export function ServerConsole({
   const [sending, setSending] = useState(false);
   const userScrolledUpRef = useRef(false);
   const programmaticScrollRef = useRef(false);
+  const [customCommands, setCustomCommands] = useState<ConsoleCommand[]>([]);
 
-  const mainCommands = getMainCommandsList([]);
-  const allFlat = getAllCommandsFlat([]);
+  const mainCommands = getMainCommandsList(customCommands);
+  const allFlat = getAllCommandsFlat(customCommands);
+
+  const refreshCustomCommands = useCallback(async () => {
+    setCustomCommands(await fetchAddonCustomCommands());
+  }, []);
+
+  useEffect(() => {
+    void refreshCustomCommands();
+  }, [refreshCustomCommands]);
 
   const checkAtBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -200,6 +210,16 @@ export function ServerConsole({
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [commandsOpen]);
+
+  useEffect(() => {
+    if (commandsOpen) void refreshCustomCommands();
+  }, [commandsOpen, refreshCustomCommands]);
+
+  useEffect(() => {
+    const onChanged = () => void refreshCustomCommands();
+    window.addEventListener("hsm-addon-custom-commands-changed", onChanged);
+    return () => window.removeEventListener("hsm-addon-custom-commands-changed", onChanged);
+  }, [refreshCustomCommands]);
 
   const sendCommand = useCallback(async () => {
     const cmd = command.trim();

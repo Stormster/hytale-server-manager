@@ -86,6 +86,16 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return token ? { "X-Backend-Token": token } : {};
 }
 
+/**
+ * Fetch a raw (non-JSON) response from the backend, with auth headers.
+ * Used by addon loaders to fetch JS/CSS assets served by addons.
+ */
+export async function fetchRaw(path: string): Promise<Response> {
+  const base = await getBaseUrl();
+  const headers = await getAuthHeaders();
+  return fetch(`${base}${path}`, { headers });
+}
+
 const FETCH_TIMEOUT_MS = 15_000;
 
 /**
