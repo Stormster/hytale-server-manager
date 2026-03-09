@@ -29,8 +29,9 @@ function isConnectionError(err: unknown): boolean {
 /**
  * Get the backend base URL. In Tauri, queries the sidecar port.
  * Falls back to localhost:21342 for standalone dev.
+ * Exported for addon bridge (Addon.tsx) so addon scripts can call the backend.
  */
-async function getBaseUrl(): Promise<string> {
+export async function getBaseUrl(): Promise<string> {
   if (_baseUrl) return _baseUrl;
 
   if (!_portPromise) {
@@ -80,8 +81,8 @@ export async function getBackendAuthToken(): Promise<string | null> {
   return _authTokenPromise;
 }
 
-/** Auth header (X-Backend-Token) when running under Tauri; empty object otherwise. */
-async function getAuthHeaders(): Promise<Record<string, string>> {
+/** Auth header (X-Backend-Token) when running under Tauri; empty object otherwise. Exported for addon bridge. */
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   const token = await getBackendAuthToken();
   return token ? { "X-Backend-Token": token } : {};
 }
