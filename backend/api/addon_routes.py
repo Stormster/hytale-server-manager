@@ -5,6 +5,7 @@ Addon is loaded on next app restart.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import os
 import tempfile
@@ -12,6 +13,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
@@ -85,6 +88,43 @@ def _download_with_sha256(download_url: str, target: Path) -> str:
     except Exception as e:
         raise HTTPException(502, f"Failed while downloading addon: {e}") from e
     return h.hexdigest()
+
+
+def _verify_signature_if_present(
+    *,
+    sha256_hex: str,
+    signature_b64: str | None,
+    public_key_b64: str | None,
+) -> bool:
+    sig = (signature_b64 or "").strip()
+    key = (public_key_b64 or "").strip()
+    if not sig and not key:
+        return False
+    if not sig or not key:
+        raise HTTPException(502, "Update metadata missing signature or public key")
+    try:
+        sig_bytes = base64.b64decode(sig, validate=True)
+        key_bytes = base64.b64decode(key, validate=True)
+        pub = Ed25519PublicKey.from_public_bytes(key_bytes)
+    except Exception as e:
+        raise HTTPException(502, f"Invalid signature metadata from update service: {e}") from e
+
+    payloads: list[bytes] = []
+    try:
+        payloads.append(bytes.fromhex(sha256_hex))
+    except ValueError:
+        pass
+    payloads.append(sha256_hex.encode("ascii"))
+
+    for payload in payloads:
+        try:
+            pub.verify(sig_bytes, payload)
+            return True
+        except InvalidSignature:
+            continue
+        except Exception:
+            continue
+    raise HTTPException(400, "Addon signature verification failed")
 
 
 @router.get("/license/verify")
@@ -162,6 +202,9 @@ def install_experimental_addon_from_site(body: InstallFromSiteBody):
 
     download_url = str(check.get("download_url") or "").strip()
     expected_sha = str(check.get("sha256") or "").strip().lower()
+    signature = check.get("signature")
+    public_key = check.get("public_key")
+    public_key_id = check.get("public_key_id")
     if not download_url:
         raise HTTPException(502, "Update service did not provide a download URL")
     if len(expected_sha) != 64:
@@ -180,6 +223,11 @@ def install_experimental_addon_from_site(body: InstallFromSiteBody):
         actual_sha = _download_with_sha256(download_url, tmp)
         if actual_sha.lower() != expected_sha:
             raise HTTPException(400, "Downloaded addon failed SHA-256 verification")
+        signature_verified = _verify_signature_if_present(
+            sha256_hex=actual_sha.lower(),
+            signature_b64=signature if isinstance(signature, str) else None,
+            public_key_b64=public_key if isinstance(public_key, str) else None,
+        )
 
         if dest.exists():
             try:
@@ -203,6 +251,8 @@ def install_experimental_addon_from_site(body: InstallFromSiteBody):
             "path": str(dest),
             "latest_version": check.get("latest_version"),
             "sha256": actual_sha,
+            "signature_verified": signature_verified,
+            "public_key_id": public_key_id,
         }
     finally:
         try:
