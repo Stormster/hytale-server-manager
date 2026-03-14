@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Upload, ExternalLink, CheckCircle2 } from "lucide-react";
+import { Sparkles, Upload, ExternalLink, CheckCircle2, XCircle } from "lucide-react";
 import { useAppInfo } from "@/api/hooks/useInfo";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 import { api, apiUpload } from "@/api/client";
@@ -42,6 +42,9 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     current_version?: string | null;
     reason?: string;
   } | null>(null);
+  /** null = unknown, true/false = result of last verify (for current key). */
+  const [licenseVerified, setLicenseVerified] = useState<boolean | null>(null);
+  const verifiedKeyRef = useRef<string>("");
 
   const addonLoaded = appInfo?.experimental_addon_loaded === true;
   const features = appInfo?.experimental_addon_features ?? [];
@@ -63,6 +66,44 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       setLicenseKey(settings.experimental_addon_license_key);
     }
   }, [settings?.experimental_addon_license_key]);
+
+  /** Call verify API and update licenseVerified state. Returns true if valid. */
+  const runVerify = useCallback(async (key: string): Promise<boolean> => {
+    if (!key.trim()) return false;
+    try {
+      const res = await api<{ ok?: boolean; valid?: boolean }>(
+        "/api/addon/license/verify?license_key=" + encodeURIComponent(key.trim())
+      );
+      const valid = res.valid === true;
+      setLicenseVerified(valid);
+      verifiedKeyRef.current = key.trim();
+      return valid;
+    } catch {
+      setLicenseVerified(false);
+      verifiedKeyRef.current = key.trim();
+      return false;
+    }
+  }, []);
+
+  /** Auto-verify on startup and when saved key changes. */
+  useEffect(() => {
+    const key = (settings?.experimental_addon_license_key ?? "").trim();
+    if (!key) {
+      setLicenseVerified(null);
+      verifiedKeyRef.current = "";
+      return;
+    }
+    if (verifiedKeyRef.current === key) return;
+    setLicenseVerified(null);
+    setVerifyingLicense(true);
+    runVerify(key).finally(() => setVerifyingLicense(false));
+  }, [settings?.experimental_addon_license_key, runVerify]);
+
+  /** When user changes the key in the input, clear verified state until they save or we re-run. */
+  useEffect(() => {
+    const key = licenseKey.trim();
+    if (key && key !== verifiedKeyRef.current) setLicenseVerified(null);
+  }, [licenseKey]);
 
   useEffect(() => {
     if (scrollToSection !== "custom-commands" || !onScrollDone) return;
@@ -121,11 +162,18 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   const onDragLeave = useCallback(() => setDragOver(false), []);
 
   const saveLicense = () => {
+    const key = licenseKey.trim();
+    if (!key) return;
     updateSettings.mutate(
-      { experimental_addon_license_key: licenseKey.trim() },
+      { experimental_addon_license_key: key },
       {
         onSuccess: () => {
-          toast.success("License key saved. Restart the app to activate.");
+          toast.success("License key saved. Verifying…");
+          setVerifyingLicense(true);
+          runVerify(key).then((valid) => {
+            if (valid) toast.success("License verified. Restart the app to activate.");
+            else toast.error("License invalid or inactive (e.g. Patreon expired). Resubscribe and click Verify license.");
+          }).finally(() => setVerifyingLicense(false));
         },
       }
     );
@@ -139,25 +187,41 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     }
     setVerifyingLicense(true);
     try {
-      const res = await api<{ ok?: boolean; valid?: boolean }>("/api/addon/license/verify?license_key=" + encodeURIComponent(key));
-      if (res.valid) {
-        toast.success("License key is valid.");
-      } else {
-        toast.error("License key is invalid or inactive.");
-      }
+      const valid = await runVerify(key);
+      if (valid) toast.success("License key is valid.");
+      else toast.error("License key is invalid or inactive.");
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
       setVerifyingLicense(false);
     }
-  }, [licenseKey]);
+  }, [licenseKey, runVerify]);
 
-  const installFromSite = useCallback(async () => {
+  /** Verify license first; return false if invalid or missing. */
+  const ensureLicenseValid = useCallback(async (): Promise<boolean> => {
     const key = licenseKey.trim();
     if (!key) {
       toast.error("Enter your license key first.");
-      return;
+      return false;
     }
+    if (licenseVerified === false) {
+      toast.error("License key is invalid. Save a valid key and try again.");
+      return false;
+    }
+    if (licenseVerified === true && verifiedKeyRef.current === key) return true;
+    setVerifyingLicense(true);
+    try {
+      const valid = await runVerify(key);
+      if (!valid) toast.error("License key is invalid or inactive.");
+      return valid;
+    } finally {
+      setVerifyingLicense(false);
+    }
+  }, [licenseKey, licenseVerified, runVerify]);
+
+  const installFromSite = useCallback(async () => {
+    if (!(await ensureLicenseValid())) return;
+    const key = licenseKey.trim();
     setInstallingFromSite(true);
     try {
       const res = await api<{
@@ -193,14 +257,11 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     } finally {
       setInstallingFromSite(false);
     }
-  }, [licenseKey]);
+  }, [licenseKey, ensureLicenseValid]);
 
   const checkForUpdates = useCallback(async () => {
+    if (!(await ensureLicenseValid())) return;
     const key = licenseKey.trim();
-    if (!key) {
-      toast.error("Enter your license key first.");
-      return;
-    }
     setCheckingForUpdates(true);
     try {
       const res = await api<{
@@ -227,7 +288,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     } finally {
       setCheckingForUpdates(false);
     }
-  }, [licenseKey]);
+  }, [licenseKey, ensureLicenseValid]);
 
   const updateStatusText = updateStatus
     ? updateStatus.update_available
@@ -236,6 +297,21 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       ? "Updated successfully. Restart required."
       : `Up to date${updateStatus.latest_version ? ` (latest v${updateStatus.latest_version})` : ""}`
     : null;
+
+  const licenseStatusLine =
+    !licenseKey.trim() ? null : verifyingLicense ? (
+      <p className="text-xs text-muted-foreground">Verifying license…</p>
+    ) : licenseVerified === true ? (
+      <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+        License verified
+      </p>
+    ) : licenseVerified === false ? (
+      <p className="text-xs text-destructive flex items-center gap-1">
+        <XCircle className="h-3.5 w-3.5 shrink-0" />
+        License invalid or inactive
+      </p>
+    ) : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -333,14 +409,17 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                     Save
                   </Button>
                 </div>
+                {licenseStatusLine}
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={verifyLicense}
-                    disabled={verifyingLicense || installingFromSite}
-                  >
-                    {verifyingLicense ? "Verifying..." : "Verify license"}
-                  </Button>
+                  {licenseVerified === false && (
+                    <Button
+                      variant="outline"
+                      onClick={verifyLicense}
+                      disabled={verifyingLicense || installingFromSite}
+                    >
+                      {verifyingLicense ? "Verifying..." : "Verify license"}
+                    </Button>
+                  )}
                   <Button
                     onClick={installFromSite}
                     disabled={installingFromSite || verifyingLicense}
@@ -421,61 +500,71 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       )}
 
       {/* License + updater controls while addon is active */}
-      {addonLoaded && hasFeatures && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">License & addon updates</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Verify your key and download the latest addon directly from hytalemanager.com.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                placeholder="Paste your license key from Patreon"
-                value={licenseKey}
-                onChange={(e) => setLicenseKey(e.target.value)}
-                className="font-mono text-sm"
-              />
-              <Button onClick={saveLicense} disabled={updateSettings.isPending}>
-                Save
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={verifyLicense}
-                disabled={verifyingLicense || installingFromSite}
-              >
-                {verifyingLicense ? "Verifying..." : "Verify license"}
-              </Button>
-              <Button
-                onClick={installFromSite}
-                disabled={installingFromSite || verifyingLicense}
-              >
-                {installingFromSite ? "Downloading..." : "Download & install addon"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={checkForUpdates}
-                disabled={checkingForUpdates || installingFromSite || verifyingLicense}
-              >
-                {checkingForUpdates ? "Checking..." : "Check for updates"}
-              </Button>
-            </div>
-            {autoUpdateLine && (
-              <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
-            )}
-            {updateStatusText && (
-              <p className="text-xs text-muted-foreground">{updateStatusText}</p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Restart the app after install to load the updated addon.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {addonLoaded && hasFeatures && (() => {
+        const updateAvailable =
+          updateStatus?.update_available === true ||
+          appInfo?.experimental_addon_update_available === true;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">License & addon updates</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Verify your key. Check for updates; if one is available, install it from hytalemanager.com.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  placeholder="Paste your license key from Patreon"
+                  value={licenseKey}
+                  onChange={(e) => setLicenseKey(e.target.value)}
+                  className="font-mono text-sm"
+                />
+                <Button onClick={saveLicense} disabled={updateSettings.isPending}>
+                  Save
+                </Button>
+              </div>
+              {licenseStatusLine}
+              <div className="flex flex-wrap gap-2">
+                {licenseVerified === false && (
+                  <Button
+                    variant="outline"
+                    onClick={verifyLicense}
+                    disabled={verifyingLicense || installingFromSite}
+                  >
+                    {verifyingLicense ? "Verifying..." : "Verify license"}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={checkForUpdates}
+                  disabled={checkingForUpdates || installingFromSite || verifyingLicense}
+                >
+                  {checkingForUpdates ? "Checking..." : "Check for updates"}
+                </Button>
+                {updateAvailable && (
+                  <Button
+                    onClick={installFromSite}
+                    disabled={installingFromSite || verifyingLicense}
+                  >
+                    {installingFromSite ? "Downloading..." : "Download & install update"}
+                  </Button>
+                )}
+              </div>
+              {autoUpdateLine && (
+                <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
+              )}
+              {updateStatusText && (
+                <p className="text-xs text-muted-foreground">{updateStatusText}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Restart the app after install to load the updated addon.
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Custom Console Commands management */}
       <div id={CUSTOM_COMMANDS_SECTION_ID}>
