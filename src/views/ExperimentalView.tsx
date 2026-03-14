@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Sparkles, Upload, ExternalLink, CheckCircle2 } from "lucide-react";
 import { useAppInfo } from "@/api/hooks/useInfo";
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
-import { apiUpload } from "@/api/client";
+import { api, apiUpload } from "@/api/client";
 import { toast } from "sonner";
 import { AddonCustomCommandsManager } from "@/components/Addon";
 
@@ -32,6 +32,8 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   const [licenseKey, setLicenseKey] = useState(settings?.experimental_addon_license_key ?? "");
   const [dragOver, setDragOver] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [verifyingLicense, setVerifyingLicense] = useState(false);
+  const [installingFromSite, setInstallingFromSite] = useState(false);
 
   const addonLoaded = appInfo?.experimental_addon_loaded === true;
   const features = appInfo?.experimental_addon_features ?? [];
@@ -109,6 +111,56 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       }
     );
   };
+
+  const verifyLicense = useCallback(async () => {
+    const key = licenseKey.trim();
+    if (!key) {
+      toast.error("Enter your license key first.");
+      return;
+    }
+    setVerifyingLicense(true);
+    try {
+      const res = await api<{ ok?: boolean; valid?: boolean }>("/api/addon/license/verify?license_key=" + encodeURIComponent(key));
+      if (res.valid) {
+        toast.success("License key is valid.");
+      } else {
+        toast.error("License key is invalid or inactive.");
+      }
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setVerifyingLicense(false);
+    }
+  }, [licenseKey]);
+
+  const installFromSite = useCallback(async () => {
+    const key = licenseKey.trim();
+    if (!key) {
+      toast.error("Enter your license key first.");
+      return;
+    }
+    setInstallingFromSite(true);
+    try {
+      const res = await api<{
+        ok: boolean;
+        update_available?: boolean;
+        message?: string;
+        reason?: string;
+      }>("/api/addon/update/install", {
+        method: "POST",
+        body: JSON.stringify({ license_key: key }),
+      });
+      if (res.update_available === false) {
+        toast.info(res.message || "No addon update available.");
+      } else {
+        toast.success(res.message || "Addon updated. Restart the app to activate.");
+      }
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setInstallingFromSite(false);
+    }
+  }, [licenseKey]);
 
   return (
     <div className="flex h-full flex-col">
@@ -206,8 +258,24 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                     Save
                   </Button>
                 </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={verifyLicense}
+                    disabled={verifyingLicense || installingFromSite}
+                  >
+                    {verifyingLicense ? "Verifying..." : "Verify license"}
+                  </Button>
+                  <Button
+                    onClick={installFromSite}
+                    disabled={installingFromSite || verifyingLicense}
+                  >
+                    {installingFromSite ? "Downloading..." : "Download & install addon"}
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Restart the app after saving so the addons can load.
+                  Use Download & install addon to fetch the .whl automatically with your license key.
+                  Restart the app after install to load the addon.
                 </p>
               </div>
             </CardContent>
@@ -260,6 +328,50 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                 </div>
               );
             })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* License + updater controls while addon is active */}
+      {addonLoaded && hasFeatures && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">License & addon updates</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Verify your key and download the latest addon directly from hytalemanager.com.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                placeholder="Paste your license key from Patreon"
+                value={licenseKey}
+                onChange={(e) => setLicenseKey(e.target.value)}
+                className="font-mono text-sm"
+              />
+              <Button onClick={saveLicense} disabled={updateSettings.isPending}>
+                Save
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={verifyLicense}
+                disabled={verifyingLicense || installingFromSite}
+              >
+                {verifyingLicense ? "Verifying..." : "Verify license"}
+              </Button>
+              <Button
+                onClick={installFromSite}
+                disabled={installingFromSite || verifyingLicense}
+              >
+                {installingFromSite ? "Downloading..." : "Download & install addon"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Restart the app after install to load the updated addon.
+            </p>
           </CardContent>
         </Card>
       )}
