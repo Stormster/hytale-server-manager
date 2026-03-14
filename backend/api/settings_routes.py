@@ -195,8 +195,11 @@ def get_settings():
     from services import instances as inst_svc
 
     data = settings.get_all()
+    # When running with tauri:dev:addons, expose dev license key from env so UI shows as validated (key never in repo)
+    if os.environ.get("HSM_DEV_ADDON"):
+        data["experimental_addon_license_key"] = (os.environ.get("HSM_DEV_LICENSE_KEY") or "").strip()
     # Migrate legacy pro_license_key -> experimental_addon_license_key for API consumers
-    if "experimental_addon_license_key" not in data and data.get("pro_license_key"):
+    elif "experimental_addon_license_key" not in data and data.get("pro_license_key"):
         data["experimental_addon_license_key"] = data["pro_license_key"]
     data["default_root_dir"] = get_default_root_dir()
     data["onboarding_completed"] = settings.has_completed_onboarding()
