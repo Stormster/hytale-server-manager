@@ -167,8 +167,13 @@ def set_instance_port(instance_name: str, game_port: int, webserver_port: int) -
 
 # -- Experimental addon / Patreon license ------------------------------------
 
+
 def get_experimental_addon_license_key() -> str:
-    """Return the Experimental addon license key (from Patreon), or empty string."""
+    """Return the Experimental addon license key (from Patreon), or empty string.
+    When HSM_DEV_ADDON is set (tauri:dev:addons), returns HSM_DEV_LICENSE_KEY so the app acts as if licensed.
+    Set HSM_DEV_LICENSE_KEY in your environment (e.g. .env) — never commit the key."""
+    if os.environ.get("HSM_DEV_ADDON"):
+        return (os.environ.get("HSM_DEV_LICENSE_KEY") or "").strip()
     s = load()
     return s.get("experimental_addon_license_key") or s.get("pro_license_key", "")
 
