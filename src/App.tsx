@@ -212,7 +212,7 @@ export default function App() {
           </div>
         </main>
       </div>
-      <AppFooter />
+      <AppFooter onNavigateToExperimental={() => handleNavigate("experimental")} />
 
       <AddServerDialog open={addOpen} onOpenChange={setAddOpen} />
       <ImportServerDialog open={importOpen} onOpenChange={setImportOpen} />
