@@ -161,6 +161,16 @@ export interface AppInfo {
   experimental_addon_feature_flags?: Record<string, boolean>;
   /** Platform from backend: win32, linux, darwin, etc. */
   platform?: string;
+  /** Unix timestamp (seconds) when addon update snapshot was checked. */
+  experimental_addon_update_checked_at?: number;
+  /** Latest addon version from update service, if known. */
+  experimental_addon_latest_version?: string | null;
+  /** Whether addon update is available for the saved license key. */
+  experimental_addon_update_available?: boolean;
+  /** Additional reason (already_latest, no_compatible_release, no_license_key, etc). */
+  experimental_addon_update_reason?: string | null;
+  /** Optional check error from update service (for diagnostics). */
+  experimental_addon_update_error?: string | null;
 }
 
 export interface ManagerUpdateInfo {

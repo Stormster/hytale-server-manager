@@ -34,10 +34,29 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   const [installing, setInstalling] = useState(false);
   const [verifyingLicense, setVerifyingLicense] = useState(false);
   const [installingFromSite, setInstallingFromSite] = useState(false);
+  const [checkingForUpdates, setCheckingForUpdates] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<{
+    checked: boolean;
+    update_available: boolean;
+    latest_version?: string | null;
+    current_version?: string | null;
+    reason?: string;
+  } | null>(null);
 
   const addonLoaded = appInfo?.experimental_addon_loaded === true;
   const features = appInfo?.experimental_addon_features ?? [];
   const hasFeatures = features.length > 0;
+  const autoUpdateLine = appInfo
+    ? appInfo.experimental_addon_update_reason === "no_license_key"
+      ? "Latest addon: enter your license key to check."
+      : appInfo.experimental_addon_update_error
+      ? "Latest addon: check failed."
+      : appInfo.experimental_addon_latest_version
+      ? appInfo.experimental_addon_update_available
+        ? `Latest addon v${appInfo.experimental_addon_latest_version} (update available)`
+        : `Latest addon v${appInfo.experimental_addon_latest_version} (up to date)`
+      : null
+    : null;
 
   useEffect(() => {
     if (settings?.experimental_addon_license_key !== undefined) {
@@ -152,8 +171,22 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       });
       if (res.update_available === false) {
         toast.info(res.message || "No addon update available.");
+        setUpdateStatus({
+          checked: true,
+          update_available: false,
+          latest_version: undefined,
+          current_version: undefined,
+          reason: res.reason,
+        });
       } else {
         toast.success(res.message || "Addon updated. Restart the app to activate.");
+        setUpdateStatus({
+          checked: true,
+          update_available: false,
+          latest_version: undefined,
+          current_version: undefined,
+          reason: "restart_required",
+        });
       }
     } catch (err) {
       toast.error((err as Error).message);
@@ -161,6 +194,48 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       setInstallingFromSite(false);
     }
   }, [licenseKey]);
+
+  const checkForUpdates = useCallback(async () => {
+    const key = licenseKey.trim();
+    if (!key) {
+      toast.error("Enter your license key first.");
+      return;
+    }
+    setCheckingForUpdates(true);
+    try {
+      const res = await api<{
+        ok: boolean;
+        update_available?: boolean;
+        latest_version?: string;
+        current_version?: string | null;
+        reason?: string;
+      }>("/api/addon/update/check?license_key=" + encodeURIComponent(key));
+      setUpdateStatus({
+        checked: true,
+        update_available: Boolean(res.update_available),
+        latest_version: res.latest_version,
+        current_version: res.current_version,
+        reason: res.reason,
+      });
+      if (res.update_available) {
+        toast.success("Addon update available.");
+      } else {
+        toast.info("Addon is up to date.");
+      }
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setCheckingForUpdates(false);
+    }
+  }, [licenseKey]);
+
+  const updateStatusText = updateStatus
+    ? updateStatus.update_available
+      ? `Update available${updateStatus.latest_version ? `: v${updateStatus.latest_version}` : ""}`
+      : updateStatus.reason === "restart_required"
+      ? "Updated successfully. Restart required."
+      : `Up to date${updateStatus.latest_version ? ` (latest v${updateStatus.latest_version})` : ""}`
+    : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -272,7 +347,20 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                   >
                     {installingFromSite ? "Downloading..." : "Download & install addon"}
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={checkForUpdates}
+                    disabled={checkingForUpdates || installingFromSite || verifyingLicense}
+                  >
+                    {checkingForUpdates ? "Checking..." : "Check for updates"}
+                  </Button>
                 </div>
+                {autoUpdateLine && (
+                  <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
+                )}
+                {updateStatusText && (
+                  <p className="text-xs text-muted-foreground">{updateStatusText}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Use Download & install addon to fetch the .whl automatically with your license key.
                   Restart the app after install to load the addon.
@@ -368,7 +456,20 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
               >
                 {installingFromSite ? "Downloading..." : "Download & install addon"}
               </Button>
+              <Button
+                variant="outline"
+                onClick={checkForUpdates}
+                disabled={checkingForUpdates || installingFromSite || verifyingLicense}
+              >
+                {checkingForUpdates ? "Checking..." : "Check for updates"}
+              </Button>
             </div>
+            {autoUpdateLine && (
+              <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
+            )}
+            {updateStatusText && (
+              <p className="text-xs text-muted-foreground">{updateStatusText}</p>
+            )}
             <p className="text-xs text-muted-foreground">
               Restart the app after install to load the updated addon.
             </p>

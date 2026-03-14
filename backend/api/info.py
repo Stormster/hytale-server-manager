@@ -7,8 +7,10 @@ import json as _json
 import os
 import subprocess
 import sys
+import time
 import urllib.request
 
+import requests
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
@@ -19,6 +21,68 @@ from services import downloader as dl
 from services import github as gh
 
 router = APIRouter()
+_ADDON_UPDATE_CACHE_TTL_S = 300
+_addon_update_cache: dict | None = None
+_addon_update_cached_at = 0.0
+
+
+def _get_experimental_addon_update_snapshot() -> dict:
+    """
+    Lightweight cached snapshot from site addon update check.
+    Uses saved license key; never raises from /api/info.
+    """
+    global _addon_update_cache, _addon_update_cached_at
+    now = time.time()
+    if _addon_update_cache and (now - _addon_update_cached_at) < _ADDON_UPDATE_CACHE_TTL_S:
+        return _addon_update_cache
+
+    snapshot = {
+        "experimental_addon_update_checked_at": int(now),
+        "experimental_addon_latest_version": None,
+        "experimental_addon_update_available": False,
+        "experimental_addon_update_reason": None,
+        "experimental_addon_update_error": None,
+    }
+
+    try:
+        from services import settings
+        key = settings.get_experimental_addon_license_key().strip()
+        if not key:
+            snapshot["experimental_addon_update_reason"] = "no_license_key"
+            _addon_update_cache = snapshot
+            _addon_update_cached_at = now
+            return snapshot
+
+        base = os.environ.get("HYTALE_MANAGER_SITE_BASE_URL", "https://hytalemanager.com").rstrip("/")
+        res = requests.get(
+            f"{base}/api/addon/update/check",
+            params={
+                "plugin_id": "experimental_addon",
+                "channel": "stable",
+                "app_version": MANAGER_VERSION,
+            },
+            headers={"x-license-key": key},
+            timeout=8,
+        )
+        if not res.ok:
+            try:
+                data = res.json()
+                snapshot["experimental_addon_update_error"] = data.get("error") or data.get("detail")
+            except Exception:
+                snapshot["experimental_addon_update_error"] = f"HTTP {res.status_code}"
+            snapshot["experimental_addon_update_reason"] = "check_failed"
+        else:
+            data = res.json()
+            snapshot["experimental_addon_latest_version"] = data.get("latest_version")
+            snapshot["experimental_addon_update_available"] = bool(data.get("update_available"))
+            snapshot["experimental_addon_update_reason"] = data.get("reason")
+    except Exception as e:
+        snapshot["experimental_addon_update_reason"] = "check_failed"
+        snapshot["experimental_addon_update_error"] = str(e)
+
+    _addon_update_cache = snapshot
+    _addon_update_cached_at = now
+    return snapshot
 
 
 @router.get("/info")
@@ -34,6 +98,7 @@ def info():
         feature_flags = settings.get_experimental_addon_feature_flags()
     except Exception:
         feature_flags = {}
+    addon_update = _get_experimental_addon_update_snapshot()
     return {
         "manager_version": MANAGER_VERSION,
         "java_ok": java_ok,
@@ -44,6 +109,7 @@ def info():
         "experimental_addon_loaded": experimental_addon_loaded,
         "experimental_addon_features": experimental_addon_features,
         "experimental_addon_feature_flags": feature_flags,
+        **addon_update,
         "platform": sys.platform,
     }
 
