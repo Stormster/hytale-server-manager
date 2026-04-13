@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
+import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -51,6 +52,46 @@ def _find_experimental_addon(addons_dir: Path) -> Path | None:
         if p.is_file():
             return p
     return None
+
+
+def get_experimental_addon_artifact_path() -> Path | None:
+    """Resolved .whl/.pyz path (dev env or addons dir), or None."""
+    dev_path = os.environ.get("HSM_DEV_ADDON")
+    if dev_path:
+        p = Path(dev_path)
+        if p.is_file():
+            return p
+    addons_dir = _get_addons_dir()
+    if addons_dir.is_dir():
+        return _find_experimental_addon(addons_dir)
+    return None
+
+
+def _read_distribution_version_from_zip(artifact: Path) -> str | None:
+    """Read PEP 566 Version from *.dist-info/METADATA inside a wheel/pyz zip."""
+    try:
+        with zipfile.ZipFile(artifact, "r") as zf:
+            for name in zf.namelist():
+                if name.endswith(".dist-info/METADATA"):
+                    raw = zf.read(name).decode("utf-8", errors="replace")
+                    for line in raw.splitlines():
+                        if line.startswith("Version:"):
+                            v = line[8:].strip()
+                            return v or None
+    except Exception:
+        return None
+    return None
+
+
+def get_installed_experimental_addon_version() -> str | None:
+    """
+    Version string of the installed addon artifact (from wheel METADATA), if known.
+    hytalemanager.com treats missing current_version as 'update always available'.
+    """
+    path = get_experimental_addon_artifact_path()
+    if path is None or not path.suffix.lower() in (".whl", ".pyz"):
+        return None
+    return _read_distribution_version_from_zip(path)
 
 
 def _load_addon_module(addon_path: Path) -> ExperimentalAddon | None:

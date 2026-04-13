@@ -27,6 +27,13 @@ _addon_update_cache: dict | None = None
 _addon_update_cached_at = 0.0
 
 
+def invalidate_experimental_addon_update_cache() -> None:
+    """Clear cached /api/info addon update snapshot (e.g. after install or uninstall)."""
+    global _addon_update_cache, _addon_update_cached_at
+    _addon_update_cache = None
+    _addon_update_cached_at = 0.0
+
+
 def _is_addon_file_installed() -> bool:
     """True if experimental_addon.whl or .pyz exists in addons/."""
     try:
@@ -51,6 +58,7 @@ def _get_experimental_addon_update_snapshot() -> dict:
     snapshot = {
         "experimental_addon_update_checked_at": int(now),
         "experimental_addon_latest_version": None,
+        "experimental_addon_current_version": None,
         "experimental_addon_update_available": False,
         "experimental_addon_update_reason": None,
         "experimental_addon_update_error": None,
@@ -58,6 +66,8 @@ def _get_experimental_addon_update_snapshot() -> dict:
 
     try:
         from services import settings
+        from plugin_loader import get_installed_experimental_addon_version
+
         key = settings.get_experimental_addon_license_key().strip()
         if not key:
             snapshot["experimental_addon_update_reason"] = "no_license_key"
@@ -65,6 +75,7 @@ def _get_experimental_addon_update_snapshot() -> dict:
             _addon_update_cached_at = now
             return snapshot
 
+        current_v = get_installed_experimental_addon_version() or ""
         base = os.environ.get("HYTALE_MANAGER_SITE_BASE_URL", "https://hytalemanager.com").rstrip("/")
         res = requests.get(
             f"{base}/api/addon/update/check",
@@ -72,6 +83,7 @@ def _get_experimental_addon_update_snapshot() -> dict:
                 "plugin_id": "experimental_addon",
                 "channel": "stable",
                 "app_version": MANAGER_VERSION,
+                "current_version": current_v,
             },
             headers={"x-license-key": key},
             timeout=8,
@@ -88,6 +100,9 @@ def _get_experimental_addon_update_snapshot() -> dict:
             snapshot["experimental_addon_latest_version"] = data.get("latest_version")
             snapshot["experimental_addon_update_available"] = bool(data.get("update_available"))
             snapshot["experimental_addon_update_reason"] = data.get("reason")
+            snapshot["experimental_addon_current_version"] = data.get("current_version") or (
+                current_v or None
+            )
     except Exception as e:
         snapshot["experimental_addon_update_reason"] = "check_failed"
         snapshot["experimental_addon_update_error"] = str(e)
@@ -112,6 +127,12 @@ def info():
         feature_flags = {}
     addon_update = _get_experimental_addon_update_snapshot()
     addon_installed = _is_addon_file_installed()
+    try:
+        from plugin_loader import get_installed_experimental_addon_version
+
+        addon_disk_version = get_installed_experimental_addon_version()
+    except Exception:
+        addon_disk_version = None
     return {
         "manager_version": MANAGER_VERSION,
         "java_ok": java_ok,
@@ -121,6 +142,7 @@ def info():
         "report_url": REPORT_URL,
         "experimental_addon_loaded": experimental_addon_loaded,
         "experimental_addon_installed": addon_installed,
+        "experimental_addon_installed_version": addon_disk_version,
         "experimental_addon_features": experimental_addon_features,
         "experimental_addon_feature_flags": feature_flags,
         **addon_update,

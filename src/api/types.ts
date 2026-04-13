@@ -157,6 +157,8 @@ export interface AppInfo {
   experimental_addon_loaded?: boolean;
   /** True if addon file is present on disk (whl/pyz), even if not loaded yet. */
   experimental_addon_installed?: boolean;
+  /** Version parsed from installed wheel/pyz METADATA, if known. */
+  experimental_addon_installed_version?: string | null;
   /** Feature IDs reported by addon when license is valid (e.g. ["json_checker"]) */
   experimental_addon_features?: string[];
   /** Per-feature overrides: feature_id -> false = off. Unset = on by default. */
@@ -167,6 +169,8 @@ export interface AppInfo {
   experimental_addon_update_checked_at?: number;
   /** Latest addon version from update service, if known. */
   experimental_addon_latest_version?: string | null;
+  /** Version reported by last update check (usually matches installed when up to date). */
+  experimental_addon_current_version?: string | null;
   /** Whether addon update is available for the saved license key. */
   experimental_addon_update_available?: boolean;
   /** Additional reason (already_latest, no_compatible_release, no_license_key, etc). */

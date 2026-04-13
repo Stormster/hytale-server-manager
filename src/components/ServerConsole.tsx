@@ -131,15 +131,15 @@ interface ServerConsoleProps {
   lines: string[];
   running: boolean;
   className?: string;
-  /** Navigate to Experimental page and scroll to Custom Console Commands (e.g. "Add New +"). */
-  onNavigateToCustomCommands?: () => void;
+  /** Add New under CUSTOM COMMANDS: open manager (e.g. dialog) or navigate to Experimental. */
+  onAddCustomCommands?: () => void;
 }
 
 export function ServerConsole({
   lines,
   running,
   className,
-  onNavigateToCustomCommands,
+  onAddCustomCommands,
 }: ServerConsoleProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -415,15 +415,15 @@ export function ServerConsole({
                         />
                       )
                     )}
-                    {onNavigateToCustomCommands && (
+                    {onAddCustomCommands && (
                       <button
                         type="button"
                         onClick={() => {
-                          onNavigateToCustomCommands();
+                          onAddCustomCommands();
                           setCommandsOpen(false);
                         }}
                         className="mx-2 mb-1 mt-0.5 flex w-[calc(100%-0.5rem)] items-center justify-center gap-1.5 rounded-md border border-dashed border-white/20 py-1.5 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
-                        title="Add or edit custom commands (Experimental)"
+                        title="Add or edit custom commands"
                       >
                         <Plus className="h-3.5 w-3.5" />
                         Add New

@@ -59,7 +59,11 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       : appInfo.experimental_addon_latest_version
       ? appInfo.experimental_addon_update_available
         ? `Latest addon v${appInfo.experimental_addon_latest_version} (update available)`
-        : `Latest addon v${appInfo.experimental_addon_latest_version} (up to date)`
+        : `Latest addon v${appInfo.experimental_addon_latest_version}${
+            appInfo.experimental_addon_installed_version
+              ? ` — installed v${appInfo.experimental_addon_installed_version}`
+              : ""
+          } (up to date)`
       : null
     : null;
 
@@ -227,11 +231,22 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     }
   }, [licenseKey, licenseVerified, runVerify]);
 
-  const installFromSite = useCallback(async () => {
+  const installFromSite = useCallback(
+    async (options?: { forceReinstall?: boolean }) => {
     if (!(await ensureLicenseValid())) return;
     const key = licenseKey.trim();
+    const force = Boolean(options?.forceReinstall);
+    const diskV = (appInfo?.experimental_addon_installed_version ?? "").trim();
     setInstallingFromSite(true);
     try {
+      const body: {
+        license_key: string;
+        current_version?: string;
+        force_reinstall?: boolean;
+      } = { license_key: key };
+      if (force) body.force_reinstall = true;
+      else if (diskV) body.current_version = diskV;
+
       const res = await api<{
         ok: boolean;
         update_available?: boolean;
@@ -239,7 +254,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         reason?: string;
       }>("/api/addon/update/install", {
         method: "POST",
-        body: JSON.stringify({ license_key: key }),
+        body: JSON.stringify(body),
       });
       if (res.update_available === false) {
         toast.info(res.message || "No addon update available.");
@@ -267,20 +282,26 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     } finally {
       setInstallingFromSite(false);
     }
-  }, [licenseKey, ensureLicenseValid, refetchAppInfo]);
+  },
+  [licenseKey, ensureLicenseValid, refetchAppInfo, appInfo?.experimental_addon_installed_version]
+  );
 
   const checkForUpdates = useCallback(async () => {
     if (!(await ensureLicenseValid())) return;
     const key = licenseKey.trim();
+    const diskV = (appInfo?.experimental_addon_installed_version ?? "").trim();
     setCheckingForUpdates(true);
     try {
+      const params = new URLSearchParams();
+      params.set("license_key", key);
+      if (diskV) params.set("current_version", diskV);
       const res = await api<{
         ok: boolean;
         update_available?: boolean;
         latest_version?: string;
         current_version?: string | null;
         reason?: string;
-      }>("/api/addon/update/check?license_key=" + encodeURIComponent(key));
+      }>(`/api/addon/update/check?${params.toString()}`);
       setUpdateStatus({
         checked: true,
         update_available: Boolean(res.update_available),
@@ -298,7 +319,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     } finally {
       setCheckingForUpdates(false);
     }
-  }, [licenseKey, ensureLicenseValid]);
+  }, [licenseKey, ensureLicenseValid, appInfo?.experimental_addon_installed_version]);
 
   const uninstallAddon = useCallback(async () => {
     setUninstallingAddon(true);
@@ -451,7 +472,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                     </Button>
                   )}
                   <Button
-                    onClick={installFromSite}
+                    onClick={() => void installFromSite()}
                     disabled={installingFromSite || verifyingLicense}
                   >
                     {installingFromSite ? "Downloading..." : "Download & install addon"}
@@ -567,6 +588,8 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         const updateAvailable =
           updateStatus?.update_available === true ||
           appInfo?.experimental_addon_update_available === true;
+        const showReinstall =
+          !updateAvailable && (addonInstalled || appInfo?.experimental_addon_installed === true);
         return (
           <Card>
             <CardHeader>
@@ -608,10 +631,20 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                 </Button>
                 {updateAvailable && (
                   <Button
-                    onClick={installFromSite}
+                    onClick={() => void installFromSite()}
                     disabled={installingFromSite || verifyingLicense}
                   >
                     {installingFromSite ? "Downloading..." : "Download & install update"}
+                  </Button>
+                )}
+                {showReinstall && (
+                  <Button
+                    variant="outline"
+                    onClick={() => void installFromSite({ forceReinstall: true })}
+                    disabled={installingFromSite || verifyingLicense}
+                    title="Re-download the latest addon from the site (same version). Use if the install looks corrupted."
+                  >
+                    {installingFromSite ? "Downloading..." : "Reinstall addon"}
                   </Button>
                 )}
               </div>

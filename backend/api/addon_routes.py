@@ -19,7 +19,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from config import MANAGER_VERSION
-from plugin_loader import get_addons_dir
+from plugin_loader import get_addons_dir, get_installed_experimental_addon_version
 from services import settings as app_settings
 
 router = APIRouter(prefix="/api/addon", tags=["addon"])
@@ -30,6 +30,23 @@ ADDON_PLUGIN_ID = "experimental_addon"
 DEFAULT_CHANNEL = "stable"
 REQUEST_TIMEOUT = 20
 DOWNLOAD_TIMEOUT = 60
+
+
+def _invalidate_addon_info_snapshot() -> None:
+    try:
+        from api.info import invalidate_experimental_addon_update_cache
+
+        invalidate_experimental_addon_update_cache()
+    except Exception:
+        pass
+
+
+def _resolved_current_version_for_site(explicit: str | None) -> str:
+    """Version sent to hytalemanager.com; empty means 'unknown' and site treats as update available."""
+    v = (explicit or "").strip()
+    if v:
+        return v
+    return get_installed_experimental_addon_version() or ""
 
 
 def _normalize_license_key(override: str | None = None) -> str:
@@ -154,7 +171,7 @@ def check_experimental_addon_update(
     params = {
         "plugin_id": plugin_id or ADDON_PLUGIN_ID,
         "channel": channel or DEFAULT_CHANNEL,
-        "current_version": current_version or "",
+        "current_version": _resolved_current_version_for_site(current_version),
         "app_version": app_version or MANAGER_VERSION,
     }
     data = _request_site_json(
@@ -166,11 +183,15 @@ def check_experimental_addon_update(
 
 
 class InstallFromSiteBody(BaseModel):
+    """Body for POST /api/addon/update/install."""
+
     license_key: str | None = None
     plugin_id: str = ADDON_PLUGIN_ID
     channel: str = DEFAULT_CHANNEL
     current_version: str | None = None
     app_version: str | None = None
+    # Re-download latest artifact even if already on latest (repair / corruption).
+    force_reinstall: bool = False
 
 
 @router.post("/update/install")
@@ -180,12 +201,17 @@ def install_experimental_addon_from_site(body: InstallFromSiteBody):
     Requires SHA-256 match before replacing the installed addon.
     """
     effective_key = _normalize_license_key(body.license_key)
+    site_current = (
+        ""
+        if body.force_reinstall
+        else _resolved_current_version_for_site(body.current_version)
+    )
     check = _request_site_json(
         "/api/addon/update/check",
         params={
             "plugin_id": body.plugin_id or ADDON_PLUGIN_ID,
             "channel": body.channel or DEFAULT_CHANNEL,
-            "current_version": body.current_version or "",
+            "current_version": site_current,
             "app_version": body.app_version or MANAGER_VERSION,
         },
         headers={"x-license-key": effective_key},
@@ -257,6 +283,8 @@ def install_experimental_addon_from_site(body: InstallFromSiteBody):
             except Exception:
                 pass
 
+        _invalidate_addon_info_snapshot()
+
         return {
             "ok": True,
             "message": "Addon updated. Restart the app to activate.",
@@ -293,6 +321,7 @@ async def install_experimental_addon(file: UploadFile = File(...)):
         dest.write_bytes(contents)
     except Exception as e:
         raise HTTPException(500, f"Failed to write addon: {e}") from e
+    _invalidate_addon_info_snapshot()
     return {
         "ok": True,
         "message": "Addon installed. Restart the app to activate.",
@@ -328,6 +357,8 @@ def uninstall_experimental_addon(body: UninstallAddonBody | None = None):
         except Exception as e:
             raise HTTPException(500, f"Failed to remove addon file '{path.name}': {e}") from e
 
+    if removed_paths:
+        _invalidate_addon_info_snapshot()
     return {
         "ok": True,
         "removed": bool(removed_paths),
