@@ -142,9 +142,12 @@ export function AddonCustomCommandsManager() {
   const containerRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<SettingsHandle | null>(null);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setReady(false);
+    setLoadError(null);
     ensureAddonApiGlobals()
       .then(() =>
         ensureAddonFeature(
@@ -155,7 +158,11 @@ export function AddonCustomCommandsManager() {
       .then(() => {
         if (!cancelled) setReady(true);
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadError((err as Error)?.message || "Failed to load custom commands UI.");
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -164,13 +171,32 @@ export function AddonCustomCommandsManager() {
   useEffect(() => {
     if (!ready || !containerRef.current) return;
     const feature = getComponents()?.custom_commands;
-    if (!feature) return;
+    if (!feature) {
+      setLoadError("Custom commands feature is unavailable in the installed addon.");
+      return;
+    }
     settingsRef.current = feature.createSettings(containerRef.current);
     return () => {
       settingsRef.current?.destroy();
       settingsRef.current = null;
     };
   }, [ready]);
+
+  if (loadError) {
+    return (
+      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+        {loadError} Reinstall the addon, then restart the app.
+      </div>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+        Loading custom commands editor...
+      </div>
+    );
+  }
 
   return <div ref={containerRef} />;
 }
