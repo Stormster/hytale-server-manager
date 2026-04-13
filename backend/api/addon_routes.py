@@ -286,3 +286,43 @@ async def install_experimental_addon(file: UploadFile = File(...)):
         "message": "Addon installed. Restart the app to activate.",
         "path": str(dest),
     }
+
+
+class UninstallAddonBody(BaseModel):
+    remove_backup: bool = False
+
+
+@router.post("/uninstall")
+def uninstall_experimental_addon(body: UninstallAddonBody | None = None):
+    """
+    Remove local Experimental addon artifacts from addons/.
+    Intended for user-facing "Uninstall addon" flow in the Experimental UI.
+    """
+    addons_dir = get_addons_dir()
+    candidates = [
+        addons_dir / "experimental_addon.whl",
+        addons_dir / "experimental_addon.pyz",
+    ]
+    if body and body.remove_backup:
+        candidates.append(addons_dir / "experimental_addon.whl.bak")
+
+    removed_paths: list[str] = []
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            path.unlink()
+            removed_paths.append(str(path))
+        except Exception as e:
+            raise HTTPException(500, f"Failed to remove addon file '{path.name}': {e}") from e
+
+    return {
+        "ok": True,
+        "removed": bool(removed_paths),
+        "removed_paths": removed_paths,
+        "message": (
+            "Addon uninstalled. Restart the app."
+            if removed_paths
+            else "Addon files were already absent."
+        ),
+    }

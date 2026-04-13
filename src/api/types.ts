@@ -155,6 +155,8 @@ export interface AppInfo {
   report_url: string;
   /** True if Experimental addon loaded (addons/experimental_addon.whl or .pyz present) */
   experimental_addon_loaded?: boolean;
+  /** True if addon file is present on disk (whl/pyz), even if not loaded yet. */
+  experimental_addon_installed?: boolean;
   /** Feature IDs reported by addon when license is valid (e.g. ["json_checker"]) */
   experimental_addon_features?: string[];
   /** Per-feature overrides: feature_id -> false = off. Unset = on by default. */

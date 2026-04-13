@@ -26,7 +26,7 @@ interface ExperimentalViewProps {
 }
 
 export function ExperimentalView({ scrollToSection, onScrollDone }: ExperimentalViewProps = {}) {
-  const { data: appInfo } = useAppInfo();
+  const { data: appInfo, refetch: refetchAppInfo } = useAppInfo();
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
   const [licenseKey, setLicenseKey] = useState(settings?.experimental_addon_license_key ?? "");
@@ -35,6 +35,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   const [verifyingLicense, setVerifyingLicense] = useState(false);
   const [installingFromSite, setInstallingFromSite] = useState(false);
   const [checkingForUpdates, setCheckingForUpdates] = useState(false);
+  const [uninstallingAddon, setUninstallingAddon] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<{
     checked: boolean;
     update_available: boolean;
@@ -47,6 +48,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   const verifiedKeyRef = useRef<string>("");
 
   const addonLoaded = appInfo?.experimental_addon_loaded === true;
+  const addonInstalled = appInfo?.experimental_addon_installed === true;
   const features = appInfo?.experimental_addon_features ?? [];
   const hasFeatures = features.length > 0;
   const autoUpdateLine = appInfo
@@ -134,6 +136,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         );
         if (res.ok) {
           toast.success(res.message);
+          await refetchAppInfo();
         } else {
           toast.error(res.message || "Install failed");
         }
@@ -143,7 +146,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         setInstalling(false);
       }
     },
-    []
+    [refetchAppInfo]
   );
 
   const onDrop = useCallback(
@@ -163,11 +166,16 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
 
   const saveLicense = () => {
     const key = licenseKey.trim();
-    if (!key) return;
     updateSettings.mutate(
       { experimental_addon_license_key: key },
       {
         onSuccess: () => {
+          if (!key) {
+            setLicenseVerified(null);
+            verifiedKeyRef.current = "";
+            toast.success("License key cleared.");
+            return;
+          }
           toast.success("License key saved. Verifying…");
           setVerifyingLicense(true);
           runVerify(key).then((valid) => {
@@ -242,6 +250,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
           current_version: undefined,
           reason: res.reason,
         });
+        await refetchAppInfo();
       } else {
         toast.success(res.message || "Addon updated. Restart the app to activate.");
         setUpdateStatus({
@@ -251,13 +260,14 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
           current_version: undefined,
           reason: "restart_required",
         });
+        await refetchAppInfo();
       }
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
       setInstallingFromSite(false);
     }
-  }, [licenseKey, ensureLicenseValid]);
+  }, [licenseKey, ensureLicenseValid, refetchAppInfo]);
 
   const checkForUpdates = useCallback(async () => {
     if (!(await ensureLicenseValid())) return;
@@ -290,6 +300,22 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     }
   }, [licenseKey, ensureLicenseValid]);
 
+  const uninstallAddon = useCallback(async () => {
+    setUninstallingAddon(true);
+    try {
+      const res = await api<{ ok: boolean; removed?: boolean; message?: string }>("/api/addon/uninstall", {
+        method: "POST",
+      });
+      toast.success(res.message || "Addon uninstalled. Restart the app.");
+      setUpdateStatus(null);
+      await refetchAppInfo();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setUninstallingAddon(false);
+    }
+  }, [refetchAppInfo]);
+
   const updateStatusText = updateStatus
     ? updateStatus.update_available
       ? `Update available${updateStatus.latest_version ? `: v${updateStatus.latest_version}` : ""}`
@@ -312,6 +338,9 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         License invalid or inactive
       </p>
     ) : null;
+
+  const licenseStatusText =
+    !licenseKey.trim() ? "No" : verifyingLicense ? "Checking..." : licenseVerified ? "Yes" : "No";
 
   return (
     <div className="flex h-full flex-col">
@@ -352,48 +381,49 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         </CardContent>
       </Card>
 
-      {/* Install addon: drag-drop + file input (show when addon not loaded or no features) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Addon status</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <p>
+            Addon file installed: <span className="font-medium">{addonInstalled ? "Yes" : "No"}</span>
+          </p>
+          <p>
+            Addon loaded: <span className="font-medium">{addonLoaded ? "Yes" : "No"}</span>
+          </p>
+          <p>
+            License valid: <span className="font-medium">{licenseStatusText}</span>
+          </p>
+          {addonInstalled && (
+            <div className="pt-2">
+              <Button
+                variant="outline"
+                onClick={uninstallAddon}
+                disabled={uninstallingAddon || installingFromSite}
+              >
+                {uninstallingAddon ? "Uninstalling..." : "Uninstall addon"}
+              </Button>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Restart the app after install/update/uninstall so addon load state refreshes.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Normal install: site download only (check for updates after addon is active) */}
       {(!addonLoaded || !hasFeatures) && (
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Install addon</CardTitle>
+              <CardTitle className="text-base">Install from hytalemanager.com</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Drag and drop the <code className="text-xs bg-muted px-1 rounded">.whl</code> file
-                here, or click to browse. Then enter your license key and restart the app.
+                Save your license key, then download and install the addon. After it shows as loaded,
+                use Check for updates in License & addon updates.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div
-                onDrop={onDrop}
-                onDragOver={onDragOver}
-                onDragLeave={onDragLeave}
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  dragOver ? "border-primary bg-primary/5" : "border-muted-foreground/30"
-                }`}
-              >
-                <input
-                  type="file"
-                  accept=".whl"
-                  className="hidden"
-                  id="addon-whl-input"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleInstallFile(f);
-                    e.target.value = "";
-                  }}
-                />
-                <label
-                  htmlFor="addon-whl-input"
-                  className="cursor-pointer flex flex-col items-center gap-2"
-                >
-                  <Upload className="h-10 w-10 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {installing ? "Installing…" : "Drop .whl here or click to select"}
-                  </span>
-                </label>
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="experimental-license">License key</Label>
                 <div className="flex gap-2">
@@ -426,13 +456,6 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                   >
                     {installingFromSite ? "Downloading..." : "Download & install addon"}
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={checkForUpdates}
-                    disabled={checkingForUpdates || installingFromSite || verifyingLicense}
-                  >
-                    {checkingForUpdates ? "Checking..." : "Check for updates"}
-                  </Button>
                 </div>
                 {autoUpdateLine && (
                   <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
@@ -441,9 +464,49 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                   <p className="text-xs text-muted-foreground">{updateStatusText}</p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Use Download & install addon to fetch the .whl automatically with your license key.
-                  Restart the app after install to load the addon.
+                  Restart the app after install so the addon can load.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Advanced / manual install</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Drag and drop the <code className="text-xs bg-muted px-1 rounded">.whl</code> file
+                here, or click to browse. Fallback for offline, testing, or emergencies only.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  dragOver ? "border-primary bg-primary/5" : "border-muted-foreground/30"
+                }`}
+              >
+                <input
+                  type="file"
+                  accept=".whl"
+                  className="hidden"
+                  id="addon-whl-input"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleInstallFile(f);
+                    e.target.value = "";
+                  }}
+                />
+                <label
+                  htmlFor="addon-whl-input"
+                  className="cursor-pointer flex flex-col items-center gap-2"
+                >
+                  <Upload className="h-10 w-10 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {installing ? "Installing…" : "Drop .whl here or click to select"}
+                  </span>
+                </label>
               </div>
             </CardContent>
           </Card>
