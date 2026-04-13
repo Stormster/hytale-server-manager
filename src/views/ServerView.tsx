@@ -1,23 +1,15 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ServerConsole } from "@/components/ServerConsole";
 import { ServerAuthModal } from "@/components/ServerAuthModal";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { AddonCustomCommandsManager } from "@/components/Addon";
 import {
   useServerStatus,
   useStartServer,
   useStopServer,
 } from "@/api/hooks/useServer";
 import { useSettings } from "@/api/hooks/useSettings";
-import { useAppInfo, usePublicIp } from "@/api/hooks/useInfo";
+import { usePublicIp } from "@/api/hooks/useInfo";
 import { subscribeSSE } from "@/api/client";
 import { formatUptime } from "@/lib/timeAgo";
 import { HardDrive, Cpu, Users, Copy } from "lucide-react";
@@ -31,7 +23,6 @@ interface ServerViewProps {
 }
 
 export function ServerView({ onNavigateToCustomCommands }: ServerViewProps = {}) {
-  const { data: appInfo } = useAppInfo();
   const { data: settings } = useSettings();
   const { data: status } = useServerStatus();
   const startServer = useStartServer();
@@ -48,21 +39,6 @@ export function ServerView({ onNavigateToCustomCommands }: ServerViewProps = {})
   const [lines, setLines] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [customCommandsDialogOpen, setCustomCommandsDialogOpen] = useState(false);
-
-  const customCommandsInlineEnabled = useMemo(() => {
-    const features = appInfo?.experimental_addon_features ?? [];
-    return (
-      appInfo?.experimental_addon_loaded === true &&
-      features.includes("custom_commands") &&
-      appInfo?.experimental_addon_feature_flags?.["custom_commands"] !== false
-    );
-  }, [appInfo]);
-
-  const handleAddCustomCommands = useCallback(() => {
-    if (customCommandsInlineEnabled) setCustomCommandsDialogOpen(true);
-    else onNavigateToCustomCommands?.();
-  }, [customCommandsInlineEnabled, onNavigateToCustomCommands]);
   const authShownRef = useRef(false);
   const authPendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linesRef = useRef<string[]>([]);
@@ -293,24 +269,8 @@ export function ServerView({ onNavigateToCustomCommands }: ServerViewProps = {})
         lines={lines}
         running={viewingRunningInstance && running}
         className="flex-1 min-h-0"
-        onAddCustomCommands={
-          customCommandsInlineEnabled || onNavigateToCustomCommands
-            ? handleAddCustomCommands
-            : undefined
-        }
+        onAddCustomCommands={onNavigateToCustomCommands}
       />
-
-      <Dialog open={customCommandsDialogOpen} onOpenChange={setCustomCommandsDialogOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Custom console commands</DialogTitle>
-            <DialogDescription>
-              Add or edit commands. They appear under CUSTOM COMMANDS in this console after you save.
-            </DialogDescription>
-          </DialogHeader>
-          {customCommandsDialogOpen && <AddonCustomCommandsManager />}
-        </DialogContent>
-      </Dialog>
 
       <ServerAuthModal
         open={authModalOpen}

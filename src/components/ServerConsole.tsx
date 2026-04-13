@@ -131,7 +131,7 @@ interface ServerConsoleProps {
   lines: string[];
   running: boolean;
   className?: string;
-  /** Add New under CUSTOM COMMANDS: open manager (e.g. dialog) or navigate to Experimental. */
+  /** Add New under CUSTOM COMMANDS: navigate to Experimental → Custom console commands section. */
   onAddCustomCommands?: () => void;
 }
 
@@ -423,7 +423,7 @@ export function ServerConsole({
                           setCommandsOpen(false);
                         }}
                         className="mx-2 mb-1 mt-0.5 flex w-[calc(100%-0.5rem)] items-center justify-center gap-1.5 rounded-md border border-dashed border-white/20 py-1.5 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
-                        title="Add or edit custom commands"
+                        title="Open Experimental → Custom console commands to add or edit"
                       >
                         <Plus className="h-3.5 w-3.5" />
                         Add New
