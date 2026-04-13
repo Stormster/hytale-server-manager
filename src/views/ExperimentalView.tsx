@@ -114,14 +114,17 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   useEffect(() => {
     if (scrollToSection !== "custom-commands" || !onScrollDone) return;
     const el = document.getElementById(CUSTOM_COMMANDS_SECTION_ID);
-    if (el) {
-      requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        onScrollDone();
-      });
-    } else {
+    if (!el) {
       onScrollDone();
+      return;
     }
+    // Addon UI mounts asynchronously; run extra passes so the final position is accurate.
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 220);
+      window.setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 520);
+      onScrollDone();
+    });
   }, [scrollToSection, onScrollDone]);
 
   const handleInstallFile = useCallback(
