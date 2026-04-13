@@ -192,12 +192,24 @@ def install_experimental_addon_from_site(body: InstallFromSiteBody):
     )
 
     if not check.get("update_available"):
+        reason = check.get("reason", "already_latest")
+        latest_version = check.get("latest_version")
+        if reason == "no_compatible_release":
+            message = (
+                "No published addon release is available for your app version yet "
+                "(or the release feed has not been published). "
+                "If you just set up downloads, publish a release through the ingest pipeline first."
+            )
+        elif reason == "already_latest":
+            message = "No addon update available (already on the latest published version)."
+        else:
+            message = "No addon update available."
         return {
             "ok": True,
             "update_available": False,
-            "reason": check.get("reason", "already_latest"),
-            "latest_version": check.get("latest_version"),
-            "message": "No addon update available.",
+            "reason": reason,
+            "latest_version": latest_version,
+            "message": message,
         }
 
     download_url = str(check.get("download_url") or "").strip()
