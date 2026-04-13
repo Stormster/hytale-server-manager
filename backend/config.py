@@ -11,7 +11,7 @@ import os
 # Manager metadata
 # ---------------------------------------------------------------------------
 
-MANAGER_VERSION = "2.8.0"
+MANAGER_VERSION = "3.0.0"
 APP_NAME = "Hytale Server Manager"
 GITHUB_REPO = "Stormster/hytale-server-manager"
 REPORT_URL = "https://github.com/Stormster/hytale-server-manager/issues"
