@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "node scripts/sync-version.js && tsc -b && vite build",
     "build:release": "npm run version:sync && node scripts/build-backend.js && npm run tauri build && npm run scan:virustotal",
+    "build:release:no-vt": "npm run version:sync && node scripts/build-backend.js && npm run tauri build",
     "scan:virustotal": "node scripts/virustotal-scan.js",
     "check:secrets": "node scripts/check-no-secrets.js",
     "build:backend": "node scripts/build-backend.js",
