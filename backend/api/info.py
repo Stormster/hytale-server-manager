@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from pathlib import Path
 
 import requests
 from fastapi import APIRouter
@@ -24,6 +25,17 @@ router = APIRouter()
 _ADDON_UPDATE_CACHE_TTL_S = 300
 _addon_update_cache: dict | None = None
 _addon_update_cached_at = 0.0
+
+
+def _is_addon_file_installed() -> bool:
+    """True if experimental_addon.whl or .pyz exists in addons/."""
+    try:
+        from plugin_loader import get_addons_dir
+
+        addons_dir = Path(get_addons_dir())
+        return (addons_dir / "experimental_addon.whl").is_file() or (addons_dir / "experimental_addon.pyz").is_file()
+    except Exception:
+        return False
 
 
 def _get_experimental_addon_update_snapshot() -> dict:
@@ -99,6 +111,7 @@ def info():
     except Exception:
         feature_flags = {}
     addon_update = _get_experimental_addon_update_snapshot()
+    addon_installed = _is_addon_file_installed()
     return {
         "manager_version": MANAGER_VERSION,
         "java_ok": java_ok,
@@ -107,6 +120,7 @@ def info():
         "github_repo": GITHUB_REPO,
         "report_url": REPORT_URL,
         "experimental_addon_loaded": experimental_addon_loaded,
+        "experimental_addon_installed": addon_installed,
         "experimental_addon_features": experimental_addon_features,
         "experimental_addon_feature_flags": feature_flags,
         **addon_update,
