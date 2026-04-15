@@ -363,7 +363,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
         <CardContent className="space-y-4 pt-0">
           {aggregated.pendingCount === 0 && (
             <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-100">
-              No pending updates detected right now.
+              Everything is up to date right now.
             </p>
           )}
           <ul className="space-y-3 text-sm">
@@ -383,7 +383,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" asChild>
                     <a href={releasesUrl} target="_blank" rel="noopener noreferrer">
-                      Open release
+                      Download manager update
                     </a>
                   </Button>
                 </div>
@@ -416,7 +416,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
               {appInfo?.experimental_addon_installed && (
                 <div className="mt-2">
                   <Button size="sm" variant="outline" type="button" onClick={() => onNavigate?.("experimental")}>
-                    Open Experimental
+                    Open addon settings
                   </Button>
                 </div>
               )}
@@ -425,9 +425,9 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium">Hytale game server (per instance)</span>
                 {aggregated.gameInstances.length > 0 ? (
-                  <span className="text-amber-400">{aggregated.gameInstances.length} pending</span>
+                  <span className="text-amber-400">{aggregated.gameInstances.length} with updates</span>
                 ) : (
-                  <span className="text-muted-foreground">All clear</span>
+                  <span className="text-muted-foreground">Up to date</span>
                 )}
               </div>
               {aggregated.gameInstances.length > 0 && (
@@ -450,12 +450,12 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 font-medium">
                   <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  Nitrado WebServer + Query (required mods)
+                  Required server plugins (Nitrado WebServer + Query)
                 </div>
                 {aggregated.nitradoInstances.length > 0 ? (
                   <span className="text-amber-400">{aggregated.nitradoInstances.length} instance(s)</span>
                 ) : (
-                  <span className="text-muted-foreground">All clear</span>
+                  <span className="text-muted-foreground">Up to date</span>
                 )}
               </div>
               {aggregated.nitradoInstances.length > 0 && (
@@ -474,7 +474,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
               {aggregated.nitradoInstances.length > 0 && (
                 <div className="mt-2">
                   <Button size="sm" variant="outline" type="button" onClick={() => onNavigate?.("mods")}>
-                    Open Mods (install / update plugins)
+                    Open Mods to update plugins
                   </Button>
                 </div>
               )}
@@ -484,7 +484,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
       </Card>
 
       <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Game server install &amp; channel
+        Game server version and channel
       </h3>
 
       {/* Not installed: offer Install Server */}
@@ -528,6 +528,9 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
             label="Channel"
             value={ip.replace(/^\w/, (c) => c.toUpperCase())}
           />
+          <p className="text-xs text-muted-foreground">
+            Release = stable updates. Pre-release = early updates with newer changes.
+          </p>
           <Separator className="my-3" />
           <InfoRow
             label="Latest release"
@@ -584,7 +587,9 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
             {updateAvailable ? (
               <>
                 <div>
-                  <p className="font-semibold">New {ip} version available</p>
+                  <p className="font-semibold">
+                    New {ip === "release" ? "Release" : "Pre-release"} version available
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {iv} → {ip === "release" ? rr : rp}
                   </p>
@@ -601,7 +606,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                     }}
                     disabled={updating}
                   >
-                    Update current
+                    Update this server
                   </Button>
                   {instancesWithUpdates.length > 0 && (
                     <>
@@ -612,7 +617,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                         className="gap-2"
                       >
                         <RefreshCw className="h-4 w-4" />
-                        Update all ({instancesWithUpdates.length})
+                        Update all servers ({instancesWithUpdates.length})
                       </Button>
                       <ul className="w-full space-y-2 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm">
                         {instancesWithUpdates.map(([name, info]) => {
@@ -668,7 +673,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                   className="gap-2"
                 >
                   <RefreshCw className="h-4 w-4" />
-                  Update all ({instancesWithUpdates.length})
+                  Update all servers ({instancesWithUpdates.length})
                 </Button>
               </div>
             ) : (
