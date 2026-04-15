@@ -241,7 +241,7 @@ export function ServerView({
                 >
                   Updates
                 </button>
-                . Running an old pair can break remote features and player count until you update.
+                . Using older plugin versions can cause missing remote features and inaccurate player counts.
               </p>
             </div>
           </div>
