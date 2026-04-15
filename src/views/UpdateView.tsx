@@ -356,8 +356,8 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Everything in one place</CardTitle>
           <p className="text-sm text-muted-foreground">
-            You may still see hints on the dashboard, console, or footer — this list is the full picture.
-            Use <span className="font-medium text-foreground">Refresh all</span> to re-check GitHub and the addon service.
+            Check all available updates for your manager, server, plugins, and addon in one place.
+            Use <span className="font-medium text-foreground">Refresh all</span> to check again.
           </p>
         </CardHeader>
         <CardContent className="space-y-4 pt-0">
