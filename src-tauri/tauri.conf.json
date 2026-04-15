@@ -26,6 +26,7 @@
     "security": {
       "csp": {
         "default-src": "'self' asset: https://asset.localhost",
+        "script-src": "'self' asset: https://asset.localhost blob:",
         "connect-src": "ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:* https://api.ipify.org",
         "font-src": "'self' https://fonts.gstatic.com",
         "style-src": "'unsafe-inline' 'self' https://fonts.googleapis.com",

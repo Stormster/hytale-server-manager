@@ -44,7 +44,12 @@ async function runScript(js: string): Promise<void> {
       const script = document.createElement("script");
       script.src = url;
       script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Addon script execution failed"));
+      script.onerror = () =>
+        reject(
+          new Error(
+            "Could not run addon script (often blocked by Content Security Policy: allow blob: in script-src, or check the browser console for a CSP error)."
+          )
+        );
       document.head.appendChild(script);
     });
   } finally {
@@ -185,7 +190,8 @@ export function AddonCustomCommandsManager() {
   if (loadError) {
     return (
       <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {loadError} Reinstall the addon, then restart the app.
+        {loadError}{" "}
+        If the message mentions CSP or blob URLs, update the manager app. Otherwise try reinstalling the addon and restarting.
       </div>
     );
   }
