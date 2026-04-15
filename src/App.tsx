@@ -26,6 +26,7 @@ import { useAggregatedPendingUpdates } from "@/api/hooks/useAggregatedUpdates";
 export default function App() {
   const { data: settings, isLoading, isError, refetch } = useSettings();
   const { data: authStatus, isLoading: authLoading, isError: authError, refetch: refetchAuth } = useAuthStatus();
+  const { pendingCount: updatesPendingCount } = useAggregatedPendingUpdates();
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
   const [experimentalScrollTo, setExperimentalScrollTo] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -163,8 +164,6 @@ export default function App() {
     setActiveView(view);
     if (view === "experimental" && scrollTo) setExperimentalScrollTo(scrollTo);
   };
-
-  const { pendingCount: updatesPendingCount } = useAggregatedPendingUpdates();
 
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden select-none">
