@@ -50,6 +50,8 @@ interface AppSidebarProps {
   onAddServer: () => void;
   onImportServer: () => void;
   onManageInstances: () => void;
+  /** When > 0, show a count badge on the Updates nav item. */
+  updatesPendingCount?: number;
 }
 
 export function AppSidebar({
@@ -58,6 +60,7 @@ export function AppSidebar({
   onAddServer,
   onImportServer,
   onManageInstances,
+  updatesPendingCount = 0,
 }: AppSidebarProps) {
   return (
     <aside className="relative z-20 flex h-full w-[260px] flex-col border-r border-white/10 bg-card/80 backdrop-blur-md">
@@ -75,6 +78,7 @@ export function AppSidebar({
             key={item.name}
             item={item}
             active={active === item.name}
+            badge={item.name === "updates" ? updatesPendingCount : undefined}
             onClick={() => onNavigate(item.name)}
           />
         ))}
@@ -97,13 +101,17 @@ export function AppSidebar({
 function SidebarButton({
   item,
   active,
+  badge,
   onClick,
 }: {
   item: NavItem;
   active: boolean;
+  badge?: number;
   onClick: () => void;
 }) {
   const Icon = item.icon;
+  const showBadge = typeof badge === "number" && badge > 0;
+  const badgeText = badge != null && badge > 9 ? "9+" : String(badge ?? "");
   return (
     <button
       onClick={onClick}
@@ -115,7 +123,18 @@ function SidebarButton({
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      {item.label}
+      <span className="flex-1 text-left">{item.label}</span>
+      {showBadge && (
+        <span
+          className={cn(
+            "flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none",
+            active ? "bg-primary text-primary-foreground" : "bg-amber-500/90 text-amber-950"
+          )}
+          title="Pending updates"
+        >
+          {badgeText}
+        </span>
+      )}
     </button>
   );
 }

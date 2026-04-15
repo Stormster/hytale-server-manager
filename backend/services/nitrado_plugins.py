@@ -75,10 +75,17 @@ def _version_less(a: str, b: str) -> bool:
         return a < b
 
 
-def get_nitrado_update_status(server_dir: str) -> dict:
+def get_nitrado_update_status(
+    server_dir: str,
+    *,
+    latest_versions: dict[str, str | None] | None = None,
+) -> dict:
     """
     Check if Nitrado plugins have updates available.
     Returns { update_available: bool, webserver: {installed, latest}, query: {installed, latest} }.
+
+    Pass ``latest_versions`` with keys ``webserver`` and ``query`` to avoid repeated GitHub
+    API calls when scanning many instances (e.g. ``/api/mods/nitrado-update-status-all``).
     """
     import re
 
@@ -104,12 +111,24 @@ def get_nitrado_update_status(server_dir: str) -> dict:
                     break
             if installed:
                 break
-        latest = _get_latest_version(repo, prefix)
+        if latest_versions and key in latest_versions:
+            latest = latest_versions[key]
+        else:
+            latest = _get_latest_version(repo, prefix)
         result[key]["installed"] = installed
         result[key]["latest"] = latest
         if installed and latest and _version_less(installed, latest):
             result["update_available"] = True
     return result
+
+
+def prefetch_nitrado_latest_versions() -> dict[str, str | None]:
+    """Fetch latest WebServer + Query versions once (two GitHub API calls)."""
+    out: dict[str, str | None] = {}
+    for repo, prefix, _ext in PLUGINS:
+        key = "webserver" if "webserver" in prefix else "query"
+        out[key] = _get_latest_version(repo, prefix)
+    return out
 
 
 def _pick_unique_webserver_port(server_dir: str) -> int:

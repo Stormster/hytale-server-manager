@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, apiUpload, subscribeSSE } from "../client";
 import { useSettings } from "./useSettings";
+import { useInstances } from "./useInstances";
 import type { Mod } from "../types";
 
 interface ModsResponse {
@@ -99,5 +100,25 @@ export function useNitradoUpdateStatus() {
     queryFn: () => api<NitradoUpdateStatus>("/api/mods/nitrado-update-status"),
     enabled: !!activeInstance,
     staleTime: 60000, // 1 min – don't hammer GitHub
+  });
+}
+
+export interface NitradoInstanceUpdateStatus extends NitradoUpdateStatus {
+  installed: boolean;
+}
+
+export interface AllNitradoUpdateStatus {
+  instances: Record<string, NitradoInstanceUpdateStatus>;
+}
+
+/** Per-instance Nitrado WebServer + Query update check (backend batches GitHub latest). */
+export function useAllNitradoUpdateStatus() {
+  const { data: instances } = useInstances();
+  const hasInstalled = instances?.some((i) => i.installed) ?? false;
+  return useQuery<AllNitradoUpdateStatus>({
+    queryKey: ["mods", "nitrado-update-status-all"],
+    queryFn: () => api<AllNitradoUpdateStatus>("/api/mods/nitrado-update-status-all"),
+    enabled: hasInstalled,
+    staleTime: 120000,
   });
 }

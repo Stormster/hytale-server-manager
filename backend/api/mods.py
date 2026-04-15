@@ -62,6 +62,42 @@ def nitrado_update_status():
     return nitrado.get_nitrado_update_status(server_dir)
 
 
+@router.get("/nitrado-update-status-all")
+def nitrado_update_status_all():
+    """Per-instance Nitrado WebServer/Query update status (shared GitHub latest lookup)."""
+    from services import instances as inst_svc
+    from services import nitrado_plugins as nitrado
+    from utils.paths import resolve_instance_by_name
+
+    latest = nitrado.prefetch_nitrado_latest_versions()
+    out: dict[str, dict] = {}
+    for inst in inst_svc.list_instances():
+        name = inst.get("name") or ""
+        if not name:
+            continue
+        if not inst.get("installed"):
+            out[name] = {
+                "installed": False,
+                "update_available": False,
+                "webserver": {"installed": None, "latest": latest.get("webserver")},
+                "query": {"installed": None, "latest": latest.get("query")},
+            }
+            continue
+        server_dir = resolve_instance_by_name(name, SERVER_DIR)
+        if not server_dir or not os.path.isdir(server_dir):
+            out[name] = {
+                "installed": True,
+                "update_available": False,
+                "webserver": {"installed": None, "latest": latest.get("webserver")},
+                "query": {"installed": None, "latest": latest.get("query")},
+            }
+            continue
+        status = nitrado.get_nitrado_update_status(server_dir, latest_versions=latest)
+        status["installed"] = True
+        out[name] = status
+    return {"instances": out}
+
+
 @router.post("/ensure-query-permissions")
 def ensure_query_permissions():
     """
