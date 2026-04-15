@@ -215,6 +215,7 @@ export function ModsView() {
       });
       refetch();
       queryClient.invalidateQueries({ queryKey: ["mods", "nitrado-update-status"] });
+      queryClient.invalidateQueries({ queryKey: ["mods", "nitrado-update-status-all"] });
     } catch {
       // Error shown via mutation
     } finally {

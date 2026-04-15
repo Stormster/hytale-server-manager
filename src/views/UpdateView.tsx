@@ -18,13 +18,21 @@ import { useUpdaterLocalStatus, useAllInstancesUpdateStatus } from "@/api/hooks/
 import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 import { useInstances } from "@/api/hooks/useInstances";
 import { useServerStatus } from "@/api/hooks/useServer";
+import { useManagerUpdate, useAppInfo } from "@/api/hooks/useInfo";
+import { useAllNitradoUpdateStatus } from "@/api/hooks/useMods";
+import { useAggregatedPendingUpdates } from "@/api/hooks/useAggregatedUpdates";
 import { useQueryClient } from "@tanstack/react-query";
 import { subscribeSSE } from "@/api/client";
-import { Download, Loader2, RefreshCw } from "lucide-react";
+import type { ViewName } from "@/components/AppSidebar";
+import { Download, Loader2, RefreshCw, Package, Sparkles, AppWindow } from "lucide-react";
 import { parseAuthOutput } from "@/lib/authOutput";
 import { toast } from "sonner";
 
-export function UpdateView() {
+export interface UpdateViewProps {
+  onNavigate?: (view: ViewName) => void;
+}
+
+export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
   const { data: instances } = useInstances();
@@ -35,11 +43,17 @@ export function UpdateView() {
     queryClient.refetchQueries({ queryKey: ["instances"] });
     queryClient.refetchQueries({ queryKey: ["updater", "local-status"] });
     queryClient.refetchQueries({ queryKey: ["server", "status"] });
+    queryClient.refetchQueries({ queryKey: ["mods", "nitrado-update-status-all"] });
+    queryClient.refetchQueries({ queryKey: ["mods", "nitrado-update-status"] });
     return p;
   }, [queryClient]);
   const [installOpen, setInstallOpen] = useState(false);
   const { data: localStatus } = useUpdaterLocalStatus();
   const { data: allUpdateStatus, isLoading: checkingUpdates, refetch: refetchUpdates } = useAllInstancesUpdateStatus();
+  const { data: managerUpdate } = useManagerUpdate();
+  const { data: appInfo } = useAppInfo();
+  const { refetch: refetchNitradoAll } = useAllNitradoUpdateStatus();
+  const aggregated = useAggregatedPendingUpdates();
 
   const activeInstance = settings?.active_instance || "None";
   const activeStatus = activeInstance !== "None" ? allUpdateStatus?.instances?.[activeInstance] : undefined;
@@ -105,7 +119,11 @@ export function UpdateView() {
 
   const handleRefresh = () => {
     setUpdateDone(null);
-    refetchUpdates();
+    void refetchUpdates();
+    void refetchNitradoAll();
+    void queryClient.invalidateQueries({ queryKey: ["info"] });
+    void queryClient.invalidateQueries({ queryKey: ["info", "manager-update"] });
+    void queryClient.invalidateQueries({ queryKey: ["mods", "nitrado-update-status"] });
   };
 
   const handleReauth = useCallback(() => {
@@ -317,19 +335,157 @@ export function UpdateView() {
   const ip = localStatus?.installed_patchline ?? "release";
   const notInstalled = iv === "unknown" || iv === "...";
 
+  const repo = appInfo?.github_repo ?? "Stormster/hytale-server-manager";
+  const releasesUrl = `https://github.com/${repo}/releases/latest`;
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Server Updates</h2>
+        <h2 className="text-xl font-bold">Updates</h2>
         <Button
           onClick={handleRefresh}
           disabled={checkingUpdates || updating}
         >
-          {checkingUpdates ? "Checking..." : "Refresh"}
+          {checkingUpdates ? "Checking..." : "Refresh all"}
         </Button>
       </div>
+
+      <Card className="border-border/80">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Everything in one place</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            You may still see hints on the dashboard, console, or footer — this list is the full picture.
+            Use <span className="font-medium text-foreground">Refresh all</span> to re-check GitHub and the addon service.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          {aggregated.pendingCount === 0 && (
+            <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-100">
+              No pending updates detected right now.
+            </p>
+          )}
+          <ul className="space-y-3 text-sm">
+            <li className="rounded-lg border border-border/60 bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-medium">
+                  <AppWindow className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  Hytale Server Manager (this app)
+                </div>
+                {managerUpdate?.update_available ? (
+                  <span className="text-amber-400">v{appInfo?.manager_version ?? "?"} → v{managerUpdate.latest_version}</span>
+                ) : (
+                  <span className="text-muted-foreground">Up to date (v{appInfo?.manager_version ?? "…"})</span>
+                )}
+              </div>
+              {managerUpdate?.update_available && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={releasesUrl} target="_blank" rel="noopener noreferrer">
+                      Open release
+                    </a>
+                  </Button>
+                </div>
+              )}
+            </li>
+            <li className="rounded-lg border border-border/60 bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-medium">
+                  <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  Experimental addon
+                </div>
+                {!appInfo?.experimental_addon_installed ? (
+                  <span className="text-muted-foreground">Not installed</span>
+                ) : appInfo.experimental_addon_update_available ? (
+                  <span className="text-amber-400">
+                    Update available
+                    {appInfo.experimental_addon_latest_version
+                      ? ` → v${appInfo.experimental_addon_latest_version}`
+                      : ""}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Up to date
+                    {appInfo.experimental_addon_installed_version
+                      ? ` (v${appInfo.experimental_addon_installed_version})`
+                      : ""}
+                  </span>
+                )}
+              </div>
+              {appInfo?.experimental_addon_installed && (
+                <div className="mt-2">
+                  <Button size="sm" variant="outline" type="button" onClick={() => onNavigate?.("experimental")}>
+                    Open Experimental
+                  </Button>
+                </div>
+              )}
+            </li>
+            <li className="rounded-lg border border-border/60 bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium">Hytale game server (per instance)</span>
+                {aggregated.gameInstances.length > 0 ? (
+                  <span className="text-amber-400">{aggregated.gameInstances.length} pending</span>
+                ) : (
+                  <span className="text-muted-foreground">All clear</span>
+                )}
+              </div>
+              {aggregated.gameInstances.length > 0 && (
+                <ul className="mt-2 space-y-1 border-t border-border/40 pt-2 text-muted-foreground">
+                  {aggregated.gameInstances.map(([name, info]) => (
+                    <li key={name}>
+                      <span className="font-medium text-foreground">{name}</span>
+                      {": "}
+                      {info.installed_version} →{" "}
+                      {info.installed_patchline === "release"
+                        ? allUpdateStatus?.remote_release ?? "?"
+                        : allUpdateStatus?.remote_prerelease ?? "?"}
+                      <span className="text-xs"> ({info.installed_patchline})</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+            <li className="rounded-lg border border-border/60 bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-medium">
+                  <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  Nitrado WebServer + Query (required mods)
+                </div>
+                {aggregated.nitradoInstances.length > 0 ? (
+                  <span className="text-amber-400">{aggregated.nitradoInstances.length} instance(s)</span>
+                ) : (
+                  <span className="text-muted-foreground">All clear</span>
+                )}
+              </div>
+              {aggregated.nitradoInstances.length > 0 && (
+                <ul className="mt-2 space-y-1 border-t border-border/40 pt-2 text-muted-foreground">
+                  {aggregated.nitradoInstances.map(([name, row]) => (
+                    <li key={name}>
+                      <span className="font-medium text-foreground">{name}</span>
+                      {": WebServer "}
+                      {row.webserver.installed ?? "—"} → {row.webserver.latest ?? "?"}
+                      {", Query "}
+                      {row.query.installed ?? "—"} → {row.query.latest ?? "?"}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {aggregated.nitradoInstances.length > 0 && (
+                <div className="mt-2">
+                  <Button size="sm" variant="outline" type="button" onClick={() => onNavigate?.("mods")}>
+                    Open Mods (install / update plugins)
+                  </Button>
+                </div>
+              )}
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        Game server install &amp; channel
+      </h3>
 
       {/* Not installed: offer Install Server */}
       {notInstalled && activeInstance !== "None" && (

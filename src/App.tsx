@@ -21,6 +21,7 @@ import { Loader2 } from "lucide-react";
 import { useSettings } from "@/api/hooks/useSettings";
 import { useAuthStatus } from "@/api/hooks/useAuth";
 import { clearBackendUrlCache } from "@/api/client";
+import { useAggregatedPendingUpdates } from "@/api/hooks/useAggregatedUpdates";
 
 export default function App() {
   const { data: settings, isLoading, isError, refetch } = useSettings();
@@ -163,6 +164,8 @@ export default function App() {
     if (view === "experimental" && scrollTo) setExperimentalScrollTo(scrollTo);
   };
 
+  const { pendingCount: updatesPendingCount } = useAggregatedPendingUpdates();
+
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden select-none">
       <div className="hytale-bg">
@@ -176,6 +179,7 @@ export default function App() {
           onAddServer={() => setAddOpen(true)}
           onImportServer={() => setImportOpen(true)}
           onManageInstances={() => setManageInstancesOpen(true)}
+          updatesPendingCount={updatesPendingCount}
         />
         <main className="relative z-0 flex flex-1 flex-col overflow-hidden">
           <AuthExpiredBanner
@@ -194,10 +198,11 @@ export default function App() {
           )}
           {activeView === "server" && (
             <ServerView
+              onNavigate={handleNavigate}
               onNavigateToCustomCommands={() => handleNavigate("experimental", "custom-commands")}
             />
           )}
-          {activeView === "updates" && <UpdateView />}
+          {activeView === "updates" && <UpdateView onNavigate={handleNavigate} />}
           {activeView === "backups" && <BackupView onNavigate={handleNavigate} />}
           {activeView === "mods" && <ModsView />}
           {activeView === "config" && <ConfigView />}

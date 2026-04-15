@@ -12,17 +12,23 @@ import { useSettings } from "@/api/hooks/useSettings";
 import { usePublicIp } from "@/api/hooks/useInfo";
 import { subscribeSSE } from "@/api/client";
 import { formatUptime } from "@/lib/timeAgo";
-import { HardDrive, Cpu, Users, Copy } from "lucide-react";
+import { HardDrive, Cpu, Users, Copy, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import type { ViewName } from "@/components/AppSidebar";
+import { useAllNitradoUpdateStatus } from "@/api/hooks/useMods";
 
 const AUTH_NEEDED = /no server tokens configured/i;
 const AUTH_ALREADY_LOADED = /token refresh scheduled|session service client initialized/i;
 
-interface ServerViewProps {
+export interface ServerViewProps {
+  onNavigate?: (view: ViewName) => void;
   onNavigateToCustomCommands?: () => void;
 }
 
-export function ServerView({ onNavigateToCustomCommands }: ServerViewProps = {}) {
+export function ServerView({
+  onNavigate,
+  onNavigateToCustomCommands,
+}: ServerViewProps = {}) {
   const { data: settings } = useSettings();
   const { data: status } = useServerStatus();
   const startServer = useStartServer();
@@ -49,6 +55,14 @@ export function ServerView({ onNavigateToCustomCommands }: ServerViewProps = {})
   const running = status?.running ?? false;
   const installed = status?.installed ?? false;
   const { data: publicIpData } = usePublicIp(installed);
+  const { data: nitradoAll } = useAllNitradoUpdateStatus();
+  const nitradoForActive = activeInstance
+    ? nitradoAll?.instances?.[activeInstance]
+    : undefined;
+  const nitradoPluginUpdatePending =
+    !!nitradoForActive?.installed &&
+    nitradoForActive.update_available === true;
+
   const displayRunInfo = running
     ? runningInstances.find((r) => r.name === (viewingRunningInstance ? activeInstance : runningInstance))
     : null;
@@ -202,6 +216,38 @@ export function ServerView({ onNavigateToCustomCommands }: ServerViewProps = {})
         />
       </div>
 
+      {installed && nitradoPluginUpdatePending && (
+        <div className="mb-4 rounded-lg border border-amber-500/50 bg-amber-500/15 px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="font-medium text-amber-100">
+                Nitrado WebServer / Query plugin update available
+              </p>
+              <p className="text-muted-foreground">
+                Stop the server, then update from{" "}
+                <button
+                  type="button"
+                  className="font-medium text-foreground underline decoration-amber-400/80 underline-offset-2 hover:text-amber-100"
+                  onClick={() => onNavigate?.("mods")}
+                >
+                  Mods
+                </button>
+                {" "}or see all pending items on{" "}
+                <button
+                  type="button"
+                  className="font-medium text-foreground underline decoration-amber-400/80 underline-offset-2 hover:text-amber-100"
+                  onClick={() => onNavigate?.("updates")}
+                >
+                  Updates
+                </button>
+                . Running an old pair can break remote features and player count until you update.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Controls and stats on same row */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Button
@@ -214,7 +260,9 @@ export function ServerView({ onNavigateToCustomCommands }: ServerViewProps = {})
           title={
             status?.update_in_progress
               ? "Update in progress – cannot start"
-              : undefined
+              : nitradoPluginUpdatePending
+                ? "Plugin updates are available — update from Mods after stopping"
+                : undefined
           }
         >
           Start Server
