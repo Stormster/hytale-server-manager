@@ -109,6 +109,12 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
     ok: boolean;
     message: string;
   } | null>(null);
+  const [backupFailureDialogOpen, setBackupFailureDialogOpen] = useState(false);
+  const [backupFailureMessage, setBackupFailureMessage] = useState("");
+  const [lastUpdateAttempt, setLastUpdateAttempt] = useState<{
+    patchline: string;
+    graceful: boolean;
+  } | null>(null);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -181,7 +187,16 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
     );
   }, [queryClient, reauthRunning]);
 
-  const doUpdateActual = useCallback((patchline: string, graceful = false) => {
+  const doUpdateActual = useCallback(
+    (
+      patchline: string,
+      options?: { graceful?: boolean; skipBackup?: boolean }
+    ) => {
+      const graceful = options?.graceful ?? false;
+      const skipBackup = options?.skipBackup ?? false;
+      setLastUpdateAttempt({ patchline, graceful });
+      setBackupFailureDialogOpen(false);
+      setBackupFailureMessage("");
     setUpdating(true);
     setProgress(0);
     setProgressStatus("Preparing...");
@@ -203,10 +218,16 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
           } else if (event === "done") {
             const ok = d.ok as boolean;
             const msg = d.message as string;
+            const code = String(d.code ?? "");
+            const canSkipBackup = Boolean(d.can_skip_backup);
             if (mountedRef.current) {
               setUpdateDone({ ok, message: msg });
               setUpdating(false);
               if (ok) setProgress(100);
+              if (!ok && code === "backup_failed" && canSkipBackup) {
+                setBackupFailureMessage(msg || "Pre-update backup failed.");
+                setBackupFailureDialogOpen(true);
+              }
             }
             // Always run these so they work when user navigated away (background update)
             if (ok) {
@@ -215,7 +236,11 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
               });
               toast.success("Server update completed");
             } else {
-              toast.error(msg || "Update failed");
+              if (code === "backup_failed" && canSkipBackup) {
+                toast.warning("Pre-update backup failed. Choose how to continue.");
+              } else {
+                toast.error(msg || "Update failed");
+              }
             }
           }
         },
@@ -227,9 +252,11 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
           toast.error("Connection error");
         },
       },
-      { method: "POST", body: JSON.stringify({ graceful }) }
+      { method: "POST", body: JSON.stringify({ graceful, skip_backup: skipBackup }) }
     );
-  }, [refreshOnUpdateComplete]);
+    },
+    [refreshOnUpdateComplete]
+  );
 
   const doUpdate = doUpdateActual;
 
@@ -284,7 +311,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
     (update: { type: "current"; patchline: string; graceful?: boolean } | { type: "all"; graceful?: boolean }) => {
       if (typeof localStorage !== "undefined" && localStorage.getItem(SKIP_UPDATE_LEAVE_KEY)) {
         if (update.type === "current") {
-          doUpdateActual(update.patchline, update.graceful ?? false);
+          doUpdateActual(update.patchline, { graceful: update.graceful ?? false });
         } else {
           runUpdateAll(update.graceful ?? false);
         }
@@ -304,7 +331,9 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
     setUpdateLeaveDontShow(false);
     if (pendingUpdate) {
       if (pendingUpdate.type === "current") {
-        doUpdateActual(pendingUpdate.patchline, pendingUpdate.graceful ?? false);
+        doUpdateActual(pendingUpdate.patchline, {
+          graceful: pendingUpdate.graceful ?? false,
+        });
       } else {
         runUpdateAll(pendingUpdate.graceful ?? false);
       }
@@ -722,6 +751,64 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                 Cancel
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Backup failed during update */}
+      <Dialog open={backupFailureDialogOpen} onOpenChange={setBackupFailureDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pre-update backup failed</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  {backupFailureMessage ||
+                    "The update stopped because the automatic pre-update backup failed."}
+                </p>
+                <p>
+                  You can try again, or continue without backup. Skipping backup is riskier.
+                </p>
+                <p className="font-medium text-amber-400">
+                  If you skip backup, make a manual backup as soon as the update finishes.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBackupFailureDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!lastUpdateAttempt) return;
+                setBackupFailureDialogOpen(false);
+                doUpdateActual(lastUpdateAttempt.patchline, {
+                  graceful: lastUpdateAttempt.graceful,
+                  skipBackup: false,
+                });
+              }}
+              disabled={!lastUpdateAttempt}
+            >
+              Try again
+            </Button>
+            <Button
+              onClick={() => {
+                if (!lastUpdateAttempt) return;
+                setBackupFailureDialogOpen(false);
+                toast.warning(
+                  "Continuing without pre-update backup. Please make a manual backup after the update."
+                );
+                doUpdateActual(lastUpdateAttempt.patchline, {
+                  graceful: lastUpdateAttempt.graceful,
+                  skipBackup: true,
+                });
+              }}
+              disabled={!lastUpdateAttempt}
+            >
+              Skip backup and continue
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

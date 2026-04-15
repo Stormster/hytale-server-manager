@@ -150,6 +150,50 @@ def _save_meta(dest: str, backup_type: str, label: str, **extra) -> None:
         json.dump(data, f, indent=2)
 
 
+def _copy_server_for_backup(
+    server_dir: str,
+    dest_server_dir: str,
+    *,
+    exclude_server_cache: bool = False,
+) -> None:
+    """Copy the Server folder for a backup with optional excludes."""
+    ignore = None
+    if exclude_server_cache:
+        server_dir_norm = os.path.normcase(os.path.normpath(server_dir))
+
+        def _ignore(path: str, names: list[str]) -> list[str]:
+            # Only skip Server/.cache at the root of the Server directory.
+            if os.path.normcase(os.path.normpath(path)) == server_dir_norm:
+                return [".cache"] if ".cache" in names else []
+            return []
+
+        ignore = _ignore
+
+    try:
+        shutil.copytree(server_dir, dest_server_dir, dirs_exist_ok=True, ignore=ignore)
+    except shutil.Error as exc:
+        details = ""
+        errors = exc.args[0] if exc.args else []
+        if isinstance(errors, list) and errors:
+            sample = "; ".join(str(err[2]) for err in errors[:3] if isinstance(err, tuple) and len(err) >= 3)
+            details = sample.lower()
+        else:
+            details = str(exc).lower()
+
+        looks_like_windows_path_limit = (
+            "winerror 206" in details
+            or "file name too long" in details
+            or "path not found" in details
+            or "cannot find the path" in details
+        )
+        if looks_like_windows_path_limit:
+            raise RuntimeError(
+                "Backup failed while copying files. This is likely a Windows long-path issue. "
+                "Try enabling Windows long paths and/or using a shorter server root path."
+            ) from exc
+        raise
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -175,7 +219,12 @@ def find_backup(folder_name: str) -> BackupEntry | None:
     return None
 
 
-def create_backup_for_instance(instance_name: str, label: Optional[str] = None) -> BackupEntry:
+def create_backup_for_instance(
+    instance_name: str,
+    label: Optional[str] = None,
+    *,
+    exclude_server_cache: bool = False,
+) -> BackupEntry:
     """Create a backup for a specific instance (used by update-all)."""
     backup_root = ensure_dir(resolve_instance_by_name(instance_name, BACKUP_DIR))
     now = datetime.now()
@@ -192,7 +241,11 @@ def create_backup_for_instance(instance_name: str, label: Optional[str] = None) 
         raise FileNotFoundError("No Server folder to backup.")
 
     os.makedirs(dest, exist_ok=True)
-    shutil.copytree(server_dir, os.path.join(dest, "Server"), dirs_exist_ok=True)
+    _copy_server_for_backup(
+        server_dir,
+        os.path.join(dest, "Server"),
+        exclude_server_cache=exclude_server_cache,
+    )
 
     for name in ("Assets.zip", "start.bat", "start.sh", VERSION_FILE, PATCHLINE_FILE):
         src = resolve_instance_by_name(instance_name, name)
@@ -222,7 +275,7 @@ def create_backup_for_instance(instance_name: str, label: Optional[str] = None) 
     return BackupEntry(dest)
 
 
-def create_backup(label: Optional[str] = None) -> BackupEntry:
+def create_backup(label: Optional[str] = None, *, exclude_server_cache: bool = False) -> BackupEntry:
     backup_root = ensure_dir(resolve_instance(BACKUP_DIR))
     now = datetime.now()
     folder_name = now.strftime("backup_%Y-%m-%d_%I%M%p")
@@ -238,7 +291,11 @@ def create_backup(label: Optional[str] = None) -> BackupEntry:
         raise FileNotFoundError("No Server folder to backup.")
 
     os.makedirs(dest, exist_ok=True)
-    shutil.copytree(server_dir, os.path.join(dest, "Server"), dirs_exist_ok=True)
+    _copy_server_for_backup(
+        server_dir,
+        os.path.join(dest, "Server"),
+        exclude_server_cache=exclude_server_cache,
+    )
 
     for name in ("Assets.zip", "start.bat", "start.sh", VERSION_FILE, PATCHLINE_FILE):
         src = resolve_instance(name)

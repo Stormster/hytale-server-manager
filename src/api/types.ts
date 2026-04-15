@@ -198,6 +198,8 @@ export interface SSEProgressEvent {
 export interface SSEDoneEvent {
   ok: boolean;
   message: string;
+  code?: string;
+  can_skip_backup?: boolean;
 }
 
 export interface SSEOutputEvent {
