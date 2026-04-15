@@ -104,6 +104,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
   const [progressDetail, setProgressDetail] = useState("");
+  const updateActionsRef = useRef<HTMLDivElement | null>(null);
   const [updateDone, setUpdateDone] = useState<{
     ok: boolean;
     message: string;
@@ -125,6 +126,10 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
     void queryClient.invalidateQueries({ queryKey: ["info", "manager-update"] });
     void queryClient.invalidateQueries({ queryKey: ["mods", "nitrado-update-status"] });
   };
+
+  const scrollToUpdateActions = useCallback(() => {
+    updateActionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const handleReauth = useCallback(() => {
     if (reauthRunning) return;
@@ -389,38 +394,36 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                 </div>
               )}
             </li>
-            <li className="rounded-lg border border-border/60 bg-muted/20 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 font-medium">
-                  <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  Experimental addon
+            {appInfo?.experimental_addon_installed && (
+              <li className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 font-medium">
+                    <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    Experimental addon
+                  </div>
+                  {appInfo.experimental_addon_update_available ? (
+                    <span className="text-amber-400">
+                      Update available
+                      {appInfo.experimental_addon_latest_version
+                        ? ` → v${appInfo.experimental_addon_latest_version}`
+                        : ""}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      Up to date
+                      {appInfo.experimental_addon_installed_version
+                        ? ` (v${appInfo.experimental_addon_installed_version})`
+                        : ""}
+                    </span>
+                  )}
                 </div>
-                {!appInfo?.experimental_addon_installed ? (
-                  <span className="text-muted-foreground">Not installed</span>
-                ) : appInfo.experimental_addon_update_available ? (
-                  <span className="text-amber-400">
-                    Update available
-                    {appInfo.experimental_addon_latest_version
-                      ? ` → v${appInfo.experimental_addon_latest_version}`
-                      : ""}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">
-                    Up to date
-                    {appInfo.experimental_addon_installed_version
-                      ? ` (v${appInfo.experimental_addon_installed_version})`
-                      : ""}
-                  </span>
-                )}
-              </div>
-              {appInfo?.experimental_addon_installed && (
                 <div className="mt-2">
                   <Button size="sm" variant="outline" type="button" onClick={() => onNavigate?.("experimental")}>
                     Open addon settings
                   </Button>
                 </div>
-              )}
-            </li>
+              </li>
+            )}
             <li className="rounded-lg border border-border/60 bg-muted/20 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium">Hytale game server (per instance)</span>
@@ -431,19 +434,26 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                 )}
               </div>
               {aggregated.gameInstances.length > 0 && (
-                <ul className="mt-2 space-y-1 border-t border-border/40 pt-2 text-muted-foreground">
-                  {aggregated.gameInstances.map(([name, info]) => (
-                    <li key={name}>
-                      <span className="font-medium text-foreground">{name}</span>
-                      {": "}
-                      {info.installed_version} →{" "}
-                      {info.installed_patchline === "release"
-                        ? allUpdateStatus?.remote_release ?? "?"
-                        : allUpdateStatus?.remote_prerelease ?? "?"}
-                      <span className="text-xs"> ({info.installed_patchline})</span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ul className="mt-2 space-y-1 border-t border-border/40 pt-2 text-muted-foreground">
+                    {aggregated.gameInstances.map(([name, info]) => (
+                      <li key={name}>
+                        <span className="font-medium text-foreground">{name}</span>
+                        {": "}
+                        {info.installed_version} →{" "}
+                        {info.installed_patchline === "release"
+                          ? allUpdateStatus?.remote_release ?? "?"
+                          : allUpdateStatus?.remote_prerelease ?? "?"}
+                        <span className="text-xs"> ({info.installed_patchline})</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-2">
+                    <Button size="sm" variant="outline" type="button" onClick={scrollToUpdateActions}>
+                      Go to update actions
+                    </Button>
+                  </div>
+                </>
               )}
             </li>
             <li className="rounded-lg border border-border/60 bg-muted/20 p-3">
@@ -520,70 +530,19 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
       {/* Version info and update actions - only when server is installed */}
       {!notInstalled && (
         <>
-      {/* Version info card */}
-      <Card>
-        <CardContent className="pt-6 space-y-2">
-          <InfoRow label="Installed version" value={iv} />
-          <InfoRow
-            label="Channel"
-            value={ip.replace(/^\w/, (c) => c.toUpperCase())}
-          />
-          <p className="text-xs text-muted-foreground">
-            Release = stable updates. Pre-release = early updates with newer changes.
-          </p>
-          <Separator className="my-3" />
-          <InfoRow
-            label="Latest release"
-            value={
-              rr ??
-              (hasStatus
-                ? remoteErrorKind === "auth_expired"
-                  ? "auth expired"
-                  : "unavailable"
-                : "--")
-            }
-          />
-          <InfoRow
-            label="Latest pre-release"
-            value={
-              rp ??
-              (hasStatus
-                ? remoteErrorKind === "auth_expired"
-                  ? "auth expired"
-                  : "unavailable"
-                : "--")
-            }
-          />
-          {remoteError && (
-            <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-              <p className="text-xs text-amber-700 dark:text-amber-200">{remoteError}</p>
-              {remoteErrorKind === "auth_expired" && (
-                <div className="mt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleReauth}
-                    disabled={reauthRunning}
-                  >
-                    {reauthRunning ? "Re-authenticating..." : "Re-auth now"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Version info card intentionally hidden for now (can be restored later). */}
 
       {/* Action card - update on current channel */}
       {hasStatus && !updating && !updateDone && !backgroundUpdateInProgress && (
-        <Card
-          className={
-            !updateAvailable && instancesWithUpdates.length === 0
-              ? "border-emerald-500/50 bg-emerald-500/10"
-              : undefined
-          }
-        >
-          <CardContent className="pt-6 space-y-4">
+        <div ref={updateActionsRef}>
+          <Card
+            className={
+              !updateAvailable && instancesWithUpdates.length === 0
+                ? "border-emerald-500/50 bg-emerald-500/10"
+                : undefined
+            }
+          >
+            <CardContent className="pt-6 space-y-4">
             {updateAvailable ? (
               <>
                 <div>
@@ -681,8 +640,9 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                 All servers are up to date.
               </p>
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Leave-page warning before starting update */}
