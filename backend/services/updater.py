@@ -13,6 +13,7 @@ from typing import Callable, Optional
 
 _update_in_progress: Optional[str] = None
 _update_lock = threading.Lock()
+BACKUP_FAILED_CODE = "backup_failed"
 
 
 def get_update_in_progress() -> Optional[str]:
@@ -354,12 +355,25 @@ def _save_version_for_instance(instance_name: str, version: str, patchline: str)
         f.write(patchline)
 
 
+def _looks_like_backup_path_failure(exc: Exception) -> bool:
+    """Best-effort classifier for path-related backup copy failures."""
+    text = str(exc).lower()
+    return (
+        "long-path" in text
+        or "path not found" in text
+        or "cannot find the path" in text
+        or "winerror 206" in text
+        or "file name too long" in text
+    )
+
+
 def perform_update(
     patchline: str = "release",
     on_status: Optional[Callable[[str], None]] = None,
     on_progress: Optional[Callable[[float, str], None]] = None,
-    on_done: Optional[Callable[[bool, str], None]] = None,
+    on_done: Optional[Callable[[bool, str, Optional[dict]], None]] = None,
     graceful: bool = False,
+    skip_backup: bool = False,
 ) -> threading.Thread:
     def _worker():
         from services.settings import get_active_instance, get_root_dir
@@ -377,7 +391,7 @@ def perform_update(
                     if not _graceful_shutdown_with_warning(instance_name, minutes=1, on_status=on_status):
                         _set_update_in_progress(None)
                         if on_done:
-                            on_done(False, "Failed to stop server.")
+                            on_done(False, "Failed to stop server.", None)
                         return
                 else:
                     server_svc.stop(instance_name=instance_name)
@@ -388,7 +402,7 @@ def perform_update(
                     if server_svc.is_instance_running(instance_name):
                         _set_update_in_progress(None)
                         if on_done:
-                            on_done(False, "Server did not stop in time.")
+                            on_done(False, "Server did not stop in time.", None)
                         return
 
             zip_path = _ensure_cached_server(patchline, on_status=on_status, on_progress=on_progress)
@@ -401,13 +415,39 @@ def perform_update(
             server_dir = os.path.join(instance_dir, SERVER_DIR)
 
             if os.path.isdir(server_dir):
-                if on_status:
-                    on_status("Creating backup before update...")
-                old_ver = read_installed_version()
-                old_pl = read_installed_patchline()
-                bk.create_backup(
-                    label=f"update from {old_ver} ({old_pl}) to {new_ver} ({patchline})"
-                )
+                if skip_backup:
+                    if on_status:
+                        on_status(
+                            "Skipping pre-update backup by request. "
+                            "Please create a manual backup after this update."
+                        )
+                else:
+                    if on_status:
+                        on_status("Creating backup before update...")
+                    old_ver = read_installed_version()
+                    old_pl = read_installed_patchline()
+                    try:
+                        bk.create_backup(
+                            label=f"update from {old_ver} ({old_pl}) to {new_ver} ({patchline})",
+                            exclude_server_cache=True,
+                        )
+                    except Exception as exc:
+                        msg = (
+                            "Pre-update backup failed, so the update was not started. "
+                            "You can try again, or skip backup and continue (not recommended)."
+                        )
+                        if _looks_like_backup_path_failure(exc):
+                            msg += (
+                                " This looks like a Windows path-length issue. "
+                                "Consider enabling long paths and using a shorter server root path."
+                            )
+                        if on_done:
+                            on_done(
+                                False,
+                                msg,
+                                {"code": BACKUP_FAILED_CODE, "can_skip_backup": True},
+                            )
+                        return
 
             if on_status:
                 on_status("Extracting update...")
@@ -416,10 +456,10 @@ def perform_update(
             _save_version_for_instance(instance_name, new_ver, patchline)
 
             if on_done:
-                on_done(True, f"Update complete! Version: {new_ver}. You can start the server when ready.")
+                on_done(True, f"Update complete! Version: {new_ver}. You can start the server when ready.", None)
         except Exception as exc:
             if on_done:
-                on_done(False, str(exc))
+                on_done(False, str(exc), None)
         finally:
             _set_update_in_progress(None)
 
@@ -432,8 +472,9 @@ def perform_first_time_setup(
     patchline: str = "release",
     on_status: Optional[Callable[[str], None]] = None,
     on_progress: Optional[Callable[[float, str], None]] = None,
-    on_done: Optional[Callable[[bool, str], None]] = None,
+    on_done: Optional[Callable[[bool, str, Optional[dict]], None]] = None,
     graceful: bool = False,
+    skip_backup: bool = False,
 ) -> threading.Thread:
     """Install server for the first time. Uses shared cache: if a build for this
     branch was already downloaded (by another instance or update), reuses it
@@ -453,7 +494,7 @@ def perform_first_time_setup(
             if instance_name and server_svc.is_instance_running(instance_name):
                 _set_update_in_progress(None)
                 if on_done:
-                    on_done(False, "Stop the server before installing.")
+                    on_done(False, "Stop the server before installing.", None)
                 return
 
             if not dl.has_downloader():
@@ -474,7 +515,7 @@ def perform_first_time_setup(
                 if not fetch_result["ok"]:
                     print(f"[updater] Fetch downloader failed: {fetch_result['msg']}", file=sys.stderr, flush=True)
                     if on_done:
-                        on_done(False, fetch_result["msg"])
+                        on_done(False, fetch_result["msg"], None)
                     return
 
             print(f"[updater] Ensuring cached server for {patchline}...", file=sys.stderr, flush=True)
@@ -497,11 +538,11 @@ def perform_first_time_setup(
             _save_version_for_instance(instance_name, new_ver, patchline)
 
             if on_done:
-                on_done(True, f"Setup complete! Version: {new_ver}")
+                on_done(True, f"Setup complete! Version: {new_ver}", None)
         except Exception as exc:
             print(f"[updater] Setup failed: {exc}", file=sys.stderr, flush=True)
             if on_done:
-                on_done(False, str(exc))
+                on_done(False, str(exc), None)
         finally:
             _set_update_in_progress(None)
 
@@ -598,10 +639,11 @@ def _graceful_shutdown_with_warning(
 def perform_update_all(
     on_status: Optional[Callable[[str], None]] = None,
     on_progress: Optional[Callable[[float, str], None]] = None,
-    on_done: Optional[Callable[[bool, str], None]] = None,
+    on_done: Optional[Callable[[bool, str, Optional[dict]], None]] = None,
     instance_filter: Optional[list[str]] = None,
     graceful: bool = False,
     graceful_minutes: int = 1,
+    skip_backup: bool = False,
 ) -> threading.Thread:
     """Update installed instances that have updates available. Uses cache – downloads each version once.
     If instance_filter is provided, only update those instances. Otherwise update all with updates."""
@@ -614,7 +656,7 @@ def perform_update_all(
             root = get_root_dir()
             if not root:
                 if on_done:
-                    on_done(False, "No servers folder configured.")
+                    on_done(False, "No servers folder configured.", None)
                 return
 
             status = get_all_instances_update_status()
@@ -627,7 +669,7 @@ def perform_update_all(
             ]
             if not to_update:
                 if on_done:
-                    on_done(True, "All instances are already up to date.")
+                    on_done(True, "All instances are already up to date.", None)
                 return
 
             # Group by patchline to minimize downloads
@@ -677,12 +719,20 @@ def perform_update_all(
                         if on_status:
                             on_status(f"Updating {instance_name}...")
                         if os.path.isdir(server_dir):
-                            old_ver = _read_version_for_instance(instance_name)
-                            old_pl = _read_patchline_for_instance(instance_name)
-                            bk.create_backup_for_instance(
-                                instance_name,
-                                label=f"update from {old_ver} ({old_pl}) to {new_ver} ({patchline})",
-                            )
+                            if skip_backup:
+                                if on_status:
+                                    on_status(
+                                        f"{instance_name}: skipping pre-update backup by request. "
+                                        "Create a manual backup after update."
+                                    )
+                            else:
+                                old_ver = _read_version_for_instance(instance_name)
+                                old_pl = _read_patchline_for_instance(instance_name)
+                                bk.create_backup_for_instance(
+                                    instance_name,
+                                    label=f"update from {old_ver} ({old_pl}) to {new_ver} ({patchline})",
+                                    exclude_server_cache=True,
+                                )
                         _extract_server_zip_to_instance(zip_path, instance_dir)
                         _save_version_for_instance(instance_name, new_ver, patchline)
                         success_count += 1
@@ -693,10 +743,10 @@ def perform_update_all(
             if errors:
                 msg += " " + "; ".join(errors)
             if on_done:
-                on_done(success_count > 0, msg)
+                on_done(success_count > 0, msg, None)
         except Exception as exc:
             if on_done:
-                on_done(False, str(exc))
+                on_done(False, str(exc), None)
         finally:
             _set_update_in_progress(None)
 

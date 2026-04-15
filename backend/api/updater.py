@@ -56,7 +56,12 @@ def check_all():
     return updater.get_all_instances_update_status()
 
 
-def _sse_stream_for_operation(operation_fn, patchline: str, graceful: bool = False):
+def _sse_stream_for_operation(
+    operation_fn,
+    patchline: str,
+    graceful: bool = False,
+    skip_backup: bool = False,
+):
     """Create an SSE StreamingResponse for a long-running updater operation."""
 
     async def generate():
@@ -75,10 +80,11 @@ def _sse_stream_for_operation(operation_fn, patchline: str, graceful: bool = Fal
                 queue.put_nowait, ("progress", {"percent": percent, "detail": detail})
             )
 
-        def on_done(ok: bool, msg: str):
-            loop.call_soon_threadsafe(
-                queue.put_nowait, ("done", {"ok": ok, "message": msg})
-            )
+        def on_done(ok: bool, msg: str, meta: Optional[dict] = None):
+            payload = {"ok": ok, "message": msg}
+            if meta:
+                payload.update(meta)
+            loop.call_soon_threadsafe(queue.put_nowait, ("done", payload))
 
         # Send immediate status so the client knows the connection works
         on_status("Starting backend...")
@@ -90,6 +96,7 @@ def _sse_stream_for_operation(operation_fn, patchline: str, graceful: bool = Fal
             on_progress=on_progress,
             on_done=on_done,
             graceful=graceful,
+            skip_backup=skip_backup,
         )
 
         event_count = 0
@@ -114,9 +121,17 @@ async def update(
     body: Optional[dict] = Body(default=None),
 ):
     """Download and apply an update. Returns SSE stream of progress.
-    Body: { graceful?: bool } - if true, 1 min warning before stop when server running."""
+    Body: { graceful?: bool, skip_backup?: bool }
+    - graceful=true: 1 min warning before stop when server running
+    - skip_backup=true: continue update without pre-update backup (use with caution)"""
     graceful = bool((body or {}).get("graceful", False))
-    return _sse_stream_for_operation(updater.perform_update, patchline, graceful=graceful)
+    skip_backup = bool((body or {}).get("skip_backup", False))
+    return _sse_stream_for_operation(
+        updater.perform_update,
+        patchline,
+        graceful=graceful,
+        skip_backup=skip_backup,
+    )
 
 
 def _sse_stream_for_update_all(graceful: bool = False):
@@ -131,8 +146,11 @@ def _sse_stream_for_update_all(graceful: bool = False):
         def on_progress(percent: float, detail: str):
             loop.call_soon_threadsafe(queue.put_nowait, ("progress", {"percent": percent, "detail": detail}))
 
-        def on_done(ok: bool, msg: str):
-            loop.call_soon_threadsafe(queue.put_nowait, ("done", {"ok": ok, "message": msg}))
+        def on_done(ok: bool, msg: str, meta: Optional[dict] = None):
+            payload = {"ok": ok, "message": msg}
+            if meta:
+                payload.update(meta)
+            loop.call_soon_threadsafe(queue.put_nowait, ("done", payload))
 
         updater.perform_update_all(
             on_status=on_status,
