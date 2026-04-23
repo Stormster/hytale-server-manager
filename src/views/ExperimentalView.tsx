@@ -10,6 +10,11 @@ import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 import { api, apiUpload } from "@/api/client";
 import { toast } from "sonner";
 import { AddonCustomCommandsManager } from "@/components/Addon";
+import {
+  ACTION_HIGHLIGHT_CLASS,
+  ACTION_HIGHLIGHT_MS,
+  consumePendingActionHighlight,
+} from "@/lib/pendingActionHighlight";
 
 const FEATURE_LABELS: Record<string, string> = {
   json_checker: "JSON Checker (raw config editor)",
@@ -46,6 +51,10 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   /** null = unknown, true/false = result of last verify (for current key). */
   const [licenseVerified, setLicenseVerified] = useState<boolean | null>(null);
   const verifiedKeyRef = useRef<string>("");
+  const updateInstallButtonRef = useRef<HTMLButtonElement | null>(null);
+  const flashTimeoutRef = useRef<number | null>(null);
+  const [highlightUpdateInstall, setHighlightUpdateInstall] = useState(false);
+  const [pendingHighlight] = useState(() => consumePendingActionHighlight());
 
   const addonLoaded = appInfo?.experimental_addon_loaded === true;
   const addonInstalled = appInfo?.experimental_addon_installed === true;
@@ -126,6 +135,37 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       onScrollDone();
     });
   }, [scrollToSection, onScrollDone]);
+
+  useEffect(() => {
+    const updateAvailable =
+      updateStatus?.update_available === true ||
+      appInfo?.experimental_addon_update_available === true;
+    if (pendingHighlight !== "experimental-addon-update" || !updateAvailable) return;
+    updateInstallButtonRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    if (flashTimeoutRef.current != null) {
+      window.clearTimeout(flashTimeoutRef.current);
+    }
+    setHighlightUpdateInstall(true);
+    flashTimeoutRef.current = window.setTimeout(() => {
+      setHighlightUpdateInstall(false);
+      flashTimeoutRef.current = null;
+    }, ACTION_HIGHLIGHT_MS);
+  }, [
+    appInfo?.experimental_addon_update_available,
+    pendingHighlight,
+    updateStatus?.update_available,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current != null) {
+        window.clearTimeout(flashTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleInstallFile = useCallback(
     async (file: File) => {
@@ -632,8 +672,12 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                 </Button>
                 {updateAvailable && (
                   <Button
+                    ref={updateInstallButtonRef}
                     onClick={() => void installFromSite()}
                     disabled={installingFromSite || verifyingLicense}
+                    className={
+                      highlightUpdateInstall ? ACTION_HIGHLIGHT_CLASS : undefined
+                    }
                   >
                     {installingFromSite ? "Downloading..." : "Download & install update"}
                   </Button>
