@@ -228,9 +228,18 @@ pub fn run() {
                         *port.lock().unwrap() = None;
                         let mut cmd = Command::new(if cfg!(windows) { "py" } else { "python3" });
                         cmd.current_dir(&backend_dir)
-                            .env("HYTALE_BACKEND_TOKEN", &auth)
                             .stdout(Stdio::piped())
                             .stderr(Stdio::inherit());
+                        // Forward dev env (e.g. HSM_DEV_ADDON from `tauri:dev:addons`); `tauri dev` via cmd/npx
+                        // must not drop these before they reach the Python child.
+                        for (key, val) in std::env::vars() {
+                            if key.starts_with("HSM_")
+                                || (key.starts_with("HYTALE_") && key != "HYTALE_BACKEND_TOKEN")
+                            {
+                                cmd.env(key, val);
+                            }
+                        }
+                        cmd.env("HYTALE_BACKEND_TOKEN", &auth);
                         if cfg!(windows) {
                             cmd.args(["-3", "main.py"]);
                         } else {

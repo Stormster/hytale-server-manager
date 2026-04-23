@@ -13,6 +13,10 @@ export function clearBackendUrlCache(): void {
   _authTokenPromise = null;
 }
 
+function isTauriWebview(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
 function isConnectionError(err: unknown): boolean {
   if (err instanceof TypeError && (err.message === "Failed to fetch" || err.message === "Load failed")) {
     return true;
@@ -27,8 +31,8 @@ function isConnectionError(err: unknown): boolean {
 }
 
 /**
- * Get the backend base URL. In Tauri, queries the sidecar port.
- * Falls back to localhost:21342 for standalone dev.
+ * Get the backend base URL. In Tauri, polls until the backend reports its port (dynamic in dev).
+ * Falls back to localhost:21342 only for browser / non-Tauri dev.
  * Exported for addon bridge (Addon.tsx) so addon scripts can call the backend.
  */
 export async function getBaseUrl(): Promise<string> {
@@ -36,28 +40,41 @@ export async function getBaseUrl(): Promise<string> {
 
   if (!_portPromise) {
     _portPromise = (async () => {
-      // Try to get port from Tauri sidecar
-      try {
-        // Poll until backend is ready (max ~10s)
-        for (let i = 0; i < 50; i++) {
-          try {
-            const port = await invoke<number>("get_backend_port");
-            if (port) {
-              _baseUrl = `http://127.0.0.1:${port}`;
-              return _baseUrl;
-            }
-          } catch {
-            // Backend not ready yet
+      // Browser / Vite without Tauri: no dynamic port — avoid polling invoke for a minute.
+      if (!isTauriWebview()) {
+        try {
+          const port = await invoke<number>("get_backend_port");
+          if (port) {
+            _baseUrl = `http://127.0.0.1:${port}`;
+            return _baseUrl;
           }
-          await new Promise((r) => setTimeout(r, 200));
+        } catch {
+          // not in Tauri
         }
-      } catch {
-        // Not running in Tauri – use default dev port
+        _baseUrl = "http://127.0.0.1:21342";
+        return _baseUrl;
       }
 
-      // Fallback for dev mode without Tauri
-      _baseUrl = "http://127.0.0.1:21342";
-      return _baseUrl;
+      // Tauri: get_backend_port throws until Python has printed BACKEND_READY (import can take 30s+ with addon wheel).
+      const maxAttempts = 200;
+      const delayMs = 300;
+      for (let i = 0; i < maxAttempts; i++) {
+        try {
+          const port = await invoke<number>("get_backend_port");
+          if (port) {
+            _baseUrl = `http://127.0.0.1:${port}`;
+            return _baseUrl;
+          }
+        } catch {
+          // Backend not ready yet
+        }
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+
+      _portPromise = null;
+      throw new Error(
+        "Backend did not become ready in time. If you use `tauri:dev:addons`, the first wheel build can be slow; close the app and run `npm run tauri:dev:addons` again, or click Retry."
+      );
     })();
   }
 
