@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -11,6 +11,11 @@ import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
 import { toast } from "sonner";
 import { openPathInExplorer } from "@/lib/openPath";
+import {
+  ACTION_HIGHLIGHT_CLASS,
+  ACTION_HIGHLIGHT_MS,
+  consumePendingActionHighlight,
+} from "@/lib/pendingActionHighlight";
 import type { Mod } from "@/api/types";
 
 const REQUIRED_PREFIXES = ["nitrado-webserver", "nitrado-query"];
@@ -142,6 +147,10 @@ export function ModsView() {
   const [showExplainer, setShowExplainer] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const installRequiredButtonRef = useRef<HTMLButtonElement | null>(null);
+  const flashTimeoutRef = useRef<number | null>(null);
+  const [highlightInstallRequired, setHighlightInstallRequired] = useState(false);
+  const [pendingHighlight] = useState(() => consumePendingActionHighlight());
 
   const activeInstance = settings?.active_instance;
   const rootDir = (settings?.root_dir || "").replace(/[/\\]+$/, "");
@@ -225,6 +234,36 @@ export function ModsView() {
 
   const canDrop = activeInstance && !running && !uploadMods.isPending;
 
+  useEffect(() => {
+    if (pendingHighlight !== "mods-update-plugins") return;
+    if (!(activeInstance && (missingRequired || nitradoUpdateAvailable))) return;
+    installRequiredButtonRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    if (flashTimeoutRef.current != null) {
+      window.clearTimeout(flashTimeoutRef.current);
+    }
+    setHighlightInstallRequired(true);
+    flashTimeoutRef.current = window.setTimeout(() => {
+      setHighlightInstallRequired(false);
+      flashTimeoutRef.current = null;
+    }, ACTION_HIGHLIGHT_MS);
+  }, [
+    activeInstance,
+    missingRequired,
+    nitradoUpdateAvailable,
+    pendingHighlight,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current != null) {
+        window.clearTimeout(flashTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div
       className="relative flex h-full flex-col"
@@ -260,10 +299,13 @@ export function ModsView() {
             )}
             {activeInstance && (missingRequired || nitradoUpdateAvailable) && (
               <Button
+                ref={installRequiredButtonRef}
                 size="sm"
                 onClick={handleInstallRequired}
                 disabled={running || installing}
-                className="gap-2"
+                className={`gap-2 ${
+                  highlightInstallRequired ? ACTION_HIGHLIGHT_CLASS : ""
+                }`}
                 title={
                   running
                     ? "Stop the server first"

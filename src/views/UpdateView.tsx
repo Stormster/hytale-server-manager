@@ -26,6 +26,11 @@ import { subscribeSSE } from "@/api/client";
 import type { ViewName } from "@/components/AppSidebar";
 import { Download, Loader2, RefreshCw, Package, Sparkles, AppWindow } from "lucide-react";
 import { parseAuthOutput } from "@/lib/authOutput";
+import {
+  ACTION_HIGHLIGHT_CLASS,
+  ACTION_HIGHLIGHT_MS,
+  setPendingActionHighlight,
+} from "@/lib/pendingActionHighlight";
 import { toast } from "sonner";
 
 export interface UpdateViewProps {
@@ -105,6 +110,10 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
   const [progressStatus, setProgressStatus] = useState("");
   const [progressDetail, setProgressDetail] = useState("");
   const updateActionsRef = useRef<HTMLDivElement | null>(null);
+  const updateCurrentActionRef = useRef<HTMLButtonElement | null>(null);
+  const updateAllActionRef = useRef<HTMLButtonElement | null>(null);
+  const highlightTimeoutRef = useRef<number | null>(null);
+  const [highlightedAction, setHighlightedAction] = useState<"current" | "all" | null>(null);
   const [updateDone, setUpdateDone] = useState<{
     ok: boolean;
     message: string;
@@ -133,8 +142,32 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
     void queryClient.invalidateQueries({ queryKey: ["mods", "nitrado-update-status"] });
   };
 
+  const flashUpdateAction = useCallback((action: "current" | "all") => {
+    if (highlightTimeoutRef.current != null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+    }
+    setHighlightedAction(action);
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      setHighlightedAction(null);
+      highlightTimeoutRef.current = null;
+    }, ACTION_HIGHLIGHT_MS);
+  }, []);
+
   const scrollToUpdateActions = useCallback(() => {
     updateActionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const actionToHighlight =
+      updateAvailable ? "current" : instancesWithUpdates.length > 0 ? "all" : null;
+    if (actionToHighlight) {
+      flashUpdateAction(actionToHighlight);
+    }
+  }, [flashUpdateAction, instancesWithUpdates.length, updateAvailable]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current != null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleReauth = useCallback(() => {
@@ -447,7 +480,15 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                   )}
                 </div>
                 <div className="mt-2">
-                  <Button size="sm" variant="outline" type="button" onClick={() => onNavigate?.("experimental")}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => {
+                      setPendingActionHighlight("experimental-addon-update");
+                      onNavigate?.("experimental");
+                    }}
+                  >
                     Open addon settings
                   </Button>
                 </div>
@@ -512,7 +553,15 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
               )}
               {aggregated.nitradoInstances.length > 0 && (
                 <div className="mt-2">
-                  <Button size="sm" variant="outline" type="button" onClick={() => onNavigate?.("mods")}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => {
+                      setPendingActionHighlight("mods-update-plugins");
+                      onNavigate?.("mods");
+                    }}
+                  >
                     Open Mods to update plugins
                   </Button>
                 </div>
@@ -584,6 +633,7 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
+                    ref={updateCurrentActionRef}
                     onClick={() => {
                       if (activeInstanceRunning) {
                         setPendingUpdateCurrentPatchline(ip);
@@ -593,16 +643,22 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                       }
                     }}
                     disabled={updating}
+                    className={
+                      highlightedAction === "current" ? ACTION_HIGHLIGHT_CLASS : undefined
+                    }
                   >
                     Update this server
                   </Button>
                   {instancesWithUpdates.length > 0 && (
                     <>
                       <Button
+                        ref={updateAllActionRef}
                         variant="outline"
                         onClick={doUpdateAll}
                         disabled={checkingUpdates || updating}
-                        className="gap-2"
+                        className={`gap-2 ${
+                          highlightedAction === "all" ? ACTION_HIGHLIGHT_CLASS : ""
+                        }`}
                       >
                         <RefreshCw className="h-4 w-4" />
                         Update all servers ({instancesWithUpdates.length})
@@ -656,9 +712,12 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                   })}
                 </ul>
                 <Button
+                  ref={updateAllActionRef}
                   onClick={doUpdateAll}
                   disabled={checkingUpdates || updating}
-                  className="gap-2"
+                  className={`gap-2 ${
+                    highlightedAction === "all" ? ACTION_HIGHLIGHT_CLASS : ""
+                  }`}
                 >
                   <RefreshCw className="h-4 w-4" />
                   Update all servers ({instancesWithUpdates.length})
