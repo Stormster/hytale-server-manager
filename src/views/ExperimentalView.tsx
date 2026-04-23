@@ -183,12 +183,10 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
             toast.success("License key cleared.");
             return;
           }
-          toast.success("License key saved. Verifying…");
+          toast.success("License key saved.");
           setVerifyingLicense(true);
-          runVerify(key).then((valid) => {
-            if (valid) toast.success("License verified. Restart the app to activate.");
-            else toast.error("License invalid or inactive (e.g. Patreon expired). Resubscribe and click Verify license.");
-          }).finally(() => setVerifyingLicense(false));
+          // Keep verification state current without showing restart/invalidation toasts on save.
+          runVerify(key).finally(() => setVerifyingLicense(false));
         },
       }
     );
