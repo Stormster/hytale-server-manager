@@ -11,6 +11,7 @@ import { ConfigView } from "@/views/ConfigView";
 import { PortForwardingView } from "@/views/PortForwardingView";
 import { SettingsView } from "@/views/SettingsView";
 import { ExperimentalView } from "@/views/ExperimentalView";
+import { RemoteView } from "@/views/RemoteView";
 import { OnboardingView } from "@/views/OnboardingView";
 import { AuthRequiredView } from "@/views/AuthRequiredView";
 import { AddServerDialog } from "@/components/AddServerDialog";
@@ -24,7 +25,7 @@ import { clearBackendUrlCache } from "@/api/client";
 import { useAggregatedPendingUpdates } from "@/api/hooks/useAggregatedUpdates";
 
 export default function App() {
-  const { data: settings, isLoading, isError, refetch } = useSettings();
+  const { data: settings, isLoading, isError, error: settingsError, refetch } = useSettings();
   const { data: authStatus, isLoading: authLoading, isError: authError, refetch: refetchAuth } = useAuthStatus();
   const { pendingCount: updatesPendingCount } = useAggregatedPendingUpdates();
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
@@ -39,7 +40,7 @@ export default function App() {
     (async () => {
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        const { api } = await import("@/api/client");
+        const { getAuthHeaders } = await import("@/api/client");
         const win = getCurrentWindow();
         unlisten = await win.onCloseRequested(async (event) => {
           event.preventDefault();
@@ -49,18 +50,22 @@ export default function App() {
             const { invoke } = await import("@tauri-apps/api/core");
             const port = await invoke<number>("get_backend_port");
             const url = `http://127.0.0.1:${port}`;
+            const authHeaders = await getAuthHeaders();
             const ctrl = new AbortController();
             const timeoutId = setTimeout(() => ctrl.abort(), CLOSE_TIMEOUT);
             try {
               await fetch(`${url}/api/server/stop`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...authHeaders },
                 body: JSON.stringify({ all: true }),
                 signal: ctrl.signal,
               });
               while (Date.now() < deadline) {
                 try {
-                  const res = await fetch(`${url}/api/server/status`, { signal: ctrl.signal });
+                  const res = await fetch(`${url}/api/server/status`, {
+                    signal: ctrl.signal,
+                    headers: authHeaders,
+                  });
                   const status = await res.json();
                   if (!status?.running) break;
                 } catch {
@@ -109,8 +114,14 @@ export default function App() {
           <p className="text-sm text-destructive">
             Could not connect to the backend.
           </p>
+          {(settingsError ?? (authError ? new Error("Authentication check failed") : null)) && (
+            <p className="text-xs text-muted-foreground max-w-md text-center font-mono">
+              {(settingsError as Error)?.message ?? "Authentication check failed"}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground max-w-md text-center">
-            On WSL or VMs, try: LIBGL_AL_SOFTWARE=1 ./server-manager
+            On WSL or VMs, try: LIBGL_AL_SOFTWARE=1 ./server-manager. If the app was running, check backend logs via the install dialog or{" "}
+            <code className="text-[11px]">/api/debug/recent-logs</code>.
           </p>
           <button
             type="button"
@@ -212,6 +223,7 @@ export default function App() {
               onScrollDone={() => setExperimentalScrollTo(null)}
             />
           )}
+          {activeView === "remote" && <RemoteView />}
           {activeView === "settings" && <SettingsView />}
           </div>
         </main>

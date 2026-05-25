@@ -183,6 +183,9 @@ export interface ManagerUpdateInfo {
   update_available: boolean;
   latest_version: string;
   download_url: string;
+  /** True when GitHub release check failed (network/rate limit). */
+  check_failed?: boolean;
+  error?: string | null;
 }
 
 // ---- SSE Events ----

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
+import traceback
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -121,7 +122,12 @@ def _load_addon_module(addon_path: Path) -> ExperimentalAddon | None:
             except TypeError:
                 continue
         return None
-    except Exception:
+    except Exception as e:
+        print(
+            f"[plugin_loader] Failed to import addon from {addon_path}: {e}\n{traceback.format_exc()}",
+            file=sys.stderr,
+            flush=True,
+        )
         return None
 
 
@@ -152,11 +158,12 @@ def load_experimental_addon(app: "FastAPI") -> bool:
         try:
             from services import settings
             license_key = settings.get_experimental_addon_license_key().strip() or None
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[plugin_loader] Could not read license key from settings: {e}", file=sys.stderr, flush=True)
 
     addon = _load_addon_module(addon_path)
     if addon is None:
+        print(f"[plugin_loader] Addon module not found or invalid in {addon_path}", file=sys.stderr, flush=True)
         return False
 
     global experimental_addon_loaded, experimental_addon_features

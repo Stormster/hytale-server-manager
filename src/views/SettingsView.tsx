@@ -413,9 +413,11 @@ export function SettingsView() {
             label="Latest version"
             value={
               managerUpdate
-                ? managerUpdate.update_available
-                  ? `v${managerUpdate.latest_version} (update available!)`
-                  : `v${managerUpdate.latest_version} (up to date)`
+                ? managerUpdate.check_failed
+                  ? `Could not check (${managerUpdate.error ?? "network error"})`
+                  : managerUpdate.update_available
+                    ? `v${managerUpdate.latest_version} (update available!)`
+                    : `v${managerUpdate.latest_version} (up to date)`
                 : "checking..."
             }
           />
@@ -452,6 +454,31 @@ export function SettingsView() {
               </Button>
             </div>
           )}
+
+          <div className="pt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              onClick={async () => {
+                try {
+                  const data = await api<Record<string, unknown>>("/api/debug/diagnostics");
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `hsm-diagnostics-${Date.now()}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success("Diagnostics exported");
+                } catch (e) {
+                  toast.error((e as Error).message);
+                }
+              }}
+            >
+              Export diagnostic logs
+            </Button>
+          </div>
 
           <Separator className="my-3" />
 

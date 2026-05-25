@@ -115,6 +115,8 @@ export async function fetchRaw(path: string): Promise<Response> {
 }
 
 const FETCH_TIMEOUT_MS = 15_000;
+/** Mod/addon uploads can be large; allow longer than JSON API calls. */
+const UPLOAD_TIMEOUT_MS = 300_000;
 
 /**
  * Typed fetch wrapper for the backend API.
@@ -163,18 +165,34 @@ export async function apiUpload<T>(
   options?: Omit<RequestInit, "body">
 ): Promise<T> {
   const base = await getBaseUrl();
-  const headers = { ...(await getAuthHeaders()), ...(options?.headers as Record<string, string>) };
-  const res = await fetch(`${base}${path}`, {
-    ...options,
-    method: options?.method ?? "POST",
-    body,
-    headers,
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || data.detail || `HTTP ${res.status}`);
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), UPLOAD_TIMEOUT_MS);
+  try {
+    const headers = { ...(await getAuthHeaders()), ...(options?.headers as Record<string, string>) };
+    const res = await fetch(`${base}${path}`, {
+      ...options,
+      method: options?.method ?? "POST",
+      body,
+      headers,
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || data.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      clearBackendUrlCache();
+      throw new Error("Upload timed out");
+    }
+    if (isConnectionError(err)) {
+      clearBackendUrlCache();
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json();
 }
 
 /**
