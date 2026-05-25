@@ -2,13 +2,14 @@
 Check for manager self-updates via the GitHub Releases API.
 """
 
+import sys
 import threading
 from typing import Callable, Optional
 
-import requests
 from packaging.version import Version
 
 from config import MANAGER_VERSION, GITHUB_REPO
+from utils.http_retry import get_json_with_retry
 
 
 def check_manager_update(
@@ -17,9 +18,10 @@ def check_manager_update(
     def _worker():
         try:
             url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-            resp = requests.get(url, timeout=8)
-            resp.raise_for_status()
-            data = resp.json()
+            data = get_json_with_retry(
+                url,
+                headers={"Accept": "application/vnd.github+json", "User-Agent": "Hytale-Server-Manager"},
+            )
             tag = data.get("tag_name", "").lstrip("v")
             if tag and Version(tag) > Version(MANAGER_VERSION):
                 if on_done:
@@ -27,9 +29,10 @@ def check_manager_update(
             else:
                 if on_done:
                     on_done(False, MANAGER_VERSION)
-        except Exception:
+        except Exception as e:
             if on_done:
                 on_done(False, MANAGER_VERSION)
+            print(f"[github] Manager update check failed: {e}", file=sys.stderr, flush=True)
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
@@ -40,9 +43,10 @@ def check_manager_update_sync() -> dict:
     """Synchronous version for the API layer."""
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-        resp = requests.get(url, timeout=8)
-        resp.raise_for_status()
-        data = resp.json()
+        data = get_json_with_retry(
+            url,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "Hytale-Server-Manager"},
+        )
         tag = data.get("tag_name", "").lstrip("v")
         download_url = data.get("html_url", "")
         if tag and Version(tag) > Version(MANAGER_VERSION):
@@ -56,9 +60,11 @@ def check_manager_update_sync() -> dict:
             "latest_version": MANAGER_VERSION,
             "download_url": "",
         }
-    except Exception:
+    except Exception as e:
         return {
             "update_available": False,
             "latest_version": MANAGER_VERSION,
             "download_url": "",
+            "check_failed": True,
+            "error": str(e),
         }

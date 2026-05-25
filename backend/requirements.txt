@@ -8,3 +8,5 @@ psutil>=6.0.0
 miniupnpc>=2.2.0
 watchfiles>=0.21.0
 cryptography
+pytest>=8.0.0
+httpx>=0.27.0

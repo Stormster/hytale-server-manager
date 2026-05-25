@@ -239,3 +239,35 @@ def set_instance_server_settings(instance_name: str, data: dict) -> None:
     all_settings[instance_name] = current
     s["instance_server_settings"] = all_settings
     _save(s)
+
+
+# -- Remote server connections (HyRemote plugin) ------------------------------
+
+
+def get_remote_connections() -> list[dict]:
+    raw = load().get("remote_connections", [])
+    return list(raw) if isinstance(raw, list) else []
+
+
+def set_remote_connections(connections: list[dict]) -> None:
+    s = load()
+    s["remote_connections"] = connections
+    _save(s)
+
+
+def get_active_connection() -> str:
+    """Return 'local' or a remote connection id."""
+    return str(load().get("active_connection", "local") or "local")
+
+
+def set_active_connection(connection_id: str) -> None:
+    s = load()
+    s["active_connection"] = connection_id or "local"
+    _save(s)
+
+
+def get_remote_connection(connection_id: str) -> dict | None:
+    for c in get_remote_connections():
+        if c.get("id") == connection_id:
+            return c
+    return None

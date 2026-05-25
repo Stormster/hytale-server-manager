@@ -1,12 +1,11 @@
 name: Build
 
-# Paused – no automatic runs. Uncomment the push/pull_request block below to re-enable.
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [main, master]
-  # pull_request:
-  #   branches: [main, master]
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
 
 jobs:
   build:

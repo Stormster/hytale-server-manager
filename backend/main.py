@@ -77,6 +77,7 @@ def create_app():
     from api.mods import router as mods_router
     from api.debug_routes import router as debug_router
     from api.addon_routes import router as addon_router
+    from api.remote_routes import router as remote_router
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
@@ -113,14 +114,20 @@ def create_app():
     app.include_router(mods_router, prefix="/api/mods", tags=["mods"])
     app.include_router(debug_router, prefix="/api/debug", tags=["debug"])
     app.include_router(addon_router)
+    app.include_router(remote_router)
 
     # Load Experimental addon if present (addons/experimental_addon.whl or .pyz)
     try:
         from plugin_loader import load_experimental_addon
         if load_experimental_addon(app):
             pass  # Experimental addon routes/features now registered
-    except Exception:
-        pass  # No addon or load failed – open core runs without it
+    except Exception as e:
+        import traceback
+        print(
+            f"[Backend] Experimental addon load failed: {e}\n{traceback.format_exc()}",
+            file=sys.stderr,
+            flush=True,
+        )
 
     @app.get("/api/health")
     async def health():

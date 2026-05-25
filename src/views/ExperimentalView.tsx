@@ -10,6 +10,7 @@ import { useSettings, useUpdateSettings } from "@/api/hooks/useSettings";
 import { api, apiUpload } from "@/api/client";
 import { toast } from "sonner";
 import { AddonCustomCommandsManager } from "@/components/Addon";
+import { ExperimentalAutoUpdateSettings } from "@/components/ExperimentalAutoUpdateSettings";
 import {
   ACTION_HIGHLIGHT_CLASS,
   ACTION_HIGHLIGHT_MS,
@@ -21,7 +22,7 @@ const FEATURE_LABELS: Record<string, string> = {
   custom_commands: "Custom Console Commands",
 };
 
-const PATREON_URL = "https://www.patreon.com/";
+const PATREON_URL = "https://www.patreon.com/c/stormster";
 
 export const CUSTOM_COMMANDS_SECTION_ID = "hsm-custom-commands-section";
 
@@ -706,6 +707,10 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
           </Card>
         );
       })()}
+
+      {addonLoaded && hasFeatures && (
+        <ExperimentalAutoUpdateSettings />
+      )}
 
       {/* Custom Console Commands management */}
       <div id={CUSTOM_COMMANDS_SECTION_ID}>

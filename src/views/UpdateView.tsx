@@ -440,12 +440,19 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                   <AppWindow className="h-4 w-4 shrink-0 text-muted-foreground" />
                   Hytale Server Manager (this app)
                 </div>
-                {managerUpdate?.update_available ? (
+                {managerUpdate?.check_failed ? (
+                  <span className="text-destructive">Could not check for updates</span>
+                ) : managerUpdate?.update_available ? (
                   <span className="text-amber-400">v{appInfo?.manager_version ?? "?"} → v{managerUpdate.latest_version}</span>
                 ) : (
                   <span className="text-muted-foreground">Up to date (v{appInfo?.manager_version ?? "…"})</span>
                 )}
               </div>
+              {managerUpdate?.check_failed && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {managerUpdate.error ?? "GitHub release check failed. Try again later."}
+                </p>
+              )}
               {managerUpdate?.update_available && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" asChild>
@@ -463,7 +470,9 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                     <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
                     Experimental addon
                   </div>
-                  {appInfo.experimental_addon_update_available ? (
+                  {appInfo.experimental_addon_update_error ? (
+                    <span className="text-destructive">Update check failed</span>
+                  ) : appInfo.experimental_addon_update_available ? (
                     <span className="text-amber-400">
                       Update available
                       {appInfo.experimental_addon_latest_version
@@ -479,6 +488,11 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
                     </span>
                   )}
                 </div>
+                {appInfo.experimental_addon_update_error && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {appInfo.experimental_addon_update_error}
+                  </p>
+                )}
                 <div className="mt-2">
                   <Button
                     size="sm"

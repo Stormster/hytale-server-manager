@@ -98,9 +98,11 @@ export function AddonJsonEditor({
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(null);
     ensureAddonFeature(
       JSON_EDITOR_SCRIPT,
       () => Boolean(getComponents()?.json_checker)
@@ -108,7 +110,11 @@ export function AddonJsonEditor({
       .then(() => {
         if (!cancelled) setReady(true);
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadError((err as Error)?.message || "Failed to load JSON editor.");
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -132,6 +138,14 @@ export function AddonJsonEditor({
   useEffect(() => {
     editorRef.current?.update(value);
   }, [value]);
+
+  if (loadError) {
+    return (
+      <div className={`rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive ${className ?? ""}`}>
+        {loadError}
+      </div>
+    );
+  }
 
   return <div ref={containerRef} className={className} style={{ minHeight: 200 }} />;
 }
