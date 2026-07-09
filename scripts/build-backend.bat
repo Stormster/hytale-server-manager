@@ -6,15 +6,22 @@ rem Stop any running backend (avoids "Access is denied" when exe is locked)
 taskkill /F /IM server-manager-backend-x86_64-pc-windows-msvc.exe 2>nul
 taskkill /F /IM server-manager-backend.exe 2>nul
 
+where python >nul 2>&1
+if %ERRORLEVEL%==0 (
+    set PYTHON_CMD=python
+) else (
+    set PYTHON_CMD=py -3
+)
+
 echo ==^> Building backend with PyInstaller...
 cd backend
-py -3 -m PyInstaller build.spec --noconfirm
+%PYTHON_CMD% -m PyInstaller build.spec --noconfirm
 set PYINSTALLER_EXIT=%ERRORLEVEL%
 cd ..
 
 if not %PYINSTALLER_EXIT%==0 (
     echo ERROR: PyInstaller exited with code %PYINSTALLER_EXIT%.
-    echo Install deps for launcher Python if needed: py -3 -m pip install -r backend\requirements.txt
+    echo Install deps for the same Python if needed: %PYTHON_CMD% -m pip install -r backend\requirements.txt
     exit /b 1
 )
 
