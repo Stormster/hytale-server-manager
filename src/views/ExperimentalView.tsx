@@ -437,8 +437,6 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       </p>
     ) : null;
 
-  const licenseStatusText =
-    !hasLicenseInput ? "No" : verifyingLicense ? "Checking..." : licenseVerified ? "Yes" : "No";
   const licensePlaceholder =
     savedKeySet && !licenseKey.trim()
       ? savedKeyPreview
@@ -518,58 +516,65 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Addon status</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p>
-            Addon file installed: <span className="font-medium">{addonInstalled ? "Yes" : "No"}</span>
-          </p>
-          <p>
-            Addon loaded: <span className="font-medium">{addonLoaded ? "Yes" : "No"}</span>
-          </p>
-          <p>
-            License valid: <span className="font-medium">{licenseStatusText}</span>
-          </p>
-          {addonInstalled && (
-            <div className="pt-2">
-              <Button
-                variant="outline"
-                onClick={uninstallAddon}
-                disabled={uninstallingAddon || installingFromSite}
-              >
-                {uninstallingAddon ? "Uninstalling..." : "Uninstall addon"}
-              </Button>
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Restart the app after install/update/uninstall so addon load state refreshes.
-          </p>
-        </CardContent>
-      </Card>
+      {/* Unified status + license + install/update */}
+      {(() => {
+        const addonActive = addonLoaded && hasFeatures;
+        const updateAvailable =
+          updateStatus?.update_available === true ||
+          appInfo?.experimental_addon_update_available === true;
+        const showReinstall =
+          addonActive &&
+          !updateAvailable &&
+          (addonInstalled || appInfo?.experimental_addon_installed === true);
+        const licenseLabel = !hasLicenseInput
+          ? "Not set"
+          : verifyingLicense
+            ? "Checking…"
+            : licenseVerified === true
+              ? "Valid"
+              : licenseVerified === false
+                ? "Invalid"
+                : "—";
 
-      {/* Normal install: site download only (check for updates after addon is active) */}
-      {(!addonLoaded || !hasFeatures) && (
-        <>
+        return (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Install with your license key</CardTitle>
+              <CardTitle className="text-base">Addon & license</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Paste the key from{" "}
-                <a
-                  href={LICENSE_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-foreground underline underline-offset-2 hover:text-amber-400"
-                >
-                  hytalemanager.com/license
-                </a>
-                , save it, then download and install. After it loads, use Check for updates here
-                for future addon updates.
+                {addonActive
+                  ? "Manage your license, check for updates, or uninstall."
+                  : (
+                    <>
+                      Paste your key from{" "}
+                      <a
+                        href={LICENSE_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-foreground underline underline-offset-2 hover:text-amber-400"
+                      >
+                        hytalemanager.com/license
+                      </a>
+                      , then download and install.
+                    </>
+                  )}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-3 text-sm">
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Installed</p>
+                  <p className="font-medium">{addonInstalled ? "Yes" : "No"}</p>
+                </div>
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Loaded</p>
+                  <p className="font-medium">{addonLoaded ? "Yes" : "No"}</p>
+                </div>
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">License</p>
+                  <p className="font-medium">{licenseLabel}</p>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="experimental-license">License key</Label>
                 <div className="flex gap-2">
@@ -591,51 +596,111 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                   )}
                 </div>
                 {licenseStatusLine}
-                <div className="flex flex-wrap gap-2">
-                  {licenseVerified === false && (
-                    <Button
-                      variant="outline"
-                      onClick={verifyLicense}
-                      disabled={verifyingLicense || installingFromSite}
-                    >
-                      {verifyingLicense ? "Verifying..." : "Verify license"}
-                    </Button>
-                  )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {licenseVerified === false && (
+                  <Button
+                    variant="outline"
+                    onClick={verifyLicense}
+                    disabled={verifyingLicense || installingFromSite}
+                  >
+                    {verifyingLicense ? "Verifying..." : "Verify license"}
+                  </Button>
+                )}
+                {!addonActive ? (
                   <Button
                     onClick={() => void installFromSite()}
-                    disabled={installingFromSite || verifyingLicense}
+                    disabled={
+                      installingFromSite || verifyingLicense || !hasLicenseInput
+                    }
                   >
                     {installingFromSite ? "Downloading..." : "Download & install addon"}
                   </Button>
-                </div>
-                {autoUpdateLine && (
-                  <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
-                )}
-                {showRestartRequired && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-xs text-muted-foreground">
-                      Updated successfully. Restart required.
-                    </p>
+                ) : (
+                  <>
                     <Button
-                      size="sm"
                       variant="outline"
-                      className="h-7 px-2.5 text-xs"
-                      onClick={() => void requestRestart()}
+                      onClick={checkForUpdates}
+                      disabled={
+                        checkingForUpdates ||
+                        installingFromSite ||
+                        verifyingLicense ||
+                        !hasLicenseInput
+                      }
                     >
-                      Restart
+                      {checkingForUpdates ? "Checking..." : "Check for updates"}
                     </Button>
-                  </div>
+                    {updateAvailable && (
+                      <Button
+                        ref={updateInstallButtonRef}
+                        onClick={() => void installFromSite()}
+                        disabled={
+                          installingFromSite || verifyingLicense || !hasLicenseInput
+                        }
+                        className={
+                          highlightUpdateInstall ? ACTION_HIGHLIGHT_CLASS : undefined
+                        }
+                      >
+                        {installingFromSite ? "Downloading..." : "Download & install update"}
+                      </Button>
+                    )}
+                    {showReinstall && (
+                      <Button
+                        variant="outline"
+                        onClick={() => void installFromSite({ forceReinstall: true })}
+                        disabled={
+                          installingFromSite || verifyingLicense || !hasLicenseInput
+                        }
+                        title="Re-download the latest addon from the site. Use if the install looks corrupted."
+                      >
+                        {installingFromSite ? "Downloading..." : "Reinstall addon"}
+                      </Button>
+                    )}
+                    {addonInstalled && (
+                      <Button
+                        variant="outline"
+                        onClick={uninstallAddon}
+                        disabled={uninstallingAddon || installingFromSite}
+                      >
+                        {uninstallingAddon ? "Uninstalling..." : "Uninstall addon"}
+                      </Button>
+                    )}
+                  </>
                 )}
-                {updateStatusText && (
-                  <p className="text-xs text-muted-foreground">{updateStatusText}</p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Restart the app after install so the addon can load.
-                </p>
               </div>
+
+              {autoUpdateLine && (
+                <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
+              )}
+              {showRestartRequired && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Updated successfully. Restart required.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => void requestRestart()}
+                  >
+                    Restart
+                  </Button>
+                </div>
+              )}
+              {updateStatusText && (
+                <p className="text-xs text-muted-foreground">{updateStatusText}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Restart the app after install, update, or uninstall so the addon load state refreshes.
+              </p>
             </CardContent>
           </Card>
+        );
+      })()}
 
+      {/* Manual .whl fallback when addon is not active yet */}
+      {(!addonLoaded || !hasFeatures) && (
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Advanced / manual install</CardTitle>
@@ -676,7 +741,6 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
               </div>
             </CardContent>
           </Card>
-        </>
       )}
 
       {/* Addon active: feature toggles and settings */}
@@ -727,109 +791,6 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
           </CardContent>
         </Card>
       )}
-
-      {/* License + updater controls while addon is active */}
-      {addonLoaded && hasFeatures && (() => {
-        const updateAvailable =
-          updateStatus?.update_available === true ||
-          appInfo?.experimental_addon_update_available === true;
-        const showReinstall =
-          !updateAvailable && (addonInstalled || appInfo?.experimental_addon_installed === true);
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">License & addon updates</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Verify your key. Check for updates; if one is available, install it from hytalemanager.com.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <Input
-                  type="password"
-                  placeholder={licensePlaceholder}
-                  value={licenseKey}
-                  onChange={(e) => setLicenseKey(e.target.value)}
-                  className="font-mono text-sm"
-                />
-                <Button onClick={saveLicense} disabled={updateSettings.isPending || !licenseKey.trim()}>
-                  Save
-                </Button>
-                {savedKeySet && (
-                  <Button variant="outline" onClick={clearLicense} disabled={updateSettings.isPending}>
-                    Remove
-                  </Button>
-                )}
-              </div>
-              {licenseStatusLine}
-              <div className="flex flex-wrap gap-2">
-                {licenseVerified === false && (
-                  <Button
-                    variant="outline"
-                    onClick={verifyLicense}
-                    disabled={verifyingLicense || installingFromSite}
-                  >
-                    {verifyingLicense ? "Verifying..." : "Verify license"}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={checkForUpdates}
-                  disabled={checkingForUpdates || installingFromSite || verifyingLicense}
-                >
-                  {checkingForUpdates ? "Checking..." : "Check for updates"}
-                </Button>
-                {updateAvailable && (
-                  <Button
-                    ref={updateInstallButtonRef}
-                    onClick={() => void installFromSite()}
-                    disabled={installingFromSite || verifyingLicense}
-                    className={
-                      highlightUpdateInstall ? ACTION_HIGHLIGHT_CLASS : undefined
-                    }
-                  >
-                    {installingFromSite ? "Downloading..." : "Download & install update"}
-                  </Button>
-                )}
-                {showReinstall && (
-                  <Button
-                    variant="outline"
-                    onClick={() => void installFromSite({ forceReinstall: true })}
-                    disabled={installingFromSite || verifyingLicense}
-                    title="Re-download the latest addon from the site (same version). Use if the install looks corrupted."
-                  >
-                    {installingFromSite ? "Downloading..." : "Reinstall addon"}
-                  </Button>
-                )}
-              </div>
-              {autoUpdateLine && (
-                <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
-              )}
-              {showRestartRequired && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs text-muted-foreground">
-                    Updated successfully. Restart required.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2.5 text-xs"
-                    onClick={() => void requestRestart()}
-                  >
-                    Restart
-                  </Button>
-                </div>
-              )}
-              {updateStatusText && (
-                <p className="text-xs text-muted-foreground">{updateStatusText}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Restart the app after install to load the updated addon.
-              </p>
-            </CardContent>
-          </Card>
-        );
-      })()}
 
       {addonLoaded &&
         hasFeatures &&
