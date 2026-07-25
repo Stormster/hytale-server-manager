@@ -39,6 +39,7 @@ export function ConfigView() {
   const { data: appInfo } = useAppInfo();
   const useJsonCheckerEditor =
     appInfo?.experimental_addon_loaded === true &&
+    appInfo?.experimental_addon_installed === true &&
     (appInfo?.experimental_addon_features ?? []).includes("json_checker") &&
     appInfo?.experimental_addon_feature_flags?.["json_checker"] !== false;
   const { data: fileData, isError, error } = useConfigFile(

@@ -65,6 +65,9 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
 
   const addonLoaded = appInfo?.experimental_addon_loaded === true;
   const addonInstalled = appInfo?.experimental_addon_installed === true;
+  /** Usable only when still on disk — uninstall leaves process memory until restart. */
+  const addonUsable = addonLoaded && addonInstalled;
+  const needsUnloadRestart = addonLoaded && !addonInstalled;
   const features = appInfo?.experimental_addon_features ?? [];
   const hasFeatures = features.length > 0;
   const autoUpdateLine = appInfo
@@ -518,14 +521,11 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
 
       {/* Unified status + license + install/update */}
       {(() => {
-        const addonActive = addonLoaded && hasFeatures;
+        const addonActive = addonUsable && hasFeatures;
         const updateAvailable =
           updateStatus?.update_available === true ||
           appInfo?.experimental_addon_update_available === true;
-        const showReinstall =
-          addonActive &&
-          !updateAvailable &&
-          (addonInstalled || appInfo?.experimental_addon_installed === true);
+        const showReinstall = addonActive && !updateAvailable;
         const licenseLabel = !hasLicenseInput
           ? "Not set"
           : verifyingLicense
@@ -567,7 +567,13 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                 </div>
                 <div className="rounded-md border px-3 py-2">
                   <p className="text-xs text-muted-foreground">Loaded</p>
-                  <p className="font-medium">{addonLoaded ? "Yes" : "No"}</p>
+                  <p className="font-medium">
+                    {addonLoaded
+                      ? addonInstalled
+                        ? "Yes"
+                        : "Yes — restart to clear"
+                      : "No"}
+                  </p>
                 </div>
                 <div className="rounded-md border px-3 py-2">
                   <p className="text-xs text-muted-foreground">License</p>
@@ -688,19 +694,36 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                   </Button>
                 </div>
               )}
+              {needsUnloadRestart && (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                  <p className="text-xs text-amber-800 dark:text-amber-200 flex-1">
+                    Addon files were removed. Restart to unload it from memory and clear feature UI.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => void requestRestart()}
+                  >
+                    Restart
+                  </Button>
+                </div>
+              )}
               {updateStatusText && (
                 <p className="text-xs text-muted-foreground">{updateStatusText}</p>
               )}
-              <p className="text-xs text-muted-foreground">
-                Restart the app after install, update, or uninstall so the addon load state refreshes.
-              </p>
+              {!needsUnloadRestart && (
+                <p className="text-xs text-muted-foreground">
+                  Restart the app after install, update, or uninstall so the addon load state refreshes.
+                </p>
+              )}
             </CardContent>
           </Card>
         );
       })()}
 
-      {/* Manual .whl fallback when addon is not active yet */}
-      {(!addonLoaded || !hasFeatures) && (
+      {/* Manual .whl fallback when addon is not usable yet */}
+      {(!addonUsable || !hasFeatures) && (
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Advanced / manual install</CardTitle>
@@ -743,8 +766,8 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
           </Card>
       )}
 
-      {/* Addon active: feature toggles and settings */}
-      {addonLoaded && hasFeatures && (
+      {/* Addon usable: feature toggles and settings (requires files on disk) */}
+      {addonUsable && hasFeatures && (
         <Card className="border-emerald-500/30 bg-emerald-500/5">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -792,7 +815,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         </Card>
       )}
 
-      {addonLoaded &&
+      {addonUsable &&
         hasFeatures &&
         features.includes("auto_update") &&
         appInfo?.experimental_addon_feature_flags?.["auto_update"] !== false && (
@@ -801,7 +824,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
 
       {/* Custom Console Commands management */}
       <div id={CUSTOM_COMMANDS_SECTION_ID}>
-        {addonLoaded &&
+        {addonUsable &&
           hasFeatures &&
           features.includes("custom_commands") &&
           appInfo?.experimental_addon_feature_flags?.["custom_commands"] !== false && (
