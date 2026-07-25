@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AppSidebar, type ViewName } from "@/components/AppSidebar";
 import { AuthExpiredBanner } from "@/components/AuthExpiredBanner";
 import { DownloaderMissingBanner } from "@/components/DownloaderMissingBanner";
@@ -35,69 +35,6 @@ export default function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [manageInstancesOpen, setManageInstancesOpen] = useState(false);
-
-  // Graceful shutdown: stop all servers before closing (Tauri only). Must be before any early returns.
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    (async () => {
-      try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        const { getAuthHeaders } = await import("@/api/client");
-        const win = getCurrentWindow();
-        unlisten = await win.onCloseRequested(async (event) => {
-          event.preventDefault();
-          const CLOSE_TIMEOUT = 8000; // Max wait before force-close
-          const deadline = Date.now() + CLOSE_TIMEOUT;
-          try {
-            const { invoke } = await import("@tauri-apps/api/core");
-            const port = await invoke<number>("get_backend_port");
-            const url = `http://127.0.0.1:${port}`;
-            const authHeaders = await getAuthHeaders();
-            const ctrl = new AbortController();
-            const timeoutId = setTimeout(() => ctrl.abort(), CLOSE_TIMEOUT);
-            try {
-              await fetch(`${url}/api/server/stop`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", ...authHeaders },
-                body: JSON.stringify({ all: true }),
-                signal: ctrl.signal,
-              });
-              while (Date.now() < deadline) {
-                try {
-                  const res = await fetch(`${url}/api/server/status`, {
-                    signal: ctrl.signal,
-                    headers: authHeaders,
-                  });
-                  const status = await res.json();
-                  if (!status?.running) break;
-                } catch {
-                  break;
-                }
-                await new Promise((r) => setTimeout(r, 400));
-              }
-            } finally {
-              clearTimeout(timeoutId);
-            }
-          } catch {
-            // Backend unreachable or not ready – close anyway
-          }
-          try {
-            await win.destroy();
-          } catch {
-            // destroy() failed – try close() as fallback
-            try {
-              await win.close();
-            } catch {
-              // Give up; Tauri RunEvent::ExitRequested will clean up
-            }
-          }
-        });
-      } catch {
-        // Not in Tauri (browser dev)
-      }
-    })();
-    return () => unlisten?.();
-  }, []);
 
   // Show error with retry when backend connection fails (e.g. WSL/VM graphics issues)
   if (isError || authError) {

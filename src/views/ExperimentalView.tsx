@@ -11,6 +11,7 @@ import { api, apiUpload } from "@/api/client";
 import { toast } from "sonner";
 import { AddonCustomCommandsManager } from "@/components/Addon";
 import { ExperimentalAutoUpdateSettings } from "@/components/ExperimentalAutoUpdateSettings";
+import { useAppLifecycle } from "@/components/AppLifecycleProvider";
 import {
   ACTION_HIGHLIGHT_CLASS,
   ACTION_HIGHLIGHT_MS,
@@ -36,6 +37,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   const { data: appInfo, refetch: refetchAppInfo } = useAppInfo();
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
+  const { requestRestart } = useAppLifecycle();
   const savedKeySet = settings?.experimental_addon_license_key_set === true;
   const savedKeyPreview = settings?.experimental_addon_license_key_preview ?? null;
   const [licenseKey, setLicenseKey] = useState("");
@@ -414,9 +416,10 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     ? updateStatus.update_available
       ? `Update available${updateStatus.latest_version ? `: v${updateStatus.latest_version}` : ""}`
       : updateStatus.reason === "restart_required"
-      ? "Updated successfully. Restart required."
+      ? null
       : `Up to date${updateStatus.latest_version ? ` (latest v${updateStatus.latest_version})` : ""}`
     : null;
+  const showRestartRequired = updateStatus?.reason === "restart_required";
 
   const licenseStatusLine =
     !hasLicenseInput ? null : verifyingLicense ? (
@@ -564,6 +567,21 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                 </div>
                 {autoUpdateLine && (
                   <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
+                )}
+                {showRestartRequired && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Updated successfully. Restart required.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2.5 text-xs"
+                      onClick={() => void requestRestart()}
+                    >
+                      Restart
+                    </Button>
+                  </div>
                 )}
                 {updateStatusText && (
                   <p className="text-xs text-muted-foreground">{updateStatusText}</p>
@@ -743,6 +761,21 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
               </div>
               {autoUpdateLine && (
                 <p className="text-xs text-muted-foreground">{autoUpdateLine}</p>
+              )}
+              {showRestartRequired && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Updated successfully. Restart required.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => void requestRestart()}
+                  >
+                    Restart
+                  </Button>
+                </div>
               )}
               {updateStatusText && (
                 <p className="text-xs text-muted-foreground">{updateStatusText}</p>

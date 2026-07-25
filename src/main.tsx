@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { AppLifecycleProvider } from "@/components/AppLifecycleProvider";
 import App from "./App";
 import "./index.css";
 
@@ -21,7 +22,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
         <TooltipProvider delayDuration={300}>
-          <App />
+          <AppLifecycleProvider>
+            <App />
+          </AppLifecycleProvider>
         </TooltipProvider>
         <Toaster />
       </ThemeProvider>
