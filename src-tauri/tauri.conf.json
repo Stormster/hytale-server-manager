@@ -46,7 +46,15 @@
     ],
     "externalBin": [
       "server-manager-backend"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["English"],
+        "customLanguageFiles": {
+          "English": "windows/English.nsh"
+        }
+      }
+    }
   },
   "plugins": {
     "shell": {
