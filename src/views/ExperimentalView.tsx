@@ -25,6 +25,7 @@ const FEATURE_LABELS: Record<string, string> = {
 };
 
 const PATREON_URL = "https://www.patreon.com/c/stormster";
+const LICENSE_URL = "https://hytalemanager.com/license";
 
 export const CUSTOM_COMMANDS_SECTION_ID = "hsm-custom-commands-section";
 
@@ -443,7 +444,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       ? savedKeyPreview
         ? `Saved (${savedKeyPreview}) — enter a new key to replace`
         : "License key saved — enter a new key to replace"
-      : "Paste your license key from Patreon";
+      : "Paste your license key from hytalemanager.com";
 
   return (
     <div className="flex h-full flex-col">
@@ -455,11 +456,11 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
           Experimental
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Unlock extra features with the Experimental addon (Patreon).
+          Unlock extra features with the Experimental addon.
         </p>
       </div>
 
-      {/* Patreon: CTA when unlicensed, thank-you when licensed */}
+      {/* Support CTA / thank-you */}
       <Card className="border-amber-500/30 bg-amber-500/5">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -468,19 +469,52 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
           <p className="text-sm text-muted-foreground">
             {hasFeatures
               ? "Your support helps keep development going. If you run into any problems with the addon or have feedback, please report issues on Patreon."
-              : "Support development and get the addon with a enhanced JSON Editor, Custom Console Commands, and more. Download the addon and your license key from Patreon."}
+              : "JSON Checker, Custom Console Commands, server auto-update, and more."}
           </p>
         </CardHeader>
-        <CardContent>
-          <a
-            href={PATREON_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
-          >
-            <ExternalLink className="h-4 w-4" />
-            {hasFeatures ? "Report issues on Patreon" : "Open Patreon"}
-          </a>
+        <CardContent className="space-y-4">
+          {!hasFeatures && (
+            <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
+              <li>
+                <span className="text-foreground font-medium">Join Patreon</span>
+                {" "}to become a supporter
+              </li>
+              <li>
+                <span className="text-foreground font-medium">Connect your account</span>
+                {" "}at hytalemanager.com/license and copy your key
+              </li>
+              <li>
+                <span className="text-foreground font-medium">Paste the key below</span>
+                {" "}and install the addon
+              </li>
+            </ol>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {!hasFeatures && (
+              <a
+                href={LICENSE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Get your license key
+              </a>
+            )}
+            <a
+              href={PATREON_URL}
+              target="_blank"
+              rel="noreferrer"
+              className={
+                hasFeatures
+                  ? "inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
+                  : "inline-flex items-center gap-2 rounded-lg border border-amber-600/50 bg-transparent px-4 py-2.5 text-sm font-medium text-amber-200 hover:bg-amber-500/10 transition-colors"
+              }
+            >
+              <ExternalLink className="h-4 w-4" />
+              {hasFeatures ? "Report issues on Patreon" : "Join Patreon"}
+            </a>
+          </div>
         </CardContent>
       </Card>
 
@@ -520,10 +554,19 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Install from hytalemanager.com</CardTitle>
+              <CardTitle className="text-base">Install with your license key</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Save your license key, then download and install the addon. After it shows as loaded,
-                use Check for updates in License & addon updates.
+                Paste the key from{" "}
+                <a
+                  href={LICENSE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-foreground underline underline-offset-2 hover:text-amber-400"
+                >
+                  hytalemanager.com/license
+                </a>
+                , save it, then download and install. After it loads, use Check for updates here
+                for future addon updates.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
