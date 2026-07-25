@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +17,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useServerStatus } from "@/api/hooks/useServer";
+import type { ServerStatus } from "@/api/types";
 import {
+  countRunningFromStatus,
   getRunningServerCount,
   performLifecycleAction,
   type LifecycleAction,
@@ -37,7 +41,21 @@ export function useAppLifecycle(): AppLifecycleContextValue {
   return ctx;
 }
 
+function cachedRunningCount(queryClient: ReturnType<typeof useQueryClient>): number {
+  const entries = queryClient.getQueriesData<ServerStatus>({
+    queryKey: ["server", "status"],
+  });
+  let max = 0;
+  for (const [, data] of entries) {
+    max = Math.max(max, countRunningFromStatus(data));
+  }
+  return max;
+}
+
 export function AppLifecycleProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  // Keep status subscription warm so close/restart can use a fresh cache without waiting.
+  const { data: serverStatus } = useServerStatus();
   const [dialog, setDialog] = useState<{
     action: LifecycleAction;
     count: number;
@@ -45,7 +63,12 @@ export function AppLifecycleProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const dialogOpenRef = useRef(false);
+  const runningCountRef = useRef(0);
   dialogOpenRef.current = dialog != null;
+  runningCountRef.current = Math.max(
+    countRunningFromStatus(serverStatus),
+    cachedRunningCount(queryClient)
+  );
 
   const runAction = useCallback(async (action: LifecycleAction) => {
     if (busyRef.current) return;
@@ -63,9 +86,17 @@ export function AppLifecycleProvider({ children }: { children: ReactNode }) {
   const requestWithServerCheck = useCallback(
     async (action: LifecycleAction) => {
       if (busyRef.current) return;
-      let count = 0;
+
+      // Prefer the already-polled status so the dialog opens immediately.
+      let count = runningCountRef.current;
+      if (count > 0) {
+        setDialog({ action, count });
+        return;
+      }
+
+      // Cache says idle — quick verify in case a server just started.
       try {
-        count = await getRunningServerCount();
+        count = await getRunningServerCount(800);
       } catch {
         count = 0;
       }
