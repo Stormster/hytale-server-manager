@@ -29,7 +29,8 @@ src-tauri/server-manager-backend-*
 .env.*.local
 
 # ---- IDE / editor ----
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 .idea/
 .cursor/
 *.code-workspace
@@ -68,4 +69,3 @@ Desktop.ini
 .DS_Store
 server info/config.json
 server info/output.txt
-.env.example
