@@ -229,11 +229,13 @@ export function AddonAutoUpdateSettings() {
   const containerRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<SettingsHandle | null>(null);
   const [ready, setReady] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Older addon wheels omit auto-update.js — hide quietly until the user updates.
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    setLoadError(null);
+    setUnavailable(false);
+    setReady(false);
     ensureAddonApiGlobals()
       .then(() =>
         ensureAddonFeature(AUTO_UPDATE_SCRIPT, () => Boolean(getComponents()?.auto_update))
@@ -241,10 +243,8 @@ export function AddonAutoUpdateSettings() {
       .then(() => {
         if (!cancelled) setReady(true);
       })
-      .catch((err) => {
-        if (!cancelled) {
-          setLoadError((err as Error)?.message || "Failed to load auto-update settings UI.");
-        }
+      .catch(() => {
+        if (!cancelled) setUnavailable(true);
       });
     return () => {
       cancelled = true;
@@ -255,7 +255,7 @@ export function AddonAutoUpdateSettings() {
     if (!ready || !containerRef.current) return;
     const feature = getComponents()?.auto_update;
     if (!feature) {
-      setLoadError("Auto-update settings are unavailable in the installed addon.");
+      setUnavailable(true);
       return;
     }
     settingsRef.current = feature.createSettings(containerRef.current);
@@ -265,21 +265,7 @@ export function AddonAutoUpdateSettings() {
     };
   }, [ready]);
 
-  if (loadError) {
-    return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {loadError}
-      </div>
-    );
-  }
-
-  if (!ready) {
-    return (
-      <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-        Loading auto-update settings...
-      </div>
-    );
-  }
+  if (unavailable || !ready) return null;
 
   return <div ref={containerRef} id="hsm-auto-update-section" />;
 }
