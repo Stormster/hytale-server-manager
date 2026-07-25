@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from typing import Optional, Any
 
 from services import settings
+from utils.secret_redaction import sanitize_settings_for_api
 
 router = APIRouter()
 
@@ -198,9 +199,6 @@ def get_settings():
     # When running with tauri:dev:addons, expose dev license key from env so UI shows as validated (key never in repo)
     if os.environ.get("HSM_DEV_ADDON"):
         data["experimental_addon_license_key"] = (os.environ.get("HSM_DEV_LICENSE_KEY") or "").strip()
-    # Migrate legacy pro_license_key -> experimental_addon_license_key for API consumers
-    elif "experimental_addon_license_key" not in data and data.get("pro_license_key"):
-        data["experimental_addon_license_key"] = data["pro_license_key"]
     data["default_root_dir"] = get_default_root_dir()
     data["onboarding_completed"] = settings.has_completed_onboarding()
 
@@ -212,7 +210,7 @@ def get_settings():
             settings.set_active_instance("")
             data["active_instance"] = ""
 
-    return data
+    return sanitize_settings_for_api(data)
 
 
 @router.put("/settings")
@@ -241,4 +239,4 @@ def update_settings(body: UpdateSettingsRequest):
                 if os.path.isdir(server_dir):
                     from services.nitrado_plugins import set_webserver_port
                     set_webserver_port(server_dir, webserver)
-    return settings.get_all()
+    return sanitize_settings_for_api(settings.get_all())

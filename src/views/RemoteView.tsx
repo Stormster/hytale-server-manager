@@ -8,7 +8,6 @@ import {
   useAddRemoteConnection,
   useRemoteCommand,
   useRemoteConnections,
-  useSetActiveConnection,
   useTestRemoteInfo,
 } from "@/api/hooks/useRemote";
 import { toast } from "sonner";
@@ -16,19 +15,19 @@ import { toast } from "sonner";
 export function RemoteView() {
   const { data, refetch } = useRemoteConnections();
   const addConn = useAddRemoteConnection();
-  const setActive = useSetActiveConnection();
   const testInfo = useTestRemoteInfo();
   const runCmd = useRemoteCommand();
 
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [command, setCommand] = useState("list");
   const [output, setOutput] = useState<string | null>(null);
 
   const connections = data?.connections ?? [];
-  const active = data?.active_connection ?? "local";
-  const activeRemote = active !== "local" ? connections.find((c) => c.id === active) : null;
+  const selected =
+    connections.find((c) => c.id === selectedId) ?? connections[0] ?? null;
 
   const handleAdd = () => {
     if (!name.trim() || !baseUrl.trim() || !apiKey.trim()) {
@@ -38,10 +37,11 @@ export function RemoteView() {
     addConn.mutate(
       { name: name.trim(), base_url: baseUrl.trim(), api_key: apiKey.trim() },
       {
-        onSuccess: () => {
+        onSuccess: (conn) => {
           setName("");
           setBaseUrl("");
           setApiKey("");
+          setSelectedId(conn.id);
         },
       }
     );
@@ -52,7 +52,7 @@ export function RemoteView() {
       <div>
         <h1 className="text-2xl font-bold">Remote server</h1>
         <p className="text-sm text-muted-foreground">
-          Manage hosted servers via the Hytale Remote plugin. Console streaming requires a future plugin update.
+          Dev-only: manage hosted servers via the Hytale Remote plugin. Set HSM_ENABLE_REMOTE=1 to use.
         </p>
       </div>
 
@@ -60,27 +60,24 @@ export function RemoteView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Plug className="h-4 w-4" />
-            Active connection
+            Saved connections
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant={active === "local" ? "default" : "outline"}
-            onClick={() => setActive.mutate("local")}
-          >
-            Local
-          </Button>
-          {connections.map((c) => (
-            <Button
-              key={c.id}
-              size="sm"
-              variant={active === c.id ? "default" : "outline"}
-              onClick={() => setActive.mutate(c.id)}
-            >
-              {c.name}
-            </Button>
-          ))}
+          {connections.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No connections saved yet.</p>
+          ) : (
+            connections.map((c) => (
+              <Button
+                key={c.id}
+                size="sm"
+                variant={selected?.id === c.id ? "default" : "outline"}
+                onClick={() => setSelectedId(c.id)}
+              >
+                {c.name}
+              </Button>
+            ))
+          )}
         </CardContent>
       </Card>
 
@@ -119,12 +116,12 @@ export function RemoteView() {
         </CardContent>
       </Card>
 
-      {activeRemote && (
+      {selected && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Terminal className="h-4 w-4" />
-              Test: {activeRemote.name}
+              Test: {selected.name}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -133,7 +130,7 @@ export function RemoteView() {
               size="sm"
               disabled={testInfo.isPending}
               onClick={() => {
-                testInfo.mutate(activeRemote.id, {
+                testInfo.mutate(selected.id, {
                   onSuccess: (info) => toast.success(`Connected: ${JSON.stringify(info)}`),
                   onError: (e) => toast.error((e as Error).message),
                 });
@@ -151,7 +148,7 @@ export function RemoteView() {
                 disabled={runCmd.isPending}
                 onClick={() => {
                   runCmd.mutate(
-                    { connection_id: activeRemote.id, command },
+                    { connection_id: selected.id, command },
                     {
                       onSuccess: (res) => {
                         setOutput(res.output ?? res.error ?? JSON.stringify(res));
@@ -174,10 +171,6 @@ export function RemoteView() {
         </Card>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Setup URL: open your server&apos;s <code>/setup</code> page or use{" "}
-        <code>hytale-manager://add?url=...&amp;code=...</code> after registering the protocol in Tauri settings.
-      </p>
       <Button variant="ghost" size="sm" onClick={() => refetch()}>
         Refresh list
       </Button>

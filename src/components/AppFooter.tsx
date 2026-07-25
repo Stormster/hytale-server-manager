@@ -10,7 +10,7 @@ export function AppFooter({
   onNavigateToExperimental?: () => void;
 }) {
   const { data: appInfo } = useAppInfo();
-  const repo = appInfo?.github_repo ?? "Stormster/Hytale-Remote";
+  const repo = appInfo?.github_repo ?? "Stormster/hytale-server-manager";
   const releaseUrl = `https://github.com/${repo}/releases`;
   const issuesUrl = `https://github.com/${repo}/issues`;
   const latestAddon = appInfo?.experimental_addon_latest_version;

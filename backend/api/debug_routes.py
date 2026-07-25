@@ -32,11 +32,6 @@ def export_diagnostics():
         "manager_version": MANAGER_VERSION,
         "github_repo": GITHUB_REPO,
         "root_dir": settings.get_root_dir(),
-        "active_connection": settings.get_active_connection(),
-        "remote_connections": [
-            {"id": c.get("id"), "name": c.get("name"), "base_url": c.get("base_url")}
-            for c in settings.get_remote_connections()
-        ],
         "instances": instance_list,
         "logs": get_recent(),
     }

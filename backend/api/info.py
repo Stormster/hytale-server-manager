@@ -16,7 +16,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-from config import MANAGER_VERSION, GITHUB_REPO, REPORT_URL
+from config import MANAGER_VERSION, GITHUB_REPO, REPORT_URL, is_remote_enabled
 from utils.java import check_java
 from services import downloader as dl
 from services import github as gh
@@ -75,34 +75,31 @@ def _get_experimental_addon_update_snapshot() -> dict:
             _addon_update_cached_at = now
             return snapshot
 
+        from fastapi import HTTPException
+        from services.hytalemanager_client import request_site_json
+
         current_v = get_installed_experimental_addon_version() or ""
-        base = os.environ.get("HYTALE_MANAGER_SITE_BASE_URL", "https://hytalemanager.com").rstrip("/")
-        res = requests.get(
-            f"{base}/api/addon/update/check",
-            params={
-                "plugin_id": "experimental_addon",
-                "channel": "stable",
-                "app_version": MANAGER_VERSION,
-                "current_version": current_v,
-            },
-            headers={"x-license-key": key},
-            timeout=8,
-        )
-        if not res.ok:
-            try:
-                data = res.json()
-                snapshot["experimental_addon_update_error"] = data.get("error") or data.get("detail")
-            except Exception:
-                snapshot["experimental_addon_update_error"] = f"HTTP {res.status_code}"
-            snapshot["experimental_addon_update_reason"] = "check_failed"
-        else:
-            data = res.json()
+        try:
+            data = request_site_json(
+                "/api/addon/update/check",
+                params={
+                    "plugin_id": "experimental_addon",
+                    "channel": "stable",
+                    "app_version": MANAGER_VERSION,
+                    "current_version": current_v,
+                },
+                headers={"x-license-key": key},
+                timeout=8,
+            )
             snapshot["experimental_addon_latest_version"] = data.get("latest_version")
             snapshot["experimental_addon_update_available"] = bool(data.get("update_available"))
             snapshot["experimental_addon_update_reason"] = data.get("reason")
             snapshot["experimental_addon_current_version"] = data.get("current_version") or (
                 current_v or None
             )
+        except HTTPException as e:
+            snapshot["experimental_addon_update_error"] = str(e.detail)
+            snapshot["experimental_addon_update_reason"] = "check_failed"
     except Exception as e:
         snapshot["experimental_addon_update_reason"] = "check_failed"
         snapshot["experimental_addon_update_error"] = str(e)
@@ -147,6 +144,7 @@ def info():
         "experimental_addon_feature_flags": feature_flags,
         **addon_update,
         "platform": sys.platform,
+        "remote_enabled": is_remote_enabled(),
     }
 
 

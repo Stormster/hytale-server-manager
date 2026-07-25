@@ -16,6 +16,11 @@ APP_NAME = "Hytale Server Manager"
 GITHUB_REPO = "Stormster/hytale-server-manager"
 REPORT_URL = "https://github.com/Stormster/hytale-server-manager/issues"
 
+
+def is_remote_enabled() -> bool:
+    """True when HSM_ENABLE_REMOTE=1 (dev-only remote management UI and API)."""
+    return os.environ.get("HSM_ENABLE_REMOTE", "").strip() == "1"
+
 # ---------------------------------------------------------------------------
 # Hytale downloader / server paths (relative names only)
 # ---------------------------------------------------------------------------

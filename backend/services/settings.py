@@ -15,16 +15,53 @@ _SETTINGS_DIR = os.path.join(
 )
 _SETTINGS_FILE = os.path.join(_SETTINGS_DIR, "settings.json")
 
+_SETTINGS_SCHEMA_VERSION = 1
+
 _cache: dict | None = None
+_migrated: bool = False
+
+
+def _migrate_settings(data: dict) -> tuple[dict, bool]:
+    """Apply one-time migrations. Returns (data, changed)."""
+    changed = False
+
+    if data.get("settings_schema_version") != _SETTINGS_SCHEMA_VERSION:
+        data["settings_schema_version"] = _SETTINGS_SCHEMA_VERSION
+        changed = True
+
+    legacy_key = (data.get("pro_license_key") or "").strip()
+    current_key = (data.get("experimental_addon_license_key") or "").strip()
+    if legacy_key and not current_key:
+        data["experimental_addon_license_key"] = legacy_key
+        changed = True
+    if "pro_license_key" in data:
+        del data["pro_license_key"]
+        changed = True
+
+    remote_enabled = os.environ.get("HSM_ENABLE_REMOTE", "").strip() == "1"
+    if "active_connection" in data:
+        del data["active_connection"]
+        changed = True
+    if not remote_enabled and "remote_connections" in data:
+        del data["remote_connections"]
+        changed = True
+
+    return data, changed
 
 
 def _load() -> dict:
-    global _cache
+    global _cache, _migrated
     if os.path.isfile(_SETTINGS_FILE):
         with open(_SETTINGS_FILE, "r", encoding="utf-8") as f:
-            _cache = json.load(f)
+            data = json.load(f)
     else:
-        _cache = {}
+        data = {}
+
+    data, changed = _migrate_settings(data)
+    if changed and not _migrated:
+        _save(data)
+        _migrated = True
+    _cache = data
     return _cache
 
 
@@ -175,13 +212,14 @@ def get_experimental_addon_license_key() -> str:
     if os.environ.get("HSM_DEV_ADDON"):
         return (os.environ.get("HSM_DEV_LICENSE_KEY") or "").strip()
     s = load()
-    return s.get("experimental_addon_license_key") or s.get("pro_license_key", "")
+    return s.get("experimental_addon_license_key", "")
 
 
 def set_experimental_addon_license_key(key: str) -> None:
     """Store the Experimental addon license key. Restart app for addon to pick it up."""
     s = load()
     s["experimental_addon_license_key"] = (key or "").strip()
+    s.pop("pro_license_key", None)
     _save(s)
 
 
@@ -209,8 +247,6 @@ def get_instance_server_settings_for(instance_name: str) -> dict:
     all_settings = get_instance_server_settings()
     return dict(all_settings.get(instance_name, {}))
 
-
-# -- Instance server settings (RAM limits, startup args) ---------------------------------
 
 def set_instance_server_settings(instance_name: str, data: dict) -> None:
     """Update server settings for an instance. Merges with existing."""
@@ -252,17 +288,6 @@ def get_remote_connections() -> list[dict]:
 def set_remote_connections(connections: list[dict]) -> None:
     s = load()
     s["remote_connections"] = connections
-    _save(s)
-
-
-def get_active_connection() -> str:
-    """Return 'local' or a remote connection id."""
-    return str(load().get("active_connection", "local") or "local")
-
-
-def set_active_connection(connection_id: str) -> None:
-    s = load()
-    s["active_connection"] = connection_id or "local"
     _save(s)
 
 

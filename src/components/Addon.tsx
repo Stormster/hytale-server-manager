@@ -26,10 +26,14 @@ type AddonComponents = {
     createSettings(container: HTMLElement): SettingsHandle;
     getCommands: () => Promise<ConsoleCommand[]> | ConsoleCommand[];
   };
+  auto_update?: {
+    createSettings(container: HTMLElement): SettingsHandle;
+  };
 };
 
 const JSON_EDITOR_SCRIPT = "/api/addon/experimental/frontend/json-checker.js";
 const CUSTOM_COMMANDS_SCRIPT = "/api/addon/experimental/frontend/custom-commands.js";
+const AUTO_UPDATE_SCRIPT = "/api/addon/experimental/frontend/auto-update.js";
 const loadCache = new Map<string, Promise<void>>();
 
 function getComponents(): AddonComponents | undefined {
@@ -219,6 +223,65 @@ export function AddonCustomCommandsManager() {
   }
 
   return <div ref={containerRef} />;
+}
+
+export function AddonAutoUpdateSettings() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<SettingsHandle | null>(null);
+  const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadError(null);
+    ensureAddonApiGlobals()
+      .then(() =>
+        ensureAddonFeature(AUTO_UPDATE_SCRIPT, () => Boolean(getComponents()?.auto_update))
+      )
+      .then(() => {
+        if (!cancelled) setReady(true);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadError((err as Error)?.message || "Failed to load auto-update settings UI.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !containerRef.current) return;
+    const feature = getComponents()?.auto_update;
+    if (!feature) {
+      setLoadError("Auto-update settings are unavailable in the installed addon.");
+      return;
+    }
+    settingsRef.current = feature.createSettings(containerRef.current);
+    return () => {
+      settingsRef.current?.destroy();
+      settingsRef.current = null;
+    };
+  }, [ready]);
+
+  if (loadError) {
+    return (
+      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+        {loadError}
+      </div>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+        Loading auto-update settings...
+      </div>
+    );
+  }
+
+  return <div ref={containerRef} id="hsm-auto-update-section" />;
 }
 
 export async function fetchAddonCustomCommands(): Promise<ConsoleCommand[]> {

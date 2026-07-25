@@ -71,6 +71,9 @@ jobs:
       - name: Install Python dependencies
         run: python -m pip install -r backend/requirements.txt
 
+      - name: Run backend tests
+        run: python -m pytest backend/tests -q
+
       - name: Build backend
         run: npm run build:backend
 

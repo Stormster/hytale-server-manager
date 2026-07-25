@@ -35,7 +35,9 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
   const { data: appInfo, refetch: refetchAppInfo } = useAppInfo();
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
-  const [licenseKey, setLicenseKey] = useState(settings?.experimental_addon_license_key ?? "");
+  const savedKeySet = settings?.experimental_addon_license_key_set === true;
+  const savedKeyPreview = settings?.experimental_addon_license_key_preview ?? null;
+  const [licenseKey, setLicenseKey] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [verifyingLicense, setVerifyingLicense] = useState(false);
@@ -77,49 +79,59 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       : null
     : null;
 
-  useEffect(() => {
-    if (settings?.experimental_addon_license_key !== undefined) {
-      setLicenseKey(settings.experimental_addon_license_key);
-    }
-  }, [settings?.experimental_addon_license_key]);
+  const hasLicenseInput = Boolean(licenseKey.trim() || savedKeySet);
 
   /** Call verify API and update licenseVerified state. Returns true if valid. */
-  const runVerify = useCallback(async (key: string): Promise<boolean> => {
-    if (!key.trim()) return false;
+  const runVerify = useCallback(async (explicitKey?: string): Promise<boolean> => {
+    const key = (explicitKey ?? licenseKey).trim();
+    if (!key && !savedKeySet) return false;
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const body: { license_key?: string } = {};
+      if (key) {
+        body.license_key = key;
+        headers["x-license-key"] = key;
+      }
       const res = await api<{ ok?: boolean; valid?: boolean }>(
-        "/api/addon/license/verify?license_key=" + encodeURIComponent(key.trim())
+        "/api/addon/license/verify",
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        }
       );
       const valid = res.valid === true;
       setLicenseVerified(valid);
-      verifiedKeyRef.current = key.trim();
+      verifiedKeyRef.current = key || "__stored__";
       return valid;
     } catch {
       setLicenseVerified(false);
-      verifiedKeyRef.current = key.trim();
+      verifiedKeyRef.current = key || "__stored__";
       return false;
     }
-  }, []);
+  }, [licenseKey, savedKeySet]);
 
-  /** Auto-verify on startup and when saved key changes. */
+  /** Auto-verify on startup when a saved key exists, or when the user enters a new key. */
   useEffect(() => {
-    const key = (settings?.experimental_addon_license_key ?? "").trim();
-    if (!key) {
+    const key = licenseKey.trim();
+    if (!key && !savedKeySet) {
       setLicenseVerified(null);
       verifiedKeyRef.current = "";
       return;
     }
-    if (verifiedKeyRef.current === key) return;
+    const verifyToken = key || "__stored__";
+    if (verifiedKeyRef.current === verifyToken) return;
     setLicenseVerified(null);
     setVerifyingLicense(true);
-    runVerify(key).finally(() => setVerifyingLicense(false));
-  }, [settings?.experimental_addon_license_key, runVerify]);
+    runVerify(key || undefined).finally(() => setVerifyingLicense(false));
+  }, [licenseKey, savedKeySet, runVerify]);
 
   /** When user changes the key in the input, clear verified state until they save or we re-run. */
   useEffect(() => {
     const key = licenseKey.trim();
-    if (key && key !== verifiedKeyRef.current) setLicenseVerified(null);
-  }, [licenseKey]);
+    const verifyToken = key || (savedKeySet ? "__stored__" : "");
+    if (verifyToken && verifyToken !== verifiedKeyRef.current) setLicenseVerified(null);
+  }, [licenseKey, savedKeySet]);
 
   useEffect(() => {
     if (scrollToSection !== "custom-commands" || !onScrollDone) return;
@@ -214,20 +226,32 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
 
   const saveLicense = () => {
     const key = licenseKey.trim();
+    if (!key) {
+      toast.error("Enter a license key to save.");
+      return;
+    }
     updateSettings.mutate(
       { experimental_addon_license_key: key },
       {
         onSuccess: () => {
-          if (!key) {
-            setLicenseVerified(null);
-            verifiedKeyRef.current = "";
-            toast.success("License key cleared.");
-            return;
-          }
+          setLicenseKey("");
           toast.success("License key saved.");
           setVerifyingLicense(true);
-          // Keep verification state current without showing restart/invalidation toasts on save.
           runVerify(key).finally(() => setVerifyingLicense(false));
+        },
+      }
+    );
+  };
+
+  const clearLicense = () => {
+    updateSettings.mutate(
+      { experimental_addon_license_key: "" },
+      {
+        onSuccess: () => {
+          setLicenseKey("");
+          setLicenseVerified(null);
+          verifiedKeyRef.current = "";
+          toast.success("License key cleared.");
         },
       }
     );
@@ -235,13 +259,13 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
 
   const verifyLicense = useCallback(async () => {
     const key = licenseKey.trim();
-    if (!key) {
+    if (!key && !savedKeySet) {
       toast.error("Enter your license key first.");
       return;
     }
     setVerifyingLicense(true);
     try {
-      const valid = await runVerify(key);
+      const valid = await runVerify(key || undefined);
       if (valid) toast.success("License key is valid.");
       else toast.error("License key is invalid or inactive.");
     } catch (err) {
@@ -249,29 +273,30 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     } finally {
       setVerifyingLicense(false);
     }
-  }, [licenseKey, runVerify]);
+  }, [licenseKey, savedKeySet, runVerify]);
 
   /** Verify license first; return false if invalid or missing. */
   const ensureLicenseValid = useCallback(async (): Promise<boolean> => {
     const key = licenseKey.trim();
-    if (!key) {
+    if (!key && !savedKeySet) {
       toast.error("Enter your license key first.");
       return false;
     }
+    const verifyToken = key || "__stored__";
     if (licenseVerified === false) {
       toast.error("License key is invalid. Save a valid key and try again.");
       return false;
     }
-    if (licenseVerified === true && verifiedKeyRef.current === key) return true;
+    if (licenseVerified === true && verifiedKeyRef.current === verifyToken) return true;
     setVerifyingLicense(true);
     try {
-      const valid = await runVerify(key);
+      const valid = await runVerify(key || undefined);
       if (!valid) toast.error("License key is invalid or inactive.");
       return valid;
     } finally {
       setVerifyingLicense(false);
     }
-  }, [licenseKey, licenseVerified, runVerify]);
+  }, [licenseKey, savedKeySet, licenseVerified, runVerify]);
 
   const installFromSite = useCallback(
     async (options?: { forceReinstall?: boolean }) => {
@@ -282,10 +307,11 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     setInstallingFromSite(true);
     try {
       const body: {
-        license_key: string;
+        license_key?: string;
         current_version?: string;
         force_reinstall?: boolean;
-      } = { license_key: key };
+      } = {};
+      if (key) body.license_key = key;
       if (force) body.force_reinstall = true;
       else if (diskV) body.current_version = diskV;
 
@@ -325,25 +351,29 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
       setInstallingFromSite(false);
     }
   },
-  [licenseKey, ensureLicenseValid, refetchAppInfo, appInfo?.experimental_addon_installed_version]
+  [licenseKey, savedKeySet, ensureLicenseValid, refetchAppInfo, appInfo?.experimental_addon_installed_version]
   );
 
   const checkForUpdates = useCallback(async () => {
     if (!(await ensureLicenseValid())) return;
-    const key = licenseKey.trim();
     const diskV = (appInfo?.experimental_addon_installed_version ?? "").trim();
     setCheckingForUpdates(true);
     try {
-      const params = new URLSearchParams();
-      params.set("license_key", key);
-      if (diskV) params.set("current_version", diskV);
+      const body: { license_key?: string; current_version?: string } = {};
+      const key = licenseKey.trim();
+      if (key) body.license_key = key;
+      if (diskV) body.current_version = diskV;
       const res = await api<{
         ok: boolean;
         update_available?: boolean;
         latest_version?: string;
         current_version?: string | null;
         reason?: string;
-      }>(`/api/addon/update/check?${params.toString()}`);
+      }>("/api/addon/update/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       setUpdateStatus({
         checked: true,
         update_available: Boolean(res.update_available),
@@ -361,7 +391,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     } finally {
       setCheckingForUpdates(false);
     }
-  }, [licenseKey, ensureLicenseValid, appInfo?.experimental_addon_installed_version]);
+  }, [licenseKey, savedKeySet, ensureLicenseValid, appInfo?.experimental_addon_installed_version]);
 
   const uninstallAddon = useCallback(async () => {
     setUninstallingAddon(true);
@@ -388,7 +418,7 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     : null;
 
   const licenseStatusLine =
-    !licenseKey.trim() ? null : verifyingLicense ? (
+    !hasLicenseInput ? null : verifyingLicense ? (
       <p className="text-xs text-muted-foreground">Verifying license…</p>
     ) : licenseVerified === true ? (
       <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
@@ -403,7 +433,13 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
     ) : null;
 
   const licenseStatusText =
-    !licenseKey.trim() ? "No" : verifyingLicense ? "Checking..." : licenseVerified ? "Yes" : "No";
+    !hasLicenseInput ? "No" : verifyingLicense ? "Checking..." : licenseVerified ? "Yes" : "No";
+  const licensePlaceholder =
+    savedKeySet && !licenseKey.trim()
+      ? savedKeyPreview
+        ? `Saved (${savedKeyPreview}) — enter a new key to replace`
+        : "License key saved — enter a new key to replace"
+      : "Paste your license key from Patreon";
 
   return (
     <div className="flex h-full flex-col">
@@ -493,14 +529,19 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
                   <Input
                     id="experimental-license"
                     type="password"
-                    placeholder="Paste your license key from Patreon"
+                    placeholder={licensePlaceholder}
                     value={licenseKey}
                     onChange={(e) => setLicenseKey(e.target.value)}
                     className="font-mono text-sm"
                   />
-                  <Button onClick={saveLicense} disabled={updateSettings.isPending}>
+                  <Button onClick={saveLicense} disabled={updateSettings.isPending || !licenseKey.trim()}>
                     Save
                   </Button>
+                  {savedKeySet && (
+                    <Button variant="outline" onClick={clearLicense} disabled={updateSettings.isPending}>
+                      Remove
+                    </Button>
+                  )}
                 </div>
                 {licenseStatusLine}
                 <div className="flex flex-wrap gap-2">
@@ -644,14 +685,19 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
               <div className="flex gap-2">
                 <Input
                   type="password"
-                  placeholder="Paste your license key from Patreon"
+                  placeholder={licensePlaceholder}
                   value={licenseKey}
                   onChange={(e) => setLicenseKey(e.target.value)}
                   className="font-mono text-sm"
                 />
-                <Button onClick={saveLicense} disabled={updateSettings.isPending}>
+                <Button onClick={saveLicense} disabled={updateSettings.isPending || !licenseKey.trim()}>
                   Save
                 </Button>
+                {savedKeySet && (
+                  <Button variant="outline" onClick={clearLicense} disabled={updateSettings.isPending}>
+                    Remove
+                  </Button>
+                )}
               </div>
               {licenseStatusLine}
               <div className="flex flex-wrap gap-2">

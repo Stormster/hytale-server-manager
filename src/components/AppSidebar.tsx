@@ -55,6 +55,8 @@ interface AppSidebarProps {
   onManageInstances: () => void;
   /** When > 0, show a count badge on the Updates nav item. */
   updatesPendingCount?: number;
+  /** Dev-only: show Remote nav when backend has HSM_ENABLE_REMOTE=1 */
+  remoteEnabled?: boolean;
 }
 
 export function AppSidebar({
@@ -64,7 +66,11 @@ export function AppSidebar({
   onImportServer,
   onManageInstances,
   updatesPendingCount = 0,
+  remoteEnabled = false,
 }: AppSidebarProps) {
+  const visibleBottomNav = remoteEnabled
+    ? bottomNav
+    : bottomNav.filter((item) => item.name !== "remote");
   return (
     <aside className="relative z-20 flex h-full w-[260px] flex-col border-r border-white/10 bg-card/80 backdrop-blur-md">
       <InstanceSwitcher
@@ -88,7 +94,7 @@ export function AppSidebar({
       </nav>
 
       <nav className="space-y-0.5 px-2 pb-2">
-        {bottomNav.map((item) => (
+        {visibleBottomNav.map((item) => (
           <SidebarButton
             key={item.name}
             item={item}
