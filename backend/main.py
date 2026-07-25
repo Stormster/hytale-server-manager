@@ -84,6 +84,16 @@ def create_app():
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
+        try:
+            from plugin_loader import run_experimental_startup_hooks
+
+            await run_experimental_startup_hooks()
+        except Exception as e:
+            print(
+                f"[Backend] Experimental addon startup hooks failed: {e}",
+                file=sys.stderr,
+                flush=True,
+            )
         yield
 
     app = FastAPI(title="Hytale Server Manager Backend", lifespan=lifespan)

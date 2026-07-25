@@ -13,7 +13,7 @@ import sys
 import traceback
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Awaitable, Callable
 
 from plugin_interface import ExperimentalAddon
 
@@ -26,6 +26,28 @@ _EXPERIMENTAL_ADDON_NAMES = ("experimental_addon.whl", "experimental_addon.pyz")
 # Set by load_experimental_addon; read by /api/info for frontend
 experimental_addon_loaded = False
 experimental_addon_features: list[str] = []
+
+# Async startup hooks registered by the addon (run from app lifespan)
+_startup_hooks: list[Callable[[], Awaitable[None]]] = []
+
+
+def register_startup_hook(hook: Callable[[], Awaitable[None]]) -> None:
+    """Register an async callback to run when the backend lifespan starts."""
+    if hook not in _startup_hooks:
+        _startup_hooks.append(hook)
+
+
+async def run_experimental_startup_hooks() -> None:
+    """Run addon startup hooks (idempotent hooks expected)."""
+    for hook in list(_startup_hooks):
+        try:
+            await hook()
+        except Exception as e:
+            print(
+                f"[plugin_loader] Experimental addon startup hook failed: {e}\n{traceback.format_exc()}",
+                file=sys.stderr,
+                flush=True,
+            )
 
 
 def get_addons_dir() -> Path:

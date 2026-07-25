@@ -487,6 +487,7 @@ def perform_update_all(
                 by_patchline.setdefault(pl, []).append((name, info))
 
             success_count = 0
+            updated_names: list[str] = []
             errors: list[str] = []
 
             for patchline, items in by_patchline.items():
@@ -544,6 +545,7 @@ def perform_update_all(
                         _extract_server_zip_to_instance(zip_path, instance_dir)
                         save_version_for_instance(instance_name, new_ver, patchline)
                         success_count += 1
+                        updated_names.append(instance_name)
                     except Exception as exc:
                         errors.append(f"{instance_name}: {exc}")
 
@@ -551,7 +553,11 @@ def perform_update_all(
             if errors:
                 msg += " " + "; ".join(errors)
             if on_done:
-                on_done(success_count > 0, msg, None)
+                on_done(
+                    success_count > 0,
+                    msg,
+                    {"updated": updated_names, "errors": errors},
+                )
         except Exception as exc:
             if on_done:
                 on_done(False, str(exc), None)
