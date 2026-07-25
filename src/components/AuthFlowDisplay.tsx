@@ -2,7 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LogConsole } from "@/components/LogConsole";
-import { parseAuthOutput } from "@/lib/authOutput";
+import { formatAuthCode, parseAuthOutput } from "@/lib/authOutput";
 import { ExternalLink, Copy, ChevronDown, ChevronUp } from "lucide-react";
 
 interface AuthFlowDisplayProps {
@@ -13,6 +13,7 @@ interface AuthFlowDisplayProps {
 export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
   const [showConsole, setShowConsole] = useState(false);
   const parsed = parseAuthOutput(lines);
+  const displayCode = parsed.code ? formatAuthCode(parsed.code) : null;
 
   const handleOpenUrl = async () => {
     if (!parsed.authUrl) return;
@@ -40,9 +41,9 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
   };
 
   const handleCopyCode = async () => {
-    if (!parsed.code) return;
+    if (!displayCode) return;
     try {
-      await navigator.clipboard.writeText(parsed.code);
+      await navigator.clipboard.writeText(displayCode);
       toast.success("Code copied to clipboard");
     } catch {
       toast.error("Failed to copy");
@@ -78,7 +79,7 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
               </div>
             </div>
           )}
-          {parsed.code && (
+          {displayCode && (
             <div className="space-y-2">
               <p className="text-sm font-medium">
                 Or enter this code at{" "}
@@ -109,7 +110,7 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 rounded-md border border-input bg-input px-3 py-2 text-lg font-mono tracking-wider text-foreground">
-                  {parsed.code}
+                  {displayCode}
                 </code>
                 <Button variant="outline" size="icon" onClick={handleCopyCode}>
                   <Copy className="h-4 w-4" />
