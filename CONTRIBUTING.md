@@ -16,21 +16,26 @@ pip install -r backend/requirements.txt
 
 ## Development
 
-```bash
-# Desktop app (Tauri + Vite + Python backend)
-npm run tauri:dev
+See **[DEVELOPMENT.md](DEVELOPMENT.md)** for the full cheat sheet (daily commands, releases, sibling repos).
 
-# With experimental addon wheel (builds addon repo first)
-npm run tauri:dev:addons
+```bash
+npm run dev              # Desktop app
+npm run dev:addon        # With experimental addon
+npm run hsm -- help      # Cross-repo tasks
 ```
 
 The backend listens on a dynamic localhost port; Tauri injects `HYTALE_BACKEND_TOKEN` for API auth in release builds.
 
+Copy `.env.example` to `.env` and set `HSM_DEV_LICENSE_KEY` for addon dev.
+
 ## Environment variables
+
+See `.env.example` and [DEVELOPMENT.md](DEVELOPMENT.md). Key vars:
 
 | Variable | Purpose |
 |----------|---------|
-| `HSM_DEV_ADDON` | Path to `experimental_addon.whl` for local addon dev |
+| `HSM_DEV_LICENSE_KEY` | Patreon addon license for local dev |
+| `HSM_ENABLE_REMOTE` | Set to `1` for Remote UI (or use `npm run dev:remote`) |
 | `HYTALE_ROOT_DIR` | Default server data root (optional) |
 | `HYTALE_BACKEND_TOKEN` | Backend auth token (set by Tauri in production) |
 
@@ -38,11 +43,11 @@ The backend listens on a dynamic localhost port; Tauri injects `HYTALE_BACKEND_T
 
 | Command | Description |
 |---------|-------------|
-| `npm run build` | Frontend production build |
-| `npm run build:backend` | PyInstaller backend sidecar |
-| `npm run tauri build` | Full desktop release build |
+| `npm run dev` | Desktop app (Tauri + backend) |
+| `npm run release` | Windows installer build |
+| `npm run test` | Backend pytest |
+| `npm run hsm -- help` | Website, remote, addon build, all tests |
 | `npm run check:secrets` | Scan for accidental secrets |
-| `npm run version:sync` | Sync version across package files |
 
 ## Project layout
 
