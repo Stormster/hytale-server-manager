@@ -6,16 +6,14 @@ export interface RemoteConnection {
   id: string;
   name: string;
   base_url: string;
-  api_key: string;
+  api_key_set?: boolean;
+  api_key_preview?: string | null;
 }
 
 export function useRemoteConnections() {
   return useQuery({
     queryKey: ["remote", "connections"],
-    queryFn: () =>
-      api<{ connections: RemoteConnection[]; active_connection: string }>(
-        "/api/remote/connections"
-      ),
+    queryFn: () => api<{ connections: RemoteConnection[] }>("/api/remote/connections"),
   });
 }
 
@@ -31,19 +29,6 @@ export function useAddRemoteConnection() {
       qc.invalidateQueries({ queryKey: ["remote"] });
       toast.success("Remote connection saved");
     },
-    onError: (e) => toast.error((e as Error).message),
-  });
-}
-
-export function useSetActiveConnection() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (connection_id: string) =>
-      api<{ active_connection: string }>("/api/remote/active", {
-        method: "POST",
-        body: JSON.stringify({ connection_id }),
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["remote"] }),
     onError: (e) => toast.error((e as Error).message),
   });
 }

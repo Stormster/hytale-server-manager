@@ -12,8 +12,10 @@ export interface AppSettings {
   onboarding_completed?: boolean;
   instance_server_settings?: Record<string, InstanceServerSettings>;
   instance_ports?: Record<string, { game?: number; webserver?: number }>;
-  /** License key for Experimental addon (Patreon). */
-  experimental_addon_license_key?: string;
+  /** Whether a license key is saved locally (full key is never returned by the API). */
+  experimental_addon_license_key_set?: boolean;
+  /** Masked preview of the saved license key, e.g. HM-E...7890. */
+  experimental_addon_license_key_preview?: string | null;
 }
 
 // ---- Instances ----
@@ -165,6 +167,8 @@ export interface AppInfo {
   experimental_addon_feature_flags?: Record<string, boolean>;
   /** Platform from backend: win32, linux, darwin, etc. */
   platform?: string;
+  /** Dev-only remote management (HSM_ENABLE_REMOTE=1 on backend). */
+  remote_enabled?: boolean;
   /** Unix timestamp (seconds) when addon update snapshot was checked. */
   experimental_addon_update_checked_at?: number;
   /** Latest addon version from update service, if known. */

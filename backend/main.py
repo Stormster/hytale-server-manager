@@ -77,7 +77,10 @@ def create_app():
     from api.mods import router as mods_router
     from api.debug_routes import router as debug_router
     from api.addon_routes import router as addon_router
-    from api.remote_routes import router as remote_router
+
+    remote_enabled = os.environ.get("HSM_ENABLE_REMOTE", "").strip() == "1"
+    if remote_enabled:
+        from api.remote_routes import router as remote_router
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
@@ -114,7 +117,8 @@ def create_app():
     app.include_router(mods_router, prefix="/api/mods", tags=["mods"])
     app.include_router(debug_router, prefix="/api/debug", tags=["debug"])
     app.include_router(addon_router)
-    app.include_router(remote_router)
+    if remote_enabled:
+        app.include_router(remote_router)
 
     # Load Experimental addon if present (addons/experimental_addon.whl or .pyz)
     try:

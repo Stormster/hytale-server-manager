@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 import requests
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Header, UploadFile
 from pydantic import BaseModel
 
 from config import MANAGER_VERSION
@@ -24,11 +24,11 @@ from services import settings as app_settings
 
 router = APIRouter(prefix="/api/addon", tags=["addon"])
 
-SITE_BASE_URL = os.environ.get("HYTALE_MANAGER_SITE_BASE_URL", "https://hytalemanager.com").rstrip("/")
+from services.hytalemanager_client import SITE_BASE_URL, request_site_json
+
 ADDON_FILENAME = "experimental_addon.whl"
 ADDON_PLUGIN_ID = "experimental_addon"
 DEFAULT_CHANNEL = "stable"
-REQUEST_TIMEOUT = 20
 DOWNLOAD_TIMEOUT = 60
 
 
@@ -54,30 +54,6 @@ def _normalize_license_key(override: str | None = None) -> str:
     if not key:
         raise HTTPException(400, "Missing license key")
     return key
-
-
-def _site_error_to_http(res: requests.Response) -> HTTPException:
-    try:
-        data = res.json()
-    except Exception:
-        data = {}
-    msg = data.get("error") or data.get("detail") or f"Site request failed (HTTP {res.status_code})"
-    code = res.status_code if res.status_code in (400, 401, 429) else 502
-    return HTTPException(code, msg)
-
-
-def _request_site_json(path: str, *, params: dict | None = None, headers: dict | None = None) -> dict:
-    url = f"{SITE_BASE_URL}{path}"
-    try:
-        res = requests.get(url, params=params, headers=headers or {}, timeout=REQUEST_TIMEOUT)
-    except Exception as e:
-        raise HTTPException(502, f"Failed to contact update service: {e}") from e
-    if not res.ok:
-        raise _site_error_to_http(res)
-    try:
-        return res.json()
-    except Exception as e:
-        raise HTTPException(502, f"Update service returned invalid JSON: {e}") from e
 
 
 def _assert_https(url: str) -> None:
@@ -144,42 +120,96 @@ def _verify_signature_if_present(
     raise HTTPException(400, "Addon signature verification failed")
 
 
-@router.get("/license/verify")
-def verify_experimental_license(license_key: str | None = None, key: str | None = None):
-    """
-    Verify a license key against hytalemanager.com.
-    Accepts either `license_key` or `key` query params (same meaning).
-    """
-    effective_key = _normalize_license_key(license_key or key)
-    data = _request_site_json("/api/verify-license", params={"key": effective_key})
-    return {"ok": True, **data}
+def _resolve_license_key(
+    body_key: str | None = None,
+    header_key: str | None = None,
+) -> str:
+    explicit = (body_key or header_key or "").strip()
+    return _normalize_license_key(explicit or None)
 
 
-@router.get("/update/check")
-def check_experimental_addon_update(
-    license_key: str | None = None,
-    plugin_id: str = ADDON_PLUGIN_ID,
-    channel: str = DEFAULT_CHANNEL,
-    current_version: str | None = None,
-    app_version: str | None = None,
-):
-    """
-    Check addon update metadata from hytalemanager.com.
-    Uses x-license-key header (preferred over URL query for secrets).
-    """
-    effective_key = _normalize_license_key(license_key)
+class VerifyLicenseBody(BaseModel):
+    license_key: str | None = None
+
+
+class UpdateCheckBody(BaseModel):
+    license_key: str | None = None
+    plugin_id: str = ADDON_PLUGIN_ID
+    channel: str = DEFAULT_CHANNEL
+    current_version: str | None = None
+    app_version: str | None = None
+
+
+def _check_addon_update(
+    effective_key: str,
+    plugin_id: str,
+    channel: str,
+    current_version: str | None,
+    app_version: str | None,
+) -> dict:
     params = {
         "plugin_id": plugin_id or ADDON_PLUGIN_ID,
         "channel": channel or DEFAULT_CHANNEL,
         "current_version": _resolved_current_version_for_site(current_version),
         "app_version": app_version or MANAGER_VERSION,
     }
-    data = _request_site_json(
+    data = request_site_json(
         "/api/addon/update/check",
         params=params,
         headers={"x-license-key": effective_key},
     )
     return {"ok": True, **data}
+
+
+@router.post("/license/verify")
+def verify_experimental_license_post(
+    body: VerifyLicenseBody | None = None,
+    x_license_key: str | None = Header(default=None, alias="x-license-key"),
+):
+    """
+    Verify a license key against hytalemanager.com.
+    Uses x-license-key header or JSON body; falls back to the saved license key.
+    """
+    payload = body or VerifyLicenseBody()
+    effective_key = _resolve_license_key(payload.license_key, x_license_key)
+    data = request_site_json("/api/verify-license", params={"key": effective_key})
+    return {"ok": True, **data}
+
+
+@router.post("/update/check")
+def check_experimental_addon_update_post(
+    body: UpdateCheckBody,
+    x_license_key: str | None = Header(default=None, alias="x-license-key"),
+):
+    """Check addon update metadata using header/body for the license key."""
+    effective_key = _resolve_license_key(body.license_key, x_license_key)
+    return _check_addon_update(
+        effective_key,
+        body.plugin_id,
+        body.channel,
+        body.current_version,
+        body.app_version,
+    )
+
+
+@router.get("/update/check")
+def check_experimental_addon_update(
+    plugin_id: str = ADDON_PLUGIN_ID,
+    channel: str = DEFAULT_CHANNEL,
+    current_version: str | None = None,
+    app_version: str | None = None,
+):
+    """
+    Check addon update metadata from hytalemanager.com using the saved license key.
+    """
+    effective_key = _normalize_license_key(None)
+    return _check_addon_update(
+        effective_key,
+        plugin_id,
+        channel,
+        current_version,
+        app_version,
+    )
 
 
 class InstallFromSiteBody(BaseModel):
@@ -206,7 +236,7 @@ def install_experimental_addon_from_site(body: InstallFromSiteBody):
         if body.force_reinstall
         else _resolved_current_version_for_site(body.current_version)
     )
-    check = _request_site_json(
+    check = request_site_json(
         "/api/addon/update/check",
         params={
             "plugin_id": body.plugin_id or ADDON_PLUGIN_ID,

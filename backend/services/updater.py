@@ -3,13 +3,27 @@ Version checking, downloading updates, and extracting them into the Server folde
 """
 
 import os
-import re
 import shutil
 import sys
 import threading
 import time
 import zipfile
 from typing import Callable, Optional
+
+from config import SERVER_DIR
+from services import backup as bk
+from services import downloader as dl
+from services import nitrado_plugins as nitrado
+from services.update_progress import make_dl_output_handler, parse_progress
+from services.version_check import (
+    get_all_instances_update_status,
+    get_update_status,
+    read_installed_patchline,
+    read_installed_version,
+    read_patchline_for_instance,
+    read_version_for_instance,
+    save_version_for_instance,
+)
 
 _update_in_progress: Optional[str] = None
 _update_lock = threading.Lock()
@@ -28,162 +42,13 @@ def _set_update_in_progress(instance_name: Optional[str]) -> None:
         _update_in_progress = instance_name
 
 
-from config import (
-    VERSION_FILE,
-    PATCHLINE_FILE,
-    SERVER_DIR,
-)
-from utils.paths import resolve_instance, resolve_instance_by_name, resolve_cache, ensure_dir
-from services import downloader as dl
-from services import backup as bk
-from services import nitrado_plugins as nitrado
+from services.version_check import check_remote_versions, version_greater, version_less
 
-
-def read_installed_version() -> str:
-    vf = resolve_instance(VERSION_FILE)
-    if os.path.isfile(vf):
-        with open(vf, "r") as f:
-            return f.read().strip() or "unknown"
-    return "unknown"
-
-
-def read_installed_patchline() -> str:
-    pf = resolve_instance(PATCHLINE_FILE)
-    if os.path.isfile(pf):
-        with open(pf, "r") as f:
-            return f.read().strip() or "release"
-    return "release"
-
-
-def _save_version(version: str, patchline: str) -> None:
-    with open(resolve_instance(VERSION_FILE), "w") as f:
-        f.write(version)
-    with open(resolve_instance(PATCHLINE_FILE), "w") as f:
-        f.write(patchline)
-
-
-def check_remote_versions() -> dict:
-    result = {}
-    remote_error = None
-    remote_error_kind = None
-    for pl in ("release", "pre-release"):
-        rc, out = dl.print_version(pl)
-        ok = rc == 0 and out and not out.startswith("[ERROR]")
-        result[pl] = out.strip() if ok else None
-        if not ok and remote_error is None:
-            kind, msg = dl.classify_version_error(out or "")
-            remote_error_kind = kind
-            remote_error = msg
-    return {
-        "versions": result,
-        "remote_error": remote_error,
-        "remote_error_kind": remote_error_kind,
-    }
-
-
-def version_greater(a: str, b: str) -> bool:
-    if not a:
-        return False
-    if not b or b == "unknown":
-        return True
-    return a > b
-
-
-def version_less(a: str, b: str) -> bool:
-    """True if a is older than b (a < b)."""
-    if not a or a == "unknown":
-        return True
-    if not b or b == "unknown":
-        return False
-    return a < b
-
-
-def get_update_status() -> dict:
-    iv = read_installed_version()
-    ip = read_installed_patchline()
-    remote_info = check_remote_versions()
-    remote = remote_info.get("versions", {})
-    rr = remote.get("release")
-    rp = remote.get("pre-release")
-
-    if ip == "release":
-        update_available = version_greater(rr, iv) if rr else False
-    else:
-        update_available = version_greater(rp, iv) if rp else False
-
-    can_switch_release = (ip == "pre-release" and rr is not None)
-    can_switch_prerelease = (ip == "release" and rp is not None)
-    switch_to_release_is_downgrade = can_switch_release and version_less(rr, iv)
-    switch_to_prerelease_is_downgrade = can_switch_prerelease and version_less(rp, iv)
-
-    return {
-        "installed_version": iv,
-        "installed_patchline": ip,
-        "remote_release": rr,
-        "remote_prerelease": rp,
-        "remote_error": remote_info.get("remote_error"),
-        "remote_error_kind": remote_info.get("remote_error_kind"),
-        "update_available": update_available,
-        "can_switch_release": can_switch_release,
-        "can_switch_prerelease": can_switch_prerelease,
-        "switch_to_release_is_downgrade": switch_to_release_is_downgrade,
-        "switch_to_prerelease_is_downgrade": switch_to_prerelease_is_downgrade,
-    }
-
-
-def get_all_instances_update_status() -> dict:
-    """Check update availability for all installed instances. Fetches remote versions once."""
-    from services import instances as inst_svc
-
-    remote_info = check_remote_versions()
-    remote = remote_info.get("versions", {})
-    rr = remote.get("release")
-    rp = remote.get("pre-release")
-
-    result = {}
-    for inst in inst_svc.list_instances():
-        if not inst.get("installed"):
-            continue
-        iv = inst.get("version") or "unknown"
-        ip = inst.get("patchline") or "release"
-        if ip == "release":
-            update_available = version_greater(rr, iv) if rr else False
-        else:
-            update_available = version_greater(rp, iv) if rp else False
-        can_switch_release = ip == "pre-release" and rr is not None
-        can_switch_prerelease = ip == "release" and rp is not None
-        switch_to_release_is_downgrade = can_switch_release and version_less(rr, iv)
-        switch_to_prerelease_is_downgrade = can_switch_prerelease and version_less(rp, iv)
-        result[inst["name"]] = {
-            "update_available": update_available,
-            "installed_version": iv,
-            "installed_patchline": ip,
-            "can_switch_release": can_switch_release,
-            "can_switch_prerelease": can_switch_prerelease,
-            "switch_to_release_is_downgrade": switch_to_release_is_downgrade,
-            "switch_to_prerelease_is_downgrade": switch_to_prerelease_is_downgrade,
-        }
-
-    return {
-        "instances": result,
-        "remote_release": rr,
-        "remote_prerelease": rp,
-        "remote_error": remote_info.get("remote_error"),
-        "remote_error_kind": remote_info.get("remote_error_kind"),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Download cache – avoid re-downloading the same release for multiple instances
-#
-# Cache retention: Cached builds stay until a newer version on that branch
-# is available. When we download a new version, the old cache is cleared first.
-# Used for both updates and initial installs; a second instance on the same
-# branch reuses the cache if it's still the latest.
-# ---------------------------------------------------------------------------
 
 CACHE_ZIP = "server.zip"
 CACHE_VERSION_FILE = "version.txt"
+
+from utils.paths import resolve_cache, ensure_dir
 
 
 def _clear_patchline_cache(patchline: str) -> None:
@@ -236,7 +101,7 @@ def _ensure_cached_server(
 
     done_event = threading.Event()
     dl_result: dict = {"rc": -1}
-    output_handler = _make_dl_output_handler(on_status, on_progress)
+    output_handler = make_dl_output_handler(on_status, on_progress)
 
     def _dl_done(rc):
         dl_result["rc"] = rc
@@ -258,37 +123,6 @@ def _ensure_cached_server(
 
     return zip_path
 
-
-# ---------------------------------------------------------------------------
-# Progress parsing
-# ---------------------------------------------------------------------------
-
-_PROGRESS_RE = re.compile(r'(\d+\.?\d*)%\s*\(([^)]+)\)')
-
-
-def parse_progress(line: str) -> tuple[float, str] | None:
-    m = _PROGRESS_RE.search(line)
-    if m:
-        return float(m.group(1)), m.group(2).strip()
-    return None
-
-
-def _make_dl_output_handler(
-    on_status: Optional[Callable[[str], None]],
-    on_progress: Optional[Callable[[float, str], None]],
-) -> Callable[[str], None]:
-    def _handler(line: str):
-        prog = parse_progress(line)
-        if prog and on_progress:
-            on_progress(prog[0], prog[1])
-        elif on_status:
-            on_status(line)
-    return _handler
-
-
-# ---------------------------------------------------------------------------
-# Perform update
-# ---------------------------------------------------------------------------
 
 def _extract_server_zip_to_instance(zip_path: str, instance_dir: str) -> None:
     """Extract server zip into the given instance directory."""
@@ -327,32 +161,6 @@ def _extract_server_zip_to_instance(zip_path: str, instance_dir: str) -> None:
                 os.chmod(dst, 0o755)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-def _read_version_for_instance(instance_name: str) -> str:
-    vf = resolve_instance_by_name(instance_name, VERSION_FILE)
-    if os.path.isfile(vf):
-        with open(vf, "r") as f:
-            return f.read().strip() or "unknown"
-    return "unknown"
-
-
-def _read_patchline_for_instance(instance_name: str) -> str:
-    pf = resolve_instance_by_name(instance_name, PATCHLINE_FILE)
-    if os.path.isfile(pf):
-        with open(pf, "r") as f:
-            return f.read().strip() or "release"
-    return "release"
-
-
-def _save_version_for_instance(instance_name: str, version: str, patchline: str) -> None:
-    vf = resolve_instance_by_name(instance_name, VERSION_FILE)
-    pf = resolve_instance_by_name(instance_name, PATCHLINE_FILE)
-    os.makedirs(os.path.dirname(vf), exist_ok=True)
-    with open(vf, "w") as f:
-        f.write(version)
-    with open(pf, "w") as f:
-        f.write(patchline)
 
 
 def _looks_like_backup_path_failure(exc: Exception) -> bool:
@@ -453,7 +261,7 @@ def perform_update(
                 on_status("Extracting update...")
             _extract_server_zip_to_instance(zip_path, instance_dir)
 
-            _save_version_for_instance(instance_name, new_ver, patchline)
+            save_version_for_instance(instance_name, new_ver, patchline)
 
             if on_done:
                 on_done(True, f"Update complete! Version: {new_ver}. You can start the server when ready.", None)
@@ -535,7 +343,7 @@ def perform_first_time_setup(
             # Install Nitrado plugins on first-time setup (new server has no mods yet)
             nitrado.install_nitrado_plugins(os.path.join(instance_dir, SERVER_DIR), on_status=on_status)
 
-            _save_version_for_instance(instance_name, new_ver, patchline)
+            save_version_for_instance(instance_name, new_ver, patchline)
 
             if on_done:
                 on_done(True, f"Setup complete! Version: {new_ver}", None)
@@ -726,15 +534,15 @@ def perform_update_all(
                                         "Create a manual backup after update."
                                     )
                             else:
-                                old_ver = _read_version_for_instance(instance_name)
-                                old_pl = _read_patchline_for_instance(instance_name)
+                                old_ver = read_version_for_instance(instance_name)
+                                old_pl = read_patchline_for_instance(instance_name)
                                 bk.create_backup_for_instance(
                                     instance_name,
                                     label=f"update from {old_ver} ({old_pl}) to {new_ver} ({patchline})",
                                     exclude_server_cache=True,
                                 )
                         _extract_server_zip_to_instance(zip_path, instance_dir)
-                        _save_version_for_instance(instance_name, new_ver, patchline)
+                        save_version_for_instance(instance_name, new_ver, patchline)
                         success_count += 1
                     except Exception as exc:
                         errors.append(f"{instance_name}: {exc}")

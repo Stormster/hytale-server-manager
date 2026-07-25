@@ -23,10 +23,12 @@ import { useSettings } from "@/api/hooks/useSettings";
 import { useAuthStatus } from "@/api/hooks/useAuth";
 import { clearBackendUrlCache } from "@/api/client";
 import { useAggregatedPendingUpdates } from "@/api/hooks/useAggregatedUpdates";
+import { useAppInfo } from "@/api/hooks/useInfo";
 
 export default function App() {
   const { data: settings, isLoading, isError, error: settingsError, refetch } = useSettings();
   const { data: authStatus, isLoading: authLoading, isError: authError, refetch: refetchAuth } = useAuthStatus();
+  const { data: appInfo } = useAppInfo();
   const { pendingCount: updatesPendingCount } = useAggregatedPendingUpdates();
   const [activeView, setActiveView] = useState<ViewName>("dashboard");
   const [experimentalScrollTo, setExperimentalScrollTo] = useState<string | null>(null);
@@ -190,6 +192,7 @@ export default function App() {
           onImportServer={() => setImportOpen(true)}
           onManageInstances={() => setManageInstancesOpen(true)}
           updatesPendingCount={updatesPendingCount}
+          remoteEnabled={appInfo?.remote_enabled === true}
         />
         <main className="relative z-0 flex flex-1 flex-col overflow-hidden">
           <AuthExpiredBanner
@@ -223,7 +226,7 @@ export default function App() {
               onScrollDone={() => setExperimentalScrollTo(null)}
             />
           )}
-          {activeView === "remote" && <RemoteView />}
+          {appInfo?.remote_enabled && activeView === "remote" && <RemoteView />}
           {activeView === "settings" && <SettingsView />}
           </div>
         </main>

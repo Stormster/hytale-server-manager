@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 from services import settings
+from utils.secret_redaction import sanitize_remote_connection
 
 router = APIRouter(prefix="/api/remote", tags=["remote"])
 
@@ -58,12 +59,13 @@ class RemotePairBody(BaseModel):
     pin: str | None = None
 
 
+def _public_connection(conn: dict) -> dict:
+    return sanitize_remote_connection(conn)
+
+
 @router.get("/connections")
 def list_connections():
-    return {
-        "connections": settings.get_remote_connections(),
-        "active_connection": settings.get_active_connection(),
-    }
+    return {"connections": [_public_connection(c) for c in settings.get_remote_connections()]}
 
 
 @router.post("/connections")
@@ -77,7 +79,7 @@ def add_connection(body: RemoteConnectionBody):
     }
     conns.append(entry)
     settings.set_remote_connections(conns)
-    return entry
+    return _public_connection(entry)
 
 
 @router.put("/connections/{connection_id}")
@@ -92,7 +94,7 @@ def update_connection(connection_id: str, body: RemoteConnectionUpdate):
             if body.api_key is not None:
                 c["api_key"] = body.api_key.strip()
             settings.set_remote_connections(conns)
-            return c
+            return _public_connection(c)
     raise HTTPException(404, "Remote connection not found")
 
 
@@ -100,18 +102,7 @@ def update_connection(connection_id: str, body: RemoteConnectionUpdate):
 def delete_connection(connection_id: str):
     conns = [c for c in settings.get_remote_connections() if c.get("id") != connection_id]
     settings.set_remote_connections(conns)
-    if settings.get_active_connection() == connection_id:
-        settings.set_active_connection("local")
     return {"ok": True}
-
-
-@router.post("/active")
-def set_active(body: dict):
-    cid = str(body.get("connection_id", "local") or "local")
-    if cid != "local" and not settings.get_remote_connection(cid):
-        raise HTTPException(404, "Remote connection not found")
-    settings.set_active_connection(cid)
-    return {"active_connection": cid}
 
 
 @router.get("/info")
