@@ -20,6 +20,7 @@ import {
 const FEATURE_LABELS: Record<string, string> = {
   json_checker: "JSON Checker (raw config editor)",
   custom_commands: "Custom Console Commands",
+  auto_update: "Server auto-update",
 };
 
 const PATREON_URL = "https://www.patreon.com/c/stormster";
@@ -754,9 +755,12 @@ export function ExperimentalView({ scrollToSection, onScrollDone }: Experimental
         );
       })()}
 
-      {addonLoaded && hasFeatures && (
-        <ExperimentalAutoUpdateSettings />
-      )}
+      {addonLoaded &&
+        hasFeatures &&
+        features.includes("auto_update") &&
+        appInfo?.experimental_addon_feature_flags?.["auto_update"] !== false && (
+          <ExperimentalAutoUpdateSettings />
+        )}
 
       {/* Custom Console Commands management */}
       <div id={CUSTOM_COMMANDS_SECTION_ID}>
