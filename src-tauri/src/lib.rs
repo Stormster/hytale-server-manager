@@ -179,6 +179,12 @@ async fn get_backend_auth_token(state: tauri::State<'_, Arc<BackendState>>) -> R
     Ok(lock.clone())
 }
 
+/// Relaunch the whole app (used after addon install / explicit restart).
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
@@ -390,7 +396,11 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_backend_port, get_backend_auth_token])
+        .invoke_handler(tauri::generate_handler![
+            get_backend_port,
+            get_backend_auth_token,
+            restart_app
+        ])
         // Backend is killed gracefully in ExitRequested, and again in Exit as a
         // safety net. The Job Object (Windows) handles the truly catastrophic cases.
         .build(tauri::generate_context!())
