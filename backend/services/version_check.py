@@ -6,6 +6,7 @@ import os
 
 from config import PATCHLINE_FILE, VERSION_FILE
 from services import downloader as dl
+from utils.atomic_io import atomic_write_text
 from utils.paths import resolve_instance, resolve_instance_by_name
 
 
@@ -26,10 +27,10 @@ def read_installed_patchline() -> str:
 
 
 def save_version(version: str, patchline: str) -> None:
-    with open(resolve_instance(VERSION_FILE), "w") as f:
-        f.write(version)
-    with open(resolve_instance(PATCHLINE_FILE), "w") as f:
-        f.write(patchline)
+    # Patchline first: if we crash between the two writes, a stale version with
+    # the right patchline only re-offers an update; the reverse hides one.
+    atomic_write_text(resolve_instance(PATCHLINE_FILE), patchline)
+    atomic_write_text(resolve_instance(VERSION_FILE), version)
 
 
 def check_remote_versions() -> dict:
@@ -161,7 +162,5 @@ def save_version_for_instance(instance_name: str, version: str, patchline: str) 
     vf = resolve_instance_by_name(instance_name, VERSION_FILE)
     pf = resolve_instance_by_name(instance_name, PATCHLINE_FILE)
     os.makedirs(os.path.dirname(vf), exist_ok=True)
-    with open(vf, "w") as f:
-        f.write(version)
-    with open(pf, "w") as f:
-        f.write(patchline)
+    atomic_write_text(pf, patchline)
+    atomic_write_text(vf, version)
