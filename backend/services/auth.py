@@ -106,13 +106,32 @@ def refresh_auth(
         root = os.path.abspath(root)
         os.makedirs(root, exist_ok=True)
         creds = resolve_root(CREDENTIALS_FILE)
+        creds_backup = creds + ".bak"
         if os.path.isfile(creds):
-            os.remove(creds)
+            # Keep the old credentials until the new login succeeds – if the
+            # user cancels or is offline, we can put them back.
+            os.replace(creds, creds_backup)
 
         if on_output:
-            on_output("Credentials deleted. Opening browser for login...")
+            on_output("Opening browser for login...")
 
-        dl.run_auth(on_output=on_output, on_done=on_done)
+        def _auth_done(rc: int):
+            if rc != 0 and not os.path.isfile(creds) and os.path.isfile(creds_backup):
+                try:
+                    os.replace(creds_backup, creds)
+                    if on_output:
+                        on_output("Login did not complete – restored the previous credentials.")
+                except OSError:
+                    pass
+            elif os.path.isfile(creds_backup):
+                try:
+                    os.remove(creds_backup)
+                except OSError:
+                    pass
+            if on_done:
+                on_done(rc)
+
+        dl.run_auth(on_output=on_output, on_done=_auth_done)
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
