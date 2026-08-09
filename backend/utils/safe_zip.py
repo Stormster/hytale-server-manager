@@ -3,6 +3,7 @@ Safe ZIP extraction – reject path traversal (Zip Slip) and absolute paths.
 """
 
 import os
+import shutil
 import zipfile
 
 
@@ -13,7 +14,8 @@ def safe_extractall(zip_path: str, dest_dir: str) -> None:
     """
     dest_abs = os.path.abspath(dest_dir)
     with zipfile.ZipFile(zip_path, "r") as zf:
-        for name in zf.namelist():
+        for info in zf.infolist():
+            name = info.filename
             # Normalize: backslash to slash, strip leading slashes, no empty
             parts = name.replace("\\", "/").strip("/").split("/")
             parts = [p for p in parts if p and p != "."]
@@ -27,10 +29,11 @@ def safe_extractall(zip_path: str, dest_dir: str) -> None:
             target = os.path.abspath(os.path.join(dest_abs, safe_rel))
             if not (target == dest_abs or target.startswith(dest_abs + os.sep)):
                 raise ValueError(f"Unsafe zip entry: {name}")
-            info = zf.getinfo(name)
             if info.is_dir():
                 os.makedirs(target, exist_ok=True)
             else:
                 os.makedirs(os.path.dirname(target), exist_ok=True)
-                with zf.open(name) as src, open(target, "wb") as dst:
-                    dst.write(src.read())
+                # Stream in chunks – world archives can be multiple GB and must
+                # not be buffered whole in memory.
+                with zf.open(info) as src, open(target, "wb") as dst:
+                    shutil.copyfileobj(src, dst, 1024 * 1024)
