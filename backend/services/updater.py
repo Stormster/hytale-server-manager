@@ -124,8 +124,18 @@ def _ensure_cached_server(
     return zip_path
 
 
+def _replace_file(src: str, dst: str) -> None:
+    """Copy src over dst atomically (copy to dst.new, then rename)."""
+    tmp = dst + ".new"
+    shutil.copy2(src, tmp)
+    os.replace(tmp, dst)
+
+
 def _extract_server_zip_to_instance(zip_path: str, instance_dir: str) -> None:
     """Extract server zip into the given instance directory."""
+    if not instance_dir or not os.path.isabs(instance_dir):
+        raise RuntimeError("No active instance selected – cannot install the update.")
+
     temp_dir = os.path.join(instance_dir, "temp_extract")
     if os.path.isdir(temp_dir):
         shutil.rmtree(temp_dir)
@@ -140,23 +150,29 @@ def _extract_server_zip_to_instance(zip_path: str, instance_dir: str) -> None:
         raise RuntimeError("Unexpected zip structure – no Server folder found.")
 
     server_dir = os.path.join(instance_dir, SERVER_DIR)
+    # Replace each live file via copy-to-temp + rename so a crash mid-update
+    # never leaves a truncated jar or assets archive behind.
     for name in ("HytaleServer.jar", "HytaleServer.aot"):
         src = os.path.join(extracted_server, name)
         if os.path.isfile(src):
-            shutil.copy2(src, server_dir)
+            _replace_file(src, os.path.join(server_dir, name))
 
     licenses_src = os.path.join(extracted_server, "Licenses")
     if os.path.isdir(licenses_src):
         licenses_dst = os.path.join(server_dir, "Licenses")
+        licenses_new = licenses_dst + ".new"
+        if os.path.isdir(licenses_new):
+            shutil.rmtree(licenses_new)
+        shutil.copytree(licenses_src, licenses_new)
         if os.path.isdir(licenses_dst):
             shutil.rmtree(licenses_dst)
-        shutil.copytree(licenses_src, licenses_dst)
+        os.rename(licenses_new, licenses_dst)
 
     for name in ("Assets.zip", "start.bat", "start.sh"):
         src = os.path.join(temp_dir, name)
         dst = os.path.join(instance_dir, name)
         if os.path.isfile(src):
-            shutil.copy2(src, dst)
+            _replace_file(src, dst)
             if name == "start.sh" and sys.platform != "win32":
                 os.chmod(dst, 0o755)
 

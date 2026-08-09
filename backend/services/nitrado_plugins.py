@@ -8,9 +8,39 @@ https://github.com/nitrado/hytale-plugin-query
 
 import json
 import os
+import sys
 from typing import Callable, Optional
 
 import requests
+
+from utils.atomic_io import atomic_write_json
+
+
+def _load_json_or_backup(path: str) -> dict:
+    """Read a JSON config we are about to modify.
+
+    If the file exists but can't be parsed, move it aside to ``<path>.invalid``
+    instead of silently treating it as empty – rewriting from ``{}`` would
+    destroy every user-made entry (permissions, plugin settings).
+    OSErrors (e.g. file locked by the running server) propagate to the caller.
+    """
+    if not os.path.isfile(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        raw = f.read()
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        backup = path + ".invalid"
+        os.replace(path, backup)
+        print(
+            f"[nitrado] {path} could not be parsed ({exc}); moved it to {backup} "
+            "and starting from an empty config.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return {}
 
 # Nitrado WebServer = game_port + 100. When game port unknown, use 5620-5720.
 WEBSERVER_PORT_BASE = 5620  # 5520 + 100
@@ -176,17 +206,10 @@ def set_webserver_port(server_dir: str, port: int) -> None:
     if not os.path.isdir(ws_dir):
         return
     path = os.path.join(ws_dir, "config.json")
-    data: dict = {}
-    if os.path.isfile(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            pass
+    data = _load_json_or_backup(path)
     data["BindPort"] = port
     data.setdefault("BindHost", "0.0.0.0")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    atomic_write_json(path, data)
 
 
 def set_webserver_port_from_game(server_dir: str, game_port: int, webserver_port: Optional[int] = None) -> None:
@@ -204,19 +227,12 @@ def _ensure_webserver_config(server_dir: str, *, force_unique: bool = False, gam
     ws_dir = os.path.join(server_dir, "mods", "Nitrado_WebServer")
     os.makedirs(ws_dir, exist_ok=True)
     path = os.path.join(ws_dir, "config.json")
-    data = {}
-    if os.path.isfile(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            pass
+    data = _load_json_or_backup(path)
     if force_unique or data.get("BindPort") is None or game_port is not None:
         port = (game_port + NITRADO_OFFSET) if game_port is not None else _pick_unique_webserver_port(server_dir)
         data["BindPort"] = port
         data.setdefault("BindHost", "0.0.0.0")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        atomic_write_json(path, data)
 
 
 def _ensure_query_permissions(server_dir: str) -> None:
@@ -227,21 +243,14 @@ def _ensure_query_permissions(server_dir: str) -> None:
     at runtime, so the permission must live here – not in the plugin's own folder.
     """
     path = os.path.join(server_dir, "permissions.json")
-    data: dict = {}
-    if os.path.isfile(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            pass
+    data = _load_json_or_backup(path)
 
     groups = data.setdefault("groups", {})
     anon: list = groups.setdefault("ANONYMOUS", [])
     needed = "nitrado.query.web.read.basic"
     if needed not in anon:
         anon.append(needed)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        atomic_write_json(path, data)
 
 
 def install_nitrado_plugins(
@@ -291,9 +300,13 @@ def install_nitrado_plugins(
             resp = requests.get(download_url, timeout=60, stream=True, headers={"User-Agent": "Hytale-Server-Manager"})
             resp.raise_for_status()
             dest = os.path.join(mods_path, filename)
-            with open(dest, "wb") as f:
+            # Download to a .part file so an interrupted transfer never leaves
+            # a truncated jar the server would fail to load.
+            part = dest + ".part"
+            with open(part, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=65536):
                     f.write(chunk)
+            os.replace(part, dest)
             if on_status:
                 on_status(f"  Installed {filename}")
         except Exception as e:
