@@ -85,6 +85,12 @@ def create_app():
     @contextlib.asynccontextmanager
     async def lifespan(app):
         try:
+            from services import server as server_svc
+
+            server_svc.reconcile_orphaned_servers()
+        except Exception as e:
+            print(f"[Backend] Orphan reconciliation failed: {e}", file=sys.stderr, flush=True)
+        try:
             from plugin_loader import run_experimental_startup_hooks
 
             await run_experimental_startup_hooks()
@@ -95,6 +101,14 @@ def create_app():
                 flush=True,
             )
         yield
+        # Shutdown: stop any game servers we spawned so they aren't orphaned
+        # (POSIX) or hard-killed by Tauri's job object (Windows) mid-write.
+        try:
+            from services import server as server_svc
+
+            server_svc.stop_all()
+        except Exception as e:
+            print(f"[Backend] Failed to stop servers on shutdown: {e}", file=sys.stderr, flush=True)
 
     app = FastAPI(title="Hytale Server Manager Backend", lifespan=lifespan)
 
@@ -161,6 +175,17 @@ def main():
     token = (args.auth_token or os.environ.get("HYTALE_BACKEND_TOKEN") or "").strip() or None
     from auth_middleware import set_expected_token
     set_expected_token(token)
+    if token:
+        # Also export it so a --reload worker subprocess (which re-imports
+        # main:app without running main()) still enforces auth.
+        os.environ["HYTALE_BACKEND_TOKEN"] = token
+    else:
+        print(
+            "[Backend] WARNING: no auth token configured – the API on 127.0.0.1 "
+            "accepts requests from ANY local process. Only use this for development.",
+            file=sys.stderr,
+            flush=True,
+        )
 
     # Optionally pre-seed root_dir for dev convenience (pass to reload subprocess via env)
     if args.root_dir:
@@ -218,7 +243,26 @@ def main():
         print(f"BACKEND_READY:{port}", flush=True)
     else:
         print("BACKEND_FAILED: server did not start in time", file=sys.stderr, flush=True)
-        sys.exit(1)
+        # sys.exit only raises in this thread; the non-daemon uvicorn thread
+        # would keep a half-alive process around that Tauri can't use.
+        os._exit(1)
+
+    # Best-effort: stop spawned game servers when the OS asks us to terminate.
+    try:
+        import signal
+
+        def _terminate(_sig, _frame):
+            try:
+                from services import server as server_svc
+
+                server_svc.stop_all()
+            finally:
+                os._exit(0)
+
+        signal.signal(signal.SIGTERM, _terminate)
+        signal.signal(signal.SIGINT, _terminate)
+    except (ValueError, OSError):
+        pass  # not on main thread / unsupported platform
 
     t.join()
 
