@@ -43,8 +43,8 @@ def list_instances():
 def create_instance(body: CreateInstanceRequest):
     try:
         result = inst_svc.create_instance(body.name)
-        # Auto-activate the new instance
-        settings.set_active_instance(body.name)
+        # Auto-activate the new instance (sanitized folder name, not the raw input)
+        settings.set_active_instance(result["name"])
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
