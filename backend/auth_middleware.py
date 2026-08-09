@@ -5,6 +5,7 @@ When not set (dev / standalone), allow all requests.
 """
 
 import os
+import secrets
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -46,7 +47,7 @@ class BackendAuthMiddleware(BaseHTTPMiddleware):
         token = request.headers.get("X-Backend-Token")
         if not token and request.method == "GET":
             token = request.query_params.get("token")
-        if token != expected:
+        if not secrets.compare_digest(token or "", expected):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Missing or invalid backend token"},
