@@ -210,6 +210,16 @@ def reorder_instances(names: list[str]) -> None:
     settings.set_instance_order(names)
 
 
+def _ensure_instance_stopped(name: str) -> None:
+    """Raise if this instance's server process is running."""
+    from services import server as server_svc
+
+    if server_svc.is_instance_running(name):
+        raise ValueError(
+            f"The server for '{name}' is running. Stop it before modifying this instance."
+        )
+
+
 def create_instance(name: str) -> dict:
     """Create a new empty instance subfolder."""
     root = settings.get_root_dir()
@@ -217,6 +227,7 @@ def create_instance(name: str) -> dict:
         raise ValueError("Root directory not configured")
 
     name = _sanitize_folder_name(name)
+    _validate_instance_name(name)
     dest = os.path.join(root, name)
     if os.path.exists(dest):
         raise ValueError(f"Instance '{name}' already exists")
@@ -290,6 +301,14 @@ def import_instance(name: str, source_path: str) -> dict:
     if os.path.exists(dest):
         raise ValueError(f"Instance '{name}' already exists")
 
+    # Refuse to copy a folder into itself (source is the root or an ancestor
+    # of it) – copytree would recurse into the destination until the disk fills.
+    if root_abs == source_abs or root_abs.startswith(source_abs + os.sep):
+        raise ValueError(
+            "Source folder contains the servers root folder. "
+            "Choose the specific server folder (the one containing Assets.zip)."
+        )
+
     shutil.copytree(source_abs, dest)
     if name not in settings.get_instance_order():
         order = settings.get_instance_order() + [name]
@@ -307,6 +326,8 @@ def delete_instance(name: str, delete_files: bool = True) -> None:
     if not os.path.isdir(dest):
         raise ValueError(f"Instance '{name}' not found")
 
+    _ensure_instance_stopped(name)
+
     if settings.get_active_instance() == name:
         settings.set_active_instance("")
 
@@ -314,6 +335,7 @@ def delete_instance(name: str, delete_files: bool = True) -> None:
         shutil.rmtree(dest)
         order = [n for n in settings.get_instance_order() if n != name]
         settings.set_instance_order(order)
+        settings.purge_instance_data(name)
     else:
         settings.add_ignored_instance(name)
 
@@ -336,7 +358,10 @@ def rename_instance(old_name: str, new_name: str) -> dict:
     if os.path.exists(new_path):
         raise ValueError(f"Instance '{new_name}' already exists")
 
+    _ensure_instance_stopped(old_name)
+
     os.rename(old, new_path)
+    settings.rename_instance_data(old_name, new_name)
 
     # Update active if it was the renamed one
     if settings.get_active_instance() == old_name:

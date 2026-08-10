@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from config import SERVER_DIR
+from utils.atomic_io import atomic_write_text
 from utils.paths import resolve_instance
 
 router = APIRouter()
@@ -72,9 +73,7 @@ def save_world_config(world_name: str, body: SaveConfigRequest):
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}")
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
+        atomic_write_text(path, content)
         return {"ok": True}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -118,10 +117,15 @@ def save_config(filename: str, body: SaveConfigRequest):
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}")
 
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
-        return {"ok": True}
+        from services import server as server_svc
+        from services.settings import get_active_instance
+
+        atomic_write_text(path, content)
+        # The running server rewrites its config files on shutdown, which
+        # would silently discard this edit – tell the client so it can warn.
+        inst = get_active_instance()
+        server_running = bool(inst and server_svc.is_instance_running(inst))
+        return {"ok": True, "server_running": server_running}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

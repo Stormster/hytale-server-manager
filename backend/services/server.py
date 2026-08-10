@@ -37,9 +37,106 @@ class _ProcessEntry:
 
 _server_processes: dict[str, _ProcessEntry] = {}
 _server_lock = threading.Lock()
+# Instances whose start was accepted but whose process isn't registered yet.
+# Closes the double-start window between the API check and Popen returning.
+_starting: set[str] = set()
+# Instances the user asked to stop – suppresses the automatic rc==8 restart.
+_stop_requested: set[str] = set()
 _last_exit_time: Optional[float] = None
 _last_exit_code: Optional[int] = None
 _per_instance_exit: dict[str, tuple[float, int]] = {}  # instance -> (time, code)
+
+
+# ---------------------------------------------------------------------------
+# Running-server registry: written on every start/stop so that after a manager
+# crash we can find (and stop) game servers that would otherwise be orphaned,
+# holding their ports and world files with no way to stop them from the UI.
+# ---------------------------------------------------------------------------
+
+def _registry_path() -> str:
+    from services.settings import _SETTINGS_DIR  # same app-data dir as settings.json
+
+    return os.path.join(_SETTINGS_DIR, "running_servers.json")
+
+
+def _write_running_registry() -> None:
+    """Persist {instance: {pid, port}} plus our own pid. Best-effort."""
+    try:
+        from utils.atomic_io import atomic_write_json
+
+        with _server_lock:
+            entries = {
+                name: {"pid": e.process.pid, "port": e.game_port}
+                for name, e in _server_processes.items()
+                if e.process.poll() is None
+            }
+        atomic_write_json(_registry_path(), {"manager_pid": os.getpid(), "servers": entries})
+    except Exception:
+        pass
+
+
+def reconcile_orphaned_servers() -> None:
+    """On backend startup: stop game servers left behind by a crashed manager.
+
+    Only acts when the previous manager process is gone, and only on PIDs whose
+    command line still looks like a Hytale server (PID reuse guard).
+    """
+    import json as _json
+
+    path = _registry_path()
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = _json.load(f)
+    except (OSError, ValueError):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return
+
+    manager_pid = data.get("manager_pid")
+    servers = data.get("servers") or {}
+    if psutil is not None and isinstance(manager_pid, int) and manager_pid != os.getpid():
+        if psutil.pid_exists(manager_pid):
+            # Another manager instance is alive and owns these servers.
+            return
+
+    for name, info in servers.items():
+        pid = info.get("pid") if isinstance(info, dict) else None
+        if not isinstance(pid, int) or psutil is None:
+            continue
+        try:
+            proc = psutil.Process(pid)
+            cmdline = " ".join(proc.cmdline())
+            if "HytaleServer.jar" not in cmdline:
+                continue  # PID was reused by an unrelated process
+            print(
+                f"[server] Stopping orphaned server '{name}' (pid {pid}) from a previous session...",
+                file=sys.stderr,
+                flush=True,
+            )
+            children = proc.children(recursive=True)
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except psutil.TimeoutExpired:
+                proc.kill()
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+        except psutil.NoSuchProcess:
+            continue
+        except Exception as exc:
+            print(f"[server] Could not stop orphan '{name}': {exc}", file=sys.stderr, flush=True)
+
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 def is_installed() -> bool:
@@ -53,11 +150,15 @@ def is_installed_for(instance_name: str) -> bool:
 
 def is_running() -> bool:
     with _server_lock:
+        if _starting:
+            return True
         return any(p.process.poll() is None for p in _server_processes.values())
 
 
 def is_instance_running(instance_name: str) -> bool:
     with _server_lock:
+        if instance_name in _starting:
+            return True
         entry = _server_processes.get(instance_name)
         return entry is not None and entry.process.poll() is None
 
@@ -270,6 +371,13 @@ def _build_java_cmd(instance_name: str, game_port: int) -> Optional[list[str]]:
     return args
 
 
+def _replace_file(src: str, dst: str) -> None:
+    """Copy src over dst atomically (copy to dst.new, then rename)."""
+    tmp = dst + ".new"
+    shutil.copy2(src, tmp)
+    os.replace(tmp, dst)
+
+
 def _apply_staged_update(instance_name: str, on_output: Optional[Callable[[str], None]] = None) -> bool:
     staging_jar = resolve_instance_by_name(instance_name, "updater", "staging", "Server", "HytaleServer.jar")
     if not os.path.isfile(staging_jar):
@@ -281,11 +389,11 @@ def _apply_staged_update(instance_name: str, on_output: Optional[Callable[[str],
     staging_server = resolve_instance_by_name(instance_name, "updater", "staging", "Server")
     server_dir = resolve_instance_by_name(instance_name, SERVER_DIR)
 
-    shutil.copy2(staging_jar, server_dir)
+    _replace_file(staging_jar, os.path.join(server_dir, "HytaleServer.jar"))
 
     aot_src = os.path.join(staging_server, "HytaleServer.aot")
     if os.path.isfile(aot_src):
-        shutil.copy2(aot_src, server_dir)
+        _replace_file(aot_src, os.path.join(server_dir, "HytaleServer.aot"))
 
     licenses_src = os.path.join(staging_server, "Licenses")
     if os.path.isdir(licenses_src):
@@ -299,7 +407,7 @@ def _apply_staged_update(instance_name: str, on_output: Optional[Callable[[str],
     for fname in ("Assets.zip", "start.bat", "start.sh"):
         src = os.path.join(staging_root, fname)
         if os.path.isfile(src):
-            shutil.copy2(src, os.path.join(inst_dir, fname))
+            _replace_file(src, os.path.join(inst_dir, fname))
 
     shutil.rmtree(staging_root, ignore_errors=True)
     return True
@@ -320,12 +428,18 @@ def start(
         return None
 
     with _server_lock:
-        if inst in _server_processes and _server_processes[inst].process.poll() is None:
+        if inst in _starting or (
+            inst in _server_processes and _server_processes[inst].process.poll() is None
+        ):
             if on_output:
                 on_output("[Manager] That instance is already running.")
             if on_done:
                 on_done(-1)
             return None
+        # Reserve the slot before any slow work so a double-click can't spawn
+        # two JVMs on the same port/world.
+        _starting.add(inst)
+        _stop_requested.discard(inst)
 
     from services.ports import assign_port_for_instance
     from services.nitrado_plugins import set_webserver_port_from_game
@@ -338,6 +452,8 @@ def start(
 
     start_cmd = _build_java_cmd(inst, game_port)
     if not start_cmd:
+        with _server_lock:
+            _starting.discard(inst)
         if on_output:
             on_output("[ERROR] HytaleServer.jar or Assets.zip not found. Install or update first.")
         if on_done:
@@ -351,72 +467,90 @@ def start(
         global _last_exit_time, _last_exit_code
         rc = 0
 
-        while True:
-            applied_update = _apply_staged_update(inst, on_output)
-
-            if on_output:
-                on_output(f"[Launcher] Starting {inst} on port {game_port}...")
-                on_output(f"[Launcher] Running: {' '.join(start_cmd)}")
-
-            creation_flags = 0
-            if sys.platform == "win32":
-                creation_flags = getattr(
-                    subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200
-                ) | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
-
-            try:
-                process = subprocess.Popen(
-                    start_cmd,
-                    cwd=cwd,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    creationflags=creation_flags,
-                )
-                entry = _ProcessEntry(
-                    process=process,
-                    thread=threading.current_thread(),
-                    start_time=time.time(),
-                    game_port=game_port,
-                    console_callback=on_output or (lambda _: None),
-                    done_callback=on_done or (lambda _: None),
-                )
-                with _server_lock:
-                    _server_processes[inst] = entry
-
-                if on_output and process.stdout:
-                    for line in process.stdout:
-                        on_output(line.rstrip("\n"))
-                rc = process.wait()
-            except FileNotFoundError:
+        try:
+            while True:
                 if on_output:
-                    on_output("[ERROR] Could not run Java. Install Java 25+ from https://adoptium.net")
-                rc = -1
+                    on_output(f"[Launcher] Starting {inst} on port {game_port}...")
+                    on_output(f"[Launcher] Running: {' '.join(start_cmd)}")
+
+                creation_flags = 0
+                if sys.platform == "win32":
+                    creation_flags = getattr(
+                        subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200
+                    ) | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+
+                try:
+                    # Inside the try so a failed copy (disk full, locked file)
+                    # surfaces in the console instead of killing this thread.
+                    applied_update = _apply_staged_update(inst, on_output)
+
+                    process = subprocess.Popen(
+                        start_cmd,
+                        cwd=cwd,
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        creationflags=creation_flags,
+                        # Own process group on POSIX: Ctrl-C in a dev terminal
+                        # must not hit the JVM, and stop() can signal the tree.
+                        start_new_session=(sys.platform != "win32"),
+                    )
+                    entry = _ProcessEntry(
+                        process=process,
+                        thread=threading.current_thread(),
+                        start_time=time.time(),
+                        game_port=game_port,
+                        console_callback=on_output or (lambda _: None),
+                        done_callback=on_done or (lambda _: None),
+                    )
+                    with _server_lock:
+                        _server_processes[inst] = entry
+                        _starting.discard(inst)
+                    _write_running_registry()
+
+                    if on_output and process.stdout:
+                        for line in process.stdout:
+                            on_output(line.rstrip("\n"))
+                    rc = process.wait()
+                except FileNotFoundError:
+                    if on_output:
+                        on_output("[ERROR] Could not run Java. Install Java 25+ from https://adoptium.net")
+                    rc = -1
+                    break
+                except Exception as exc:
+                    if on_output:
+                        on_output(f"[ERROR] {exc}")
+                    rc = -1
+                    break
+                finally:
+                    with _server_lock:
+                        _server_processes.pop(inst, None)
+                    _write_running_registry()
+
+                if rc == 8:
+                    with _server_lock:
+                        if inst in _stop_requested:
+                            # User pressed Stop; don't resurrect the server just
+                            # because the JVM used its restart-for-update code.
+                            break
+                        _starting.add(inst)
+                    if on_output:
+                        on_output("[Launcher] Server requested restart for update. Restarting...")
+                    continue
+
+                if rc != 0 and applied_update:
+                    if on_output:
+                        on_output("")
+                        on_output(f"[Launcher] ERROR: Server exited with code {rc} after update.")
                 break
-            except Exception as exc:
-                if on_output:
-                    on_output(f"[ERROR] {exc}")
-                rc = -1
-                break
-            finally:
-                with _server_lock:
-                    _server_processes.pop(inst, None)
-
-            if rc == 8:
-                if on_output:
-                    on_output("[Launcher] Server requested restart for update. Restarting...")
-                continue
-
-            if rc != 0 and applied_update:
-                if on_output:
-                    on_output("")
-                    on_output(f"[Launcher] ERROR: Server exited with code {rc} after update.")
-            break
-
-        _last_exit_time = time.time()
-        _last_exit_code = rc
-        _per_instance_exit[inst] = (_last_exit_time, rc)
+        finally:
+            with _server_lock:
+                _starting.discard(inst)
+                _stop_requested.discard(inst)
+                _last_exit_time = time.time()
+                _last_exit_code = rc
+                _per_instance_exit[inst] = (_last_exit_time, rc)
         if on_done:
             on_done(rc)
 
@@ -447,21 +581,26 @@ def stop_all() -> None:
         stop(instance_name=name)
 
 
-def stop(instance_name: Optional[str] = None) -> None:
-    """Stop server. If instance_name None, stop active instance's server."""
+def stop(instance_name: Optional[str] = None) -> bool:
+    """Stop server. If instance_name None, stop active instance's server.
+    Returns True when the process is confirmed gone."""
     inst = instance_name or get_active_instance()
     with _server_lock:
         entry = _server_processes.get(inst) if inst else None
         if not entry or entry.process.poll() is not None:
-            return
+            return True
         proc = entry.process
+        # Mark before signalling so the rc==8 auto-restart can't resurrect it.
+        _stop_requested.add(inst)
 
     send_command("stop\n", inst)
     try:
-        proc.wait(timeout=10)
+        # Kept under the frontend's 15 s request timeout (graceful 8 s + hard
+        # kill below) so a slow world save doesn't read as a connection error.
+        proc.wait(timeout=8)
         with _server_lock:
             _server_processes.pop(inst, None)
-        return
+        return True
     except subprocess.TimeoutExpired:
         pass
 
@@ -474,15 +613,30 @@ def stop(instance_name: Optional[str] = None) -> None:
                 timeout=5,
             )
         else:
-            proc.terminate()
+            import signal as _signal
+
+            # Signal the whole process group (start.sh wrappers spawn the JVM
+            # as a child; terminating only the wrapper orphans the server).
             try:
-                proc.wait(timeout=5)
+                os.killpg(os.getpgid(pid), _signal.SIGTERM)
+            except (OSError, ProcessLookupError):
+                proc.terminate()
+            try:
+                proc.wait(timeout=4)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                try:
+                    os.killpg(os.getpgid(pid), _signal.SIGKILL)
+                except (OSError, ProcessLookupError):
+                    proc.kill()
     except (OSError, subprocess.TimeoutExpired):
         try:
             proc.kill()
         except OSError:
             pass
+    try:
+        proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        pass
     with _server_lock:
         _server_processes.pop(inst, None)
+    return proc.poll() is not None

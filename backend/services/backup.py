@@ -6,7 +6,6 @@ import json
 import os
 import re
 import shutil
-import tempfile
 import zipfile
 from datetime import datetime
 from typing import Optional
@@ -17,6 +16,7 @@ from config import (
     VERSION_FILE,
     PATCHLINE_FILE,
 )
+from utils.atomic_io import atomic_write_json
 from utils.paths import resolve_instance, resolve_instance_by_name, ensure_dir
 
 _META_FILE = "backup_info.json"
@@ -47,6 +47,7 @@ class BackupEntry:
             self.created = datetime.min
 
         self.has_server = os.path.isdir(os.path.join(path, "Server"))
+        self.server_was_running = False
 
         # Load metadata if available, otherwise parse legacy folder name
         meta_path = os.path.join(path, _META_FILE)
@@ -65,6 +66,7 @@ class BackupEntry:
             self.from_patchline = data.get("from_patchline")
             self.to_version = data.get("to_version")
             self.to_patchline = data.get("to_patchline")
+            self.server_was_running = bool(data.get("server_was_running"))
             ts = data.get("created")
             if ts:
                 self.created = datetime.fromisoformat(ts)
@@ -122,6 +124,7 @@ class BackupEntry:
             "to_patchline": self.to_patchline,
             "created": self.created.isoformat() if self.created else None,
             "has_server": self.has_server,
+            "server_was_running": self.server_was_running,
         }
 
     def __repr__(self):
@@ -146,8 +149,7 @@ def _save_meta(dest: str, backup_type: str, label: str, **extra) -> None:
         "created": datetime.now().isoformat(),
         **extra,
     }
-    with open(os.path.join(dest, _META_FILE), "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    atomic_write_json(os.path.join(dest, _META_FILE), data)
 
 
 def _copy_server_for_backup(
@@ -225,7 +227,9 @@ def create_backup_for_instance(
     *,
     exclude_server_cache: bool = False,
 ) -> BackupEntry:
-    """Create a backup for a specific instance (used by update-all)."""
+    """Create a backup for a specific instance."""
+    from services.server import is_instance_running
+
     backup_root = ensure_dir(resolve_instance_by_name(instance_name, BACKUP_DIR))
     now = datetime.now()
     folder_name = now.strftime("backup_%Y-%m-%d_%I%M%p")
@@ -240,6 +244,10 @@ def create_backup_for_instance(
     if not os.path.isdir(server_dir):
         raise FileNotFoundError("No Server folder to backup.")
 
+    # A backup taken while the server is running may capture world files
+    # mid-write; record it so the UI can flag the backup as possibly torn.
+    server_was_running = is_instance_running(instance_name)
+
     os.makedirs(dest, exist_ok=True)
     _copy_server_for_backup(
         server_dir,
@@ -252,6 +260,7 @@ def create_backup_for_instance(
         if os.path.isfile(src):
             shutil.copy2(src, dest)
 
+    extra = {"server_was_running": True} if server_was_running else {}
     if label and "update from" in label.lower():
         m = re.match(
             r'update from\s+(\S+)\s+\(([^)]+)\)\s+to\s+(\S+)\s+\(([^)]+)\)',
@@ -266,74 +275,69 @@ def create_backup_for_instance(
                 from_patchline=m.group(2),
                 to_version=m.group(3),
                 to_patchline=m.group(4),
+                **extra,
             )
         else:
-            _save_meta(dest, backup_type="pre-update", label=label)
+            _save_meta(dest, backup_type="pre-update", label=label, **extra)
     else:
-        _save_meta(dest, backup_type="manual", label=label or "Manual backup")
+        _save_meta(dest, backup_type="manual", label=label or "Manual backup", **extra)
 
     return BackupEntry(dest)
 
 
 def create_backup(label: Optional[str] = None, *, exclude_server_cache: bool = False) -> BackupEntry:
-    backup_root = ensure_dir(resolve_instance(BACKUP_DIR))
-    now = datetime.now()
-    folder_name = now.strftime("backup_%Y-%m-%d_%I%M%p")
+    """Create a backup of the active instance."""
+    from services.settings import get_active_instance
 
-    dest = os.path.join(backup_root, folder_name)
-    counter = 1
-    while os.path.exists(dest):
-        dest = os.path.join(backup_root, f"{folder_name}_{counter}")
-        counter += 1
-
-    server_dir = resolve_instance(SERVER_DIR)
-    if not os.path.isdir(server_dir):
-        raise FileNotFoundError("No Server folder to backup.")
-
-    os.makedirs(dest, exist_ok=True)
-    _copy_server_for_backup(
-        server_dir,
-        os.path.join(dest, "Server"),
-        exclude_server_cache=exclude_server_cache,
+    instance_name = get_active_instance()
+    if not instance_name:
+        raise FileNotFoundError("No active instance selected.")
+    return create_backup_for_instance(
+        instance_name, label, exclude_server_cache=exclude_server_cache
     )
-
-    for name in ("Assets.zip", "start.bat", "start.sh", VERSION_FILE, PATCHLINE_FILE):
-        src = resolve_instance(name)
-        if os.path.isfile(src):
-            shutil.copy2(src, dest)
-
-    if label and "update from" in label.lower():
-        m = re.match(
-            r'update from\s+(\S+)\s+\(([^)]+)\)\s+to\s+(\S+)\s+\(([^)]+)\)',
-            label, re.IGNORECASE,
-        )
-        if m:
-            _save_meta(
-                dest,
-                backup_type="pre-update",
-                label="Pre-update backup",
-                from_version=m.group(1),
-                from_patchline=m.group(2),
-                to_version=m.group(3),
-                to_patchline=m.group(4),
-            )
-        else:
-            _save_meta(dest, backup_type="pre-update", label=label)
-    else:
-        _save_meta(dest, backup_type="manual", label=label or "Manual backup")
-
-    return BackupEntry(dest)
 
 
 def restore_backup(entry: BackupEntry) -> None:
+    from services.server import is_instance_running
+    from services.settings import get_active_instance
+
     if not entry.has_server:
         raise ValueError("Selected backup does not contain a Server folder.")
 
+    backup_server = os.path.join(entry.path, "Server")
+    if not os.path.isfile(os.path.join(backup_server, "HytaleServer.jar")):
+        raise ValueError(
+            "This backup looks incomplete (no Server/HytaleServer.jar inside). "
+            "Restoring it would leave a broken install, so nothing was changed."
+        )
+
+    active = get_active_instance()
+    if active and is_instance_running(active):
+        raise ValueError("Stop the server before restoring a backup.")
+
     server_dir = resolve_instance(SERVER_DIR)
-    if os.path.isdir(server_dir):
+
+    # Stage the restored copy next to the live folder first, so a failed copy
+    # (corrupt backup, disk full) never touches the current install.
+    staging = server_dir + ".restoring"
+    old = server_dir + ".pre-restore"
+    for leftover in (staging, old):
+        if os.path.isdir(leftover):
+            shutil.rmtree(leftover)
+    shutil.copytree(backup_server, staging)
+
+    had_server = os.path.isdir(server_dir)
+    if had_server:
         create_backup(label="Pre-restore backup")
-        shutil.rmtree(server_dir)
-    shutil.copytree(os.path.join(entry.path, "Server"), server_dir)
+        os.rename(server_dir, old)
+    try:
+        os.rename(staging, server_dir)
+    except OSError:
+        if had_server:
+            os.rename(old, server_dir)
+        raise
+    if had_server:
+        shutil.rmtree(old, ignore_errors=True)
 
     for name in ("Assets.zip", "start.bat", "start.sh", VERSION_FILE, PATCHLINE_FILE):
         src = os.path.join(entry.path, name)
@@ -349,15 +353,15 @@ def rename_backup(entry: BackupEntry, new_label: str) -> None:
         try:
             with open(meta_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError) as exc:
+            # Rewriting from scratch would wipe version provenance – refuse.
+            raise ValueError(f"Cannot rename: backup metadata is unreadable ({exc}).")
     data["label"] = new_label.strip() or "Manual backup"
     if "type" not in data:
         data["type"] = entry.backup_type
     if "created" not in data and entry.created:
         data["created"] = entry.created.isoformat()
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    atomic_write_json(meta_path, data)
 
 
 def delete_backup(entry: BackupEntry) -> None:
@@ -461,7 +465,32 @@ def restore_hytale_world_backup(filename: str) -> None:
 
     ensure_dir(backups_root)
 
-    # 1) Create pre-restore backup of current universe
+    # 1) Extract the selected backup into a staging folder first – if the zip
+    # is corrupt or the disk fills, the live universe is left untouched.
+    from utils.safe_zip import safe_extractall
+
+    staging = universe_dir + ".restoring"
+    old = universe_dir + ".pre-restore"
+    for leftover in (staging, old):
+        if os.path.isdir(leftover):
+            shutil.rmtree(leftover)
+    os.makedirs(staging)
+    try:
+        safe_extractall(source_zip, staging)
+    except zipfile.BadZipFile as exc:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise ValueError(
+            f"This world backup is corrupt or incomplete ({exc}). Nothing was changed."
+        )
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+    # Zip may contain "universe/" at root or contents at root
+    extracted_universe = os.path.join(staging, "universe")
+    new_universe_src = extracted_universe if os.path.isdir(extracted_universe) else staging
+
+    # 2) Create pre-restore zip of the current universe
     if os.path.isdir(universe_dir):
         pre_restore_name = datetime.now().strftime("pre-restore_%Y-%m-%d_%H-%M.zip")
         pre_restore_path = os.path.join(backups_root, pre_restore_name)
@@ -472,25 +501,16 @@ def restore_hytale_world_backup(filename: str) -> None:
                     arcname = os.path.relpath(path, os.path.dirname(universe_dir))
                     zf.write(path, arcname)
 
-    # 2) Remove current universe
-    if os.path.isdir(universe_dir):
-        shutil.rmtree(universe_dir)
-
-    # 3) Extract the selected backup
-    with tempfile.TemporaryDirectory() as tmp:
-        from utils.safe_zip import safe_extractall
-        safe_extractall(source_zip, tmp)
-        # Zip may contain "universe/" at root or contents at root
-        extracted_universe = os.path.join(tmp, "universe")
-        if os.path.isdir(extracted_universe):
-            shutil.copytree(extracted_universe, universe_dir)
-        else:
-            # Contents at root are the universe
-            os.makedirs(universe_dir, exist_ok=True)
-            for name in os.listdir(tmp):
-                src = os.path.join(tmp, name)
-                dst = os.path.join(universe_dir, name)
-                if os.path.isdir(src):
-                    shutil.copytree(src, dst)
-                else:
-                    shutil.copy2(src, dst)
+    # 3) Swap the staged universe into place (renames, so failure is recoverable)
+    had_universe = os.path.isdir(universe_dir)
+    if had_universe:
+        os.rename(universe_dir, old)
+    try:
+        os.rename(new_universe_src, universe_dir)
+    except OSError:
+        if had_universe:
+            os.rename(old, universe_dir)
+        raise
+    shutil.rmtree(staging, ignore_errors=True)
+    if had_universe:
+        shutil.rmtree(old, ignore_errors=True)

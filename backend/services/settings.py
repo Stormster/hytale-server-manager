@@ -7,6 +7,9 @@ This module intentionally has ZERO project imports to avoid circular dependencie
 
 import json
 import os
+import sys
+import tempfile
+import threading
 from typing import Optional
 
 _SETTINGS_DIR = os.path.join(
@@ -19,6 +22,8 @@ _SETTINGS_SCHEMA_VERSION = 1
 
 _cache: dict | None = None
 _migrated: bool = False
+# Guards _cache and settings.json against concurrent request/updater threads.
+_lock = threading.RLock()
 
 
 def _migrate_settings(data: dict) -> tuple[dict, bool]:
@@ -49,34 +54,69 @@ def _migrate_settings(data: dict) -> tuple[dict, bool]:
     return data, changed
 
 
-def _load() -> dict:
-    global _cache, _migrated
-    if os.path.isfile(_SETTINGS_FILE):
+def _read_settings_file() -> dict:
+    """Read settings.json. A corrupt file is moved aside and treated as empty
+    so one bad write can't permanently break the whole app."""
+    if not os.path.isfile(_SETTINGS_FILE):
+        return {}
+    try:
         with open(_SETTINGS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-    else:
-        data = {}
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        corrupt = _SETTINGS_FILE + ".corrupt"
+        try:
+            os.replace(_SETTINGS_FILE, corrupt)
+        except OSError:
+            corrupt = "(could not move aside)"
+        print(
+            f"[settings] settings.json is corrupt ({exc}); starting fresh. "
+            f"Previous file saved as {corrupt}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return {}
 
-    data, changed = _migrate_settings(data)
-    if changed and not _migrated:
-        _save(data)
-        _migrated = True
-    _cache = data
-    return _cache
+
+def _load() -> dict:
+    global _cache, _migrated
+    with _lock:
+        data = _read_settings_file()
+        data, changed = _migrate_settings(data)
+        if changed and not _migrated:
+            _save(data)
+            _migrated = True
+        _cache = data
+        return _cache
 
 
 def _save(data: dict) -> None:
     global _cache
-    os.makedirs(_SETTINGS_DIR, exist_ok=True)
-    with open(_SETTINGS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-    _cache = data
+    with _lock:
+        os.makedirs(_SETTINGS_DIR, exist_ok=True)
+        # Atomic write: temp file + fsync + rename, so a crash mid-write can
+        # never truncate settings.json (it holds root_dir, ports, license).
+        fd, tmp = tempfile.mkstemp(dir=_SETTINGS_DIR, prefix="settings.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, _SETTINGS_FILE)
+        except BaseException:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
+        _cache = data
 
 
 def load() -> dict:
-    if _cache is None:
-        return _load()
-    return _cache
+    with _lock:
+        if _cache is None:
+            return _load()
+        return _cache
 
 
 def get_all() -> dict:
@@ -159,7 +199,19 @@ def get_active_instance() -> str:
     return load().get("active_instance", "")
 
 
+def _validate_instance_name_for_settings(name: str) -> None:
+    """Reject names that would escape the root folder when joined onto it.
+    Every resolve_instance() path is built from active_instance, so a poisoned
+    value here would redirect rmtree/copytree targets outside the root."""
+    if ".." in name or "/" in name or "\\" in name:
+        raise ValueError("Invalid instance name")
+    if os.path.isabs(name) or (len(name) >= 2 and name[1] == ":"):
+        raise ValueError("Invalid instance name")
+
+
 def set_active_instance(name: str) -> None:
+    if name:
+        _validate_instance_name_for_settings(name)
     s = load()
     s["active_instance"] = name
     _save(s)
@@ -275,6 +327,35 @@ def set_instance_server_settings(instance_name: str, data: dict) -> None:
     all_settings[instance_name] = current
     s["instance_server_settings"] = all_settings
     _save(s)
+
+
+def rename_instance_data(old_name: str, new_name: str) -> None:
+    """Carry per-instance settings (ports, RAM limits, startup args) across a rename."""
+    s = load()
+    changed = False
+    for key in ("instance_ports", "instance_server_settings"):
+        entries = dict(s.get(key, {}))
+        if old_name in entries:
+            entries[new_name] = entries.pop(old_name)
+            s[key] = entries
+            changed = True
+    if changed:
+        _save(s)
+
+
+def purge_instance_data(name: str) -> None:
+    """Drop per-instance settings when an instance is deleted, so a future
+    instance with the same name doesn't inherit stale ports or RAM limits."""
+    s = load()
+    changed = False
+    for key in ("instance_ports", "instance_server_settings"):
+        entries = dict(s.get(key, {}))
+        if name in entries:
+            del entries[name]
+            s[key] = entries
+            changed = True
+    if changed:
+        _save(s)
 
 
 # -- Remote server connections (HyRemote plugin) ------------------------------

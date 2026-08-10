@@ -4,6 +4,7 @@ Server API routes – start / stop / status / live console SSE.
 
 import asyncio
 import json
+from collections import deque
 from datetime import datetime, timezone
 from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -18,16 +19,21 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 class _ConsoleManager:
+    # Bounded: a server left running for days must not grow the backend
+    # (and every new SSE subscriber's replay) without limit.
+    MAX_LINES = 5000
+
     def __init__(self):
-        self.buffer: list[str] = []
+        self.buffer: "deque[str]" = deque(maxlen=self.MAX_LINES)
         self.subscribers: list[asyncio.Queue] = []
         self.server_active = False
         self.last_exit_code: int | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
 
     def reset(self, loop: asyncio.AbstractEventLoop):
+        # Keep subscribers: an SSE client attached before a restart must keep
+        # receiving output, otherwise its console goes permanently blank.
         self.buffer.clear()
-        self.subscribers.clear()
         self.server_active = True
         self.last_exit_code = None
         self._loop = loop
@@ -173,21 +179,31 @@ def stop(body: dict = Body(default=None)):
     body = body or {}
     if body.get("all"):
         server_svc.stop_all()
-    else:
-        instance_name = body.get("instance")
-        server_svc.stop(instance_name=instance_name)
+        return {"ok": True}
+    instance_name = body.get("instance")
+    stopped = server_svc.stop(instance_name=instance_name)
+    if not stopped:
+        return JSONResponse(
+            {"ok": False, "error": "The server process did not stop. Try again, or check the console."},
+            status_code=500,
+        )
     return {"ok": True}
 
 
 @router.post("/command")
 def command(body: dict = Body(...)):
     """Send a command to the server's stdin (when running)."""
+    from services.settings import get_active_instance
+
     cmd = body.get("command", "")
     instance_name = body.get("instance")
     if not isinstance(cmd, str):
         return JSONResponse({"ok": False, "error": "command must be a string"}, status_code=400)
-    if not server_svc.is_running():
-        return JSONResponse({"ok": False, "error": "Server is not running"}, status_code=409)
+    target = instance_name or get_active_instance()
+    if not target or not server_svc.is_instance_running(target):
+        return JSONResponse(
+            {"ok": False, "error": f"Server '{target or '?'}' is not running"}, status_code=409
+        )
     if server_svc.send_command(cmd, instance_name=instance_name):
         return {"ok": True}
     return JSONResponse({"ok": False, "error": "Failed to send command"}, status_code=500)
