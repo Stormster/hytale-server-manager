@@ -15,6 +15,8 @@ export function useConfigFile(filename: string | null) {
 
 export function useSaveConfigFile() {
   const qc = useQueryClient();
+  const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance;
   return useMutation({
     mutationFn: ({ filename, content }: { filename: string; content: string }) =>
       api<{ ok: boolean }>(`/api/config/${filename}`, {
@@ -22,7 +24,7 @@ export function useSaveConfigFile() {
         body: JSON.stringify({ content }),
       }),
     onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ["config", variables.filename] });
+      qc.invalidateQueries({ queryKey: ["config", activeInstance, variables.filename] });
     },
   });
 }

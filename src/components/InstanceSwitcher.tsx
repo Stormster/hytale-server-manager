@@ -11,12 +11,14 @@ interface InstanceSwitcherProps {
   onAddServer: () => void;
   onImportServer: () => void;
   onManageInstances: () => void;
+  onBeforeInstanceChange?: () => boolean;
 }
 
 export function InstanceSwitcher({
   onAddServer,
   onImportServer,
   onManageInstances,
+  onBeforeInstanceChange,
 }: InstanceSwitcherProps) {
   const { data: instances } = useInstances();
   const { data: settings } = useSettings();
@@ -57,6 +59,11 @@ export function InstanceSwitcher({
   );
 
   const handleSelectInstance = (name: string) => {
+    if (name === activeInstance) {
+      setOpen(false);
+      return;
+    }
+    if (onBeforeInstanceChange && !onBeforeInstanceChange()) return;
     setActive.mutate(name);
     setOpen(false);
   };

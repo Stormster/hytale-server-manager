@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../client";
 import { useSettings } from "./useSettings";
 import type { ServerStatus } from "../types";
+import { toast } from "sonner";
 
 export function useServerStatus() {
   const { data: settings } = useSettings();
@@ -25,6 +26,11 @@ export function useStartServer() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["server", "status"] });
     },
+    onError: (err) => {
+      toast.error("Failed to start server", {
+        description: (err as Error).message,
+      });
+    },
   });
 }
 
@@ -40,6 +46,11 @@ export function useStopServer() {
       setTimeout(() => {
         qc.invalidateQueries({ queryKey: ["server", "status"] });
       }, 1000);
+    },
+    onError: (err) => {
+      toast.error("Failed to stop server", {
+        description: (err as Error).message,
+      });
     },
   });
 }
