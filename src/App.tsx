@@ -24,6 +24,7 @@ import { useAuthStatus } from "@/api/hooks/useAuth";
 import { clearBackendUrlCache } from "@/api/client";
 import { useAggregatedPendingUpdates } from "@/api/hooks/useAggregatedUpdates";
 import { useAppInfo } from "@/api/hooks/useInfo";
+import { confirmDiscardConfigChanges } from "@/lib/unsavedChanges";
 
 export default function App() {
   const { data: settings, isLoading, isError, error: settingsError, refetch } = useSettings();
@@ -35,6 +36,8 @@ export default function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [manageInstancesOpen, setManageInstancesOpen] = useState(false);
+  const [configDirty, setConfigDirty] = useState(false);
+  const [configDiscardSignal, setConfigDiscardSignal] = useState(0);
 
   // Show error with retry when backend connection fails (e.g. WSL/VM graphics issues)
   if (isError || authError) {
@@ -59,7 +62,7 @@ export default function App() {
             </p>
           )}
           <p className="text-xs text-muted-foreground max-w-md text-center">
-            On WSL or VMs, try: LIBGL_AL_SOFTWARE=1 ./server-manager. If the app was running, check backend logs via the install dialog or{" "}
+            On WSL or VMs, try: LIBGL_ALWAYS_SOFTWARE=1 ./server-manager. If the app was running, check backend logs via the install dialog or{" "}
             <code className="text-[11px]">/api/debug/recent-logs</code>.
           </p>
           <button
@@ -110,7 +113,16 @@ export default function App() {
     return <AuthRequiredView />;
   }
 
+  const allowConfigContextChange = () => {
+    if (!configDirty) return true;
+    if (!confirmDiscardConfigChanges()) return false;
+    setConfigDirty(false);
+    setConfigDiscardSignal((value) => value + 1);
+    return true;
+  };
+
   const handleNavigate = (view: ViewName, scrollTo?: string) => {
+    if (view !== activeView && !allowConfigContextChange()) return;
     setActiveView(view);
     if (view === "experimental" && scrollTo) setExperimentalScrollTo(scrollTo);
   };
@@ -128,6 +140,7 @@ export default function App() {
           onAddServer={() => setAddOpen(true)}
           onImportServer={() => setImportOpen(true)}
           onManageInstances={() => setManageInstancesOpen(true)}
+          onBeforeInstanceChange={allowConfigContextChange}
           updatesPendingCount={updatesPendingCount}
           remoteEnabled={appInfo?.remote_enabled === true}
         />
@@ -155,7 +168,12 @@ export default function App() {
           {activeView === "updates" && <UpdateView onNavigate={handleNavigate} />}
           {activeView === "backups" && <BackupView onNavigate={handleNavigate} />}
           {activeView === "mods" && <ModsView />}
-          {activeView === "config" && <ConfigView />}
+          {activeView === "config" && (
+            <ConfigView
+              discardSignal={configDiscardSignal}
+              onDirtyChange={setConfigDirty}
+            />
+          )}
           {activeView === "port-forwarding" && <PortForwardingView />}
           {activeView === "experimental" && (
             <ExperimentalView

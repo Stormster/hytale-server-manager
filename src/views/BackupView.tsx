@@ -74,6 +74,7 @@ export function BackupView({ onNavigate }: BackupViewProps) {
     if (!confirmDialog) return;
     const { type, backup } = confirmDialog;
     if (type === "restore") {
+      if (isServerRunning) return;
       restoreBackup.mutate(backup.folder_name);
     } else {
       deleteBackup.mutate(backup.folder_name);
@@ -314,9 +315,11 @@ export function BackupView({ onNavigate }: BackupViewProps) {
                     <Button
                       size="sm"
                       variant="outline"
+                      disabled={isServerRunning || restoreBackup.isPending}
                       onClick={() =>
                         setConfirmDialog({ type: "restore", backup })
                       }
+                      title={isServerRunning ? "Stop the server before restoring" : undefined}
                     >
                       Restore
                     </Button>
@@ -446,7 +449,7 @@ export function BackupView({ onNavigate }: BackupViewProps) {
             </DialogTitle>
             <DialogDescription>
               {confirmDialog?.type === "restore"
-                ? "A backup of your current server will be created first (labeled \"Pre-restore backup\") in instance backups. Then your server files will be replaced with this backup."
+                ? "A backup of your current server will be created first (labeled \"Pre-restore backup\") in instance backups. Then your server files will be replaced with this backup. The server must be stopped."
                 : "This will permanently delete this backup. This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>
@@ -459,8 +462,24 @@ export function BackupView({ onNavigate }: BackupViewProps) {
                 confirmDialog?.type === "delete" ? "destructive" : "default"
               }
               onClick={handleConfirm}
+              disabled={
+                (confirmDialog?.type === "restore" &&
+                  (isServerRunning || restoreBackup.isPending)) ||
+                (confirmDialog?.type === "delete" && deleteBackup.isPending)
+              }
+              title={
+                confirmDialog?.type === "restore" && isServerRunning
+                  ? "Stop the server before restoring"
+                  : undefined
+              }
             >
-              {confirmDialog?.type === "restore" ? "Restore" : "Delete"}
+              {confirmDialog?.type === "restore" && restoreBackup.isPending
+                ? "Restoring..."
+                : confirmDialog?.type === "delete" && deleteBackup.isPending
+                  ? "Deleting..."
+                  : confirmDialog?.type === "restore"
+                    ? "Restore"
+                    : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

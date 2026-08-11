@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +17,7 @@ import { AddonJsonEditor } from "@/components/Addon";
 import { WhitelistEditor } from "@/components/config/WhitelistEditor";
 import { BansEditor } from "@/components/config/BansEditor";
 import { WorldConfigEditor } from "@/components/config/WorldConfigEditor";
+import { confirmDiscardConfigChanges } from "@/lib/unsavedChanges";
 
 const CONFIG_FILES = ["config.json", "whitelist.json", "bans.json", "worlds"] as const;
 const TAB_LABELS: Record<string, string> = {
@@ -27,15 +28,25 @@ const TAB_LABELS: Record<string, string> = {
 };
 const FORM_EDITABLE_FILES = new Set(["config.json", "whitelist.json", "bans.json"]);
 
-export function ConfigView() {
+interface ConfigViewProps {
+  discardSignal?: number;
+  onDirtyChange?: (dirty: boolean) => void;
+}
+
+export function ConfigView({
+  discardSignal = 0,
+  onDirtyChange,
+}: ConfigViewProps = {}) {
   const [activeFile, setActiveFile] = useState<string>("config.json");
   const [activeWorld, setActiveWorld] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState("");
+  const [savedContent, setSavedContent] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [rawMode, setRawMode] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
 
   const { data: settings } = useSettings();
+  const activeInstance = settings?.active_instance ?? "";
   const { data: appInfo } = useAppInfo();
   const useJsonCheckerEditor =
     appInfo?.experimental_addon_loaded === true &&
@@ -61,6 +72,33 @@ export function ConfigView() {
     !rawMode;
 
   const isRawJsonView = rawMode && (FORM_EDITABLE_FILES.has(activeFile as string) || (isWorldsView && !!activeWorld));
+  const isDirty = editorContent !== savedContent;
+  const dirtyRef = useRef(isDirty);
+  dirtyRef.current = isDirty;
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  useEffect(() => {
+    setEditorContent("");
+    setSavedContent("");
+    setStatusMsg("");
+  }, [discardSignal]);
   const isJsonInvalid = useMemo(() => {
     if (!isRawJsonView) return false;
     try {
@@ -80,19 +118,21 @@ export function ConfigView() {
 
   // Sync editor when file data loads
   useEffect(() => {
-    if (fileData?.content !== undefined) {
+    if (fileData?.content !== undefined && !dirtyRef.current) {
       setEditorContent(fileData.content);
+      setSavedContent(fileData.content);
       setStatusMsg("");
     }
-  }, [fileData?.content]);
+  }, [activeInstance, activeFile, fileData?.content]);
 
   // Sync editor when world data loads
   useEffect(() => {
-    if (worldData?.content !== undefined) {
+    if (worldData?.content !== undefined && !dirtyRef.current) {
       setEditorContent(worldData.content);
+      setSavedContent(worldData.content);
       setStatusMsg("");
     }
-  }, [worldData?.content]);
+  }, [activeInstance, activeWorld, worldData?.content]);
 
   // Auto-select first world when entering Worlds tab
   useEffect(() => {
@@ -112,15 +152,17 @@ export function ConfigView() {
   }, [isWorldsView, activeWorld, worldData?.content]);
 
   useEffect(() => {
-    if (isError) {
+    if (isError && !dirtyRef.current) {
       setEditorContent("");
+      setSavedContent("");
       setStatusMsg(`${activeFile} not found or unreadable`);
     }
   }, [isError, error, activeFile]);
 
   useEffect(() => {
-    if (worldError && activeWorld) {
+    if (worldError && activeWorld && !dirtyRef.current) {
       setEditorContent("");
+      setSavedContent("");
       setStatusMsg(`World '${activeWorld}' not found`);
     }
   }, [worldError, activeWorld]);
@@ -129,25 +171,40 @@ export function ConfigView() {
     if (!activeFile) return;
     if (isJsonInvalid) return;
     if (isWorldsView && activeWorld) {
+      const contentToSave = editorContent;
       saveWorldConfig.mutate(
-        { content: editorContent },
+        { content: contentToSave },
         {
-          onSuccess: () => setStatusMsg(`Saved ${activeWorld}`),
+          onSuccess: () => {
+            setSavedContent(contentToSave);
+            setStatusMsg(`Saved ${activeWorld}`);
+          },
           onError: (err) => setStatusMsg(`Error: ${err.message}`),
         }
       );
     } else {
+      const contentToSave = editorContent;
       saveConfig.mutate(
-        { filename: activeFile, content: editorContent },
+        { filename: activeFile, content: contentToSave },
         {
-          onSuccess: () => setStatusMsg(`Saved ${activeFile}`),
+          onSuccess: () => {
+            setSavedContent(contentToSave);
+            setStatusMsg(`Saved ${activeFile}`);
+          },
           onError: (err) => setStatusMsg(`Error: ${err.message}`),
         }
       );
     }
   };
 
-  const activeInstance = settings?.active_instance;
+  const changeEditorContext = (change: () => void) => {
+    if (dirtyRef.current && !confirmDiscardConfigChanges()) return;
+    setEditorContent("");
+    setSavedContent("");
+    setStatusMsg("");
+    change();
+  };
+
   const rootDir = (settings?.root_dir || "").replace(/[/\\]+$/, "");
   const sep = rootDir.includes("\\") ? "\\" : "/";
   const serverPath = activeInstance && rootDir ? [rootDir, activeInstance, "Server"].join(sep) : "";
@@ -182,7 +239,11 @@ export function ConfigView() {
       <div className="flex shrink-0 items-center justify-between mb-4 gap-4 flex-wrap">
         <Tabs
           value={activeFile || "none"}
-          onValueChange={(v) => v !== "none" && setActiveFile(v)}
+          onValueChange={(v) => {
+            if (v !== "none" && v !== activeFile) {
+              changeEditorContext(() => setActiveFile(v));
+            }
+          }}
         >
           <TabsList>
             {CONFIG_FILES.map((f) => (
@@ -221,7 +282,14 @@ export function ConfigView() {
           {isWorldsView ? (
             <div className="flex flex-col flex-1 min-h-0 gap-4">
               <div className="flex flex-wrap gap-2 shrink-0">
-                <Tabs value={activeWorld || "none"} onValueChange={(v) => v !== "none" && setActiveWorld(v)}>
+                <Tabs
+                  value={activeWorld || "none"}
+                  onValueChange={(v) => {
+                    if (v !== "none" && v !== activeWorld) {
+                      changeEditorContext(() => setActiveWorld(v));
+                    }
+                  }}
+                >
                   <TabsList className="h-9">
                     {worlds.map((w) => (
                       <TabsTrigger key={w} value={w}>

@@ -27,18 +27,50 @@ export function WhitelistEditor({
 }: WhitelistEditorProps) {
   const { data, error } = useMemo(() => {
     try {
-      const d = JSON.parse(content) as WhitelistData;
+      const parsed: unknown = JSON.parse(content);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return {
+          data: null,
+          error: "Unrecognized format: expected a JSON object.",
+        };
+      }
+      const d = parsed as WhitelistData;
+      if (d.enabled !== undefined && typeof d.enabled !== "boolean") {
+        return {
+          data: null,
+          error: "Unrecognized format: enabled must be true or false.",
+        };
+      }
+      if (
+        d.list !== undefined &&
+        (!Array.isArray(d.list) || d.list.some((entry) => typeof entry !== "string"))
+      ) {
+        return {
+          data: null,
+          error: "Unrecognized format: list must contain only player names or UUID strings.",
+        };
+      }
       return { data: d, error: null };
     } catch (e) {
-      return { data: null, error: (e as Error).message };
+      return { data: null, error: `Invalid JSON: ${(e as Error).message}` };
     }
   }, [content]);
 
   if (error) {
     return (
-      <p className="text-sm text-destructive">
-        Invalid JSON: {error}
-      </p>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
+          <p className="text-sm font-medium text-destructive">
+            This file cannot be safely edited as a form.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {error} Switch to Raw JSON to inspect or edit it without losing data.
+          </p>
+        </div>
+        <div className="flex justify-end border-t pt-3">
+          <Button size="sm" disabled>Save</Button>
+        </div>
+      </div>
     );
   }
 

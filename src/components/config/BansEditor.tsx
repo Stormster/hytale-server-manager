@@ -28,17 +28,38 @@ export function BansEditor({
 }: BansEditorProps) {
   const { bans, error } = useMemo(() => {
     try {
-      const parsed = JSON.parse(content);
-      const arr = Array.isArray(parsed) ? parsed : [];
-      const normalized = arr.map((item: unknown) => {
-        if (item && typeof item === "object") {
-          return { ...(item as Record<string, unknown>) } as BanEntry;
-        }
-        return { uuid: "", name: "", reason: "" } as BanEntry;
-      });
+      const parsed: unknown = JSON.parse(content);
+      if (!Array.isArray(parsed)) {
+        return {
+          bans: [],
+          error: "Unrecognized format: expected a JSON array of ban entries.",
+        };
+      }
+      if (parsed.some((item) => !item || typeof item !== "object" || Array.isArray(item))) {
+        return {
+          bans: [],
+          error: "Unrecognized format: every ban entry must be a JSON object.",
+        };
+      }
+      if (
+        parsed.some((item) => {
+          const entry = item as Record<string, unknown>;
+          return [entry.uuid, entry.name, entry.reason].some(
+            (value) => value !== undefined && typeof value !== "string"
+          );
+        })
+      ) {
+        return {
+          bans: [],
+          error: "Unrecognized format: uuid, name, and reason must be strings when present.",
+        };
+      }
+      const normalized = parsed.map(
+        (item) => ({ ...(item as Record<string, unknown>) }) as BanEntry
+      );
       return { bans: normalized, error: null };
     } catch (e) {
-      return { bans: [], error: (e as Error).message };
+      return { bans: [], error: `Invalid JSON: ${(e as Error).message}` };
     }
   }, [content]);
 
@@ -62,9 +83,19 @@ export function BansEditor({
 
   if (error) {
     return (
-      <p className="text-sm text-destructive">
-        Invalid JSON: {error}
-      </p>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
+          <p className="text-sm font-medium text-destructive">
+            This file cannot be safely edited as a form.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {error} Switch to Raw JSON to inspect or edit it without losing data.
+          </p>
+        </div>
+        <div className="flex justify-end border-t pt-3">
+          <Button size="sm" disabled>Save</Button>
+        </div>
+      </div>
     );
   }
 

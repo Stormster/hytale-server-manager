@@ -53,6 +53,7 @@ interface AppSidebarProps {
   onAddServer: () => void;
   onImportServer: () => void;
   onManageInstances: () => void;
+  onBeforeInstanceChange?: () => boolean;
   /** When > 0, show a count badge on the Updates nav item. */
   updatesPendingCount?: number;
   /** Dev-only: show Remote nav when backend has HSM_ENABLE_REMOTE=1 */
@@ -65,6 +66,7 @@ export function AppSidebar({
   onAddServer,
   onImportServer,
   onManageInstances,
+  onBeforeInstanceChange,
   updatesPendingCount = 0,
   remoteEnabled = false,
 }: AppSidebarProps) {
@@ -77,6 +79,7 @@ export function AppSidebar({
         onAddServer={onAddServer}
         onImportServer={onImportServer}
         onManageInstances={onManageInstances}
+        onBeforeInstanceChange={onBeforeInstanceChange}
       />
 
       <div className="my-3 mx-4 h-px bg-border" />
