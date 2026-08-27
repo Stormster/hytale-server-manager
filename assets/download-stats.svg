@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="148" viewBox="0 0 400 148" role="img" aria-label="Total downloads">
+  <title>Hytale Server Manager — total downloads</title>
+  <style>
+    .card { fill: #f6f8fa; stroke: #d0d7de; }
+    .heading { fill: #57606a; }
+    .value { fill: #1b1f24; }
+    .label { fill: #6e7781; }
+    .updated { fill: #6e7781; }
+    .icon { stroke: #0066cc; }
+    @media (prefers-color-scheme: dark) {
+      .card { fill: #0d1420; stroke: #30485f; }
+      .heading { fill: #58a6ff; }
+      .value { fill: #e8f1f8; }
+      .label { fill: #8f98a0; }
+      .updated { fill: #8f98a0; }
+      .icon { stroke: #58a6ff; }
+    }
+    text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .heading { font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+    .value { font-size: 30px; font-weight: 800; }
+    .label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.6px; }
+    .updated { font-size: 10px; }
+  </style>
+  <rect x="0.5" y="0.5" width="399" height="147" rx="10" class="card" stroke-width="1"/>
+  <text x="20" y="26" class="heading">DOWNLOAD STATS</text>
+  <text x="380" y="26" text-anchor="end" class="updated">updated 2026-08-27</text>
+  <g transform="translate(188,50) scale(1)" fill="none" class="icon" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10.2m0 0-3.8-3.8M12 13.2l3.8-3.8"/><path d="M5 16.5v2A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5v-2"/></g>
+  <text x="200" y="103" text-anchor="middle" class="value">343</text>
+  <text x="200" y="126" text-anchor="middle" class="label">TOTAL INSTALLS</text>
+</svg>
