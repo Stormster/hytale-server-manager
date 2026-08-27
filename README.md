@@ -1,37 +1,54 @@
+<div align="center">
+
 # Hytale Server Manager
 
-A modern desktop application for managing your Hytale dedicated servers.
+**Run and manage Hytale dedicated servers from your desktop.**
+Multiple instances, a live console, backups, mods, and port forwarding in one window.
 
-[![Download Latest Release](https://img.shields.io/badge/Download-Latest_Release-0066cc?style=for-the-badge)](https://github.com/Stormster/hytale-server-manager/releases/latest) [![Support on Patreon](https://img.shields.io/badge/Support-Patreon-FF424D?style=for-the-badge&logo=patreon)](https://www.patreon.com/c/stormster)
+[![Download Latest Release](https://img.shields.io/badge/Download-Latest_Release-0066cc?style=for-the-badge)](https://github.com/Stormster/hytale-server-manager/releases/latest)
+[![Support on Patreon](https://img.shields.io/badge/Support-Patreon-FF424D?style=for-the-badge&logo=patreon)](https://www.patreon.com/c/stormster)
 
-<a href="https://github.com/Stormster/hytale-server-manager/releases"><img src="assets/download-stats.svg" alt="Total downloads" align="left" width="400"></a>
+<a href="https://github.com/Stormster/hytale-server-manager/releases"><img src="assets/download-stats.svg" alt="Total downloads" width="380"></a>
 
-*Make sure you have Java 25+ from the Requirements section below. Support the project and get access to future experimental addons on [Patreon](https://www.patreon.com/c/stormster).*
+</div>
 
-<br clear="left">
-
-<img src="assets/dashboard-screenshot.png?v=3" alt="Dashboard screenshot" style="pointer-events: none">
+<img src="assets/dashboard-screenshot.png?v=3" alt="Dashboard screenshot">
 
 ## Features
 
-- **Dashboard** – Overview of all server instances with status, quick start/stop, backup, and drag-and-drop reordering
-- **Console** – Live-streaming console output, server start/stop controls, and command suggestions with sub-command panel
-- **Updates** – Check for server updates, bulk update all instances, graceful shutdown (warn players before update), switch release/pre-release channels, install with live progress.
-- **Backups** – Create, restore, rename, and delete backups. Supports both server snapshots (full instance) and Hytale world snapshots (`--backup` / `/backup`).
-- **Mods** – View installed mods, upload .jar files (drag & drop), enable/disable mods, check Nitrado plugin updates, install required Nitrado mods, open mods folder
-- **Configuration** – Edit config.json, whitelist.json, bans.json, and world configs via form editors or raw JSON
-- **Port Forwarding** – Check firewall status per port (Windows: automatic rules; Linux: ufw commands), UPnP discovery, local/public IP with show-hide for privacy, copy connection info for players
-- **Multiple Instances** – Create, add, and import multiple servers; switch between them in one app
-- **Settings** – Hytale auth management, servers root folder, instance rename, Java status checks
+- **Dashboard** – Every server at a glance: status, uptime, memory use, player count, and when it was last backed up. Start, stop, back up, and drag to reorder.
+- **Console** – Live output as the server runs, start and stop controls, and a command picker with sub-commands and favorites.
+- **Updates** – Check for server updates, update every instance at once, warn players and shut down gracefully first, and switch between the release and pre-release channels.
+- **Backups** – Create, restore, rename, and delete. Covers both full instance snapshots and Hytale's own world snapshots (`--backup` / `/backup`). Restores stage first and roll back if anything fails, so a bad archive can't take out a working server.
+- **Mods** – Drag in `.jar` files, enable or disable mods, check for Nitrado plugin updates, and install the Nitrado mods that other features depend on.
+- **Configuration** – Edit `config.json`, `whitelist.json`, `bans.json`, and world configs through form editors or raw JSON, with a warning before you walk away from unsaved changes.
+- **Port forwarding** – Per-port firewall status (automatic rules on Windows, ufw commands on Linux), UPnP discovery, local and public IP with a show/hide toggle for streaming, and one-click copy of connection info to hand to players.
+- **Multiple instances** – Create, add, or import as many servers as you like and switch between them without leaving the app.
+- **Settings** – Hytale sign-in, servers root folder, instance renaming, Nitrado plugin management, and Java status checks.
+
+Servers left running by a crash are found and shut down cleanly the next time you open the app, and config and settings files are written so that a crash mid-save can't corrupt them.
+
+## Experimental addon
+
+Patreon supporters get an optional addon that layers extra features on top of the base app, each one toggleable. Link your Patreon at [hytalemanager.com/license](https://hytalemanager.com/license) to get your key, then paste it into the Experimental tab.
+
+The app works fully without it. Nothing here is behind a paywall.
 
 ## Requirements
 
-- **Windows** or **Linux** (Ubuntu 22.04+, Debian, Fedora, Arch, etc.)
-- **Java 25+** (Temurin recommended): https://adoptium.net/temurin/releases
-- **Hytale account** – Used for authentication and server downloads
+- **Windows** or **Linux** (Ubuntu 22.04+, Debian, Fedora, Arch, and similar)
+- **Java 25+**, [Temurin](https://adoptium.net/temurin/releases) recommended
+- A **Hytale account**, used to authenticate and download server files
 
+## Getting started
 
+1. Grab the installer from the [latest release](https://github.com/Stormster/hytale-server-manager/releases/latest). The `.exe` is the usual choice; the `.msi` is there if you prefer it.
+2. Launch the app and pick a folder to keep your servers in.
+3. Sign in with your Hytale account when prompted. This is what lets the app download server files.
+4. Create your first instance and hit start.
 
 ## Support
 
-Report issues on [GitHub Issues](https://github.com/Stormster/hytale-server-manager/issues).
+Found a bug or want to ask for something? Open a [GitHub issue](https://github.com/Stormster/hytale-server-manager/issues).
+
+If you want to help with development, see [CONTRIBUTING.md](CONTRIBUTING.md) and [DEVELOPMENT.md](DEVELOPMENT.md).
