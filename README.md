@@ -4,9 +4,11 @@ A modern desktop application for managing your Hytale dedicated servers.
 
 [![Download Latest Release](https://img.shields.io/badge/Download-Latest_Release-0066cc?style=for-the-badge)](https://github.com/Stormster/hytale-server-manager/releases/latest) [![Support on Patreon](https://img.shields.io/badge/Support-Patreon-FF424D?style=for-the-badge&logo=patreon)](https://www.patreon.com/c/stormster)
 
-[![Total downloads](assets/download-stats.svg)](https://github.com/Stormster/hytale-server-manager/releases)
+<a href="https://github.com/Stormster/hytale-server-manager/releases"><img src="assets/download-stats.svg" alt="Total downloads" align="left" width="400"></a>
 
 *Make sure you have Java 25+ from the Requirements section below. Support the project and get access to future experimental addons on [Patreon](https://www.patreon.com/c/stormster).*
+
+<br clear="left">
 
 <img src="assets/dashboard-screenshot.png?v=3" alt="Dashboard screenshot" style="pointer-events: none">
 
