@@ -2,9 +2,9 @@
 
 # Hytale Server Manager
 
-[![Download Latest Release](https://img.shields.io/badge/Download-Latest_Release-0066cc?style=for-the-badge)](https://github.com/Stormster/hytale-server-manager/releases/latest)
-[![Installs](https://img.shields.io/github/downloads/Stormster/hytale-server-manager/total?style=for-the-badge&label=INSTALLS&color=2ea44f)](https://github.com/Stormster/hytale-server-manager/releases)
-[![Support on Patreon](https://img.shields.io/badge/Support-Patreon-FF424D?style=for-the-badge&logo=patreon)](https://www.patreon.com/c/stormster)
+[![Download Latest Release](assets/badges/download.svg)](https://github.com/Stormster/hytale-server-manager/releases/latest)
+[![Installs](assets/badges/installs.svg)](https://github.com/Stormster/hytale-server-manager/releases)
+[![Support on Patreon](assets/badges/patreon.svg)](https://www.patreon.com/c/stormster)
 
 **Run and manage Hytale dedicated servers from your desktop.**<br>
 Multiple instances, a live console, backups, mods, and port forwarding in one window.
