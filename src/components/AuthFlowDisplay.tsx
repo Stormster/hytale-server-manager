@@ -2,7 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LogConsole } from "@/components/LogConsole";
-import { formatAuthCode, parseAuthOutput } from "@/lib/authOutput";
+import { buildSignInUrl, formatAuthCode, parseAuthOutput } from "@/lib/authOutput";
 import { ExternalLink, Copy, ChevronDown, ChevronUp } from "lucide-react";
 
 interface AuthFlowDisplayProps {
@@ -19,13 +19,13 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
     if (!parsed.authUrl) return;
     try {
       const { openUrl } = await import("@tauri-apps/plugin-opener");
-      await openUrl(parsed.authUrl);
+      await openUrl(buildSignInUrl(parsed.authUrl));
     } catch {
       try {
         const { open } = await import("@tauri-apps/plugin-shell");
-        await open(parsed.authUrl);
+        await open(buildSignInUrl(parsed.authUrl));
       } catch {
-        window.open(parsed.authUrl, "_blank", "noopener");
+        window.open(buildSignInUrl(parsed.authUrl), "_blank", "noopener");
       }
     }
   };
@@ -33,7 +33,7 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
   const handleCopyUrl = async () => {
     if (!parsed.authUrl) return;
     try {
-      await navigator.clipboard.writeText(parsed.authUrl);
+      await navigator.clipboard.writeText(buildSignInUrl(parsed.authUrl));
       toast.success("Link copied to clipboard");
     } catch {
       toast.error("Failed to copy");
@@ -91,12 +91,12 @@ export function AuthFlowDisplay({ lines, className }: AuthFlowDisplayProps) {
                         const { openUrl } = await import(
                           "@tauri-apps/plugin-opener"
                         );
-                        await openUrl(parsed.baseUrl!);
+                        await openUrl(buildSignInUrl(parsed.baseUrl!));
                       } catch {
                         const { open } = await import(
                           "@tauri-apps/plugin-shell"
                         );
-                        await open(parsed.baseUrl!);
+                        await open(buildSignInUrl(parsed.baseUrl!));
                       }
                     }}
                     className="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer font-medium"

@@ -21,6 +21,21 @@ function userCodeFromUrl(url: string): string | null {
   }
 }
 
+/**
+ * Wrap a Hytale OAuth URL in the account login flow so that signing in returns
+ * to the device page. Opening the verify URL directly while signed out drops
+ * the user on /settings and orphans the code, because the identity provider
+ * does not set return_to on its own. Non-Hytale URLs are passed through.
+ */
+export function buildSignInUrl(url: string): string {
+  try {
+    if (new URL(url).hostname !== "oauth.accounts.hytale.com") return url;
+  } catch {
+    return url;
+  }
+  return `https://accounts.hytale.com/login?return_to=${encodeURIComponent(url)}`;
+}
+
 /** Format an 8-char device code as XXXX-XXXX to match the Hytale authorize page. */
 export function formatAuthCode(code: string): string {
   const clean = code.replace(/[^a-zA-Z0-9]/g, "");

@@ -20,6 +20,7 @@ def run_in_thread(
     *,
     shell: bool = False,
     creationflags: int | None = None,
+    on_start: Optional[Callable[[subprocess.Popen], None]] = None,
 ) -> threading.Thread:
     flags = creationflags if creationflags is not None else _CREATION_FLAGS
 
@@ -34,6 +35,8 @@ def run_in_thread(
                 shell=shell,
                 creationflags=flags,
             )
+            if on_start:
+                on_start(proc)
             if on_output and proc.stdout:
                 for line in proc.stdout:
                     on_output(line.rstrip("\n"))

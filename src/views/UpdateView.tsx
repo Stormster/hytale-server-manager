@@ -26,7 +26,7 @@ import { subscribeSSE } from "@/api/client";
 import { useUpdateFlow, useUpdateRefresh } from "@/api/hooks/useUpdateFlow";
 import type { ViewName } from "@/components/AppSidebar";
 import { Download, Loader2, RefreshCw, Package, Sparkles, AppWindow } from "lucide-react";
-import { parseAuthOutput } from "@/lib/authOutput";
+import { buildSignInUrl, parseAuthOutput } from "@/lib/authOutput";
 import {
   ACTION_HIGHLIGHT_CLASS,
   ACTION_HIGHLIGHT_MS,
@@ -171,10 +171,10 @@ export function UpdateView({ onNavigate }: UpdateViewProps = {}) {
               if (authUrl) {
                 autoOpenedAuthRef.current = true;
                 import("@tauri-apps/plugin-opener")
-                  .then(({ openUrl }) => openUrl(authUrl))
+                  .then(({ openUrl }) => openUrl(buildSignInUrl(authUrl)))
                   .catch(() =>
                     import("@tauri-apps/plugin-shell").then(({ open }) =>
-                      open(authUrl)
+                      open(buildSignInUrl(authUrl))
                     )
                   )
                   .catch(() => {});

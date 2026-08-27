@@ -3,7 +3,7 @@ import { AppFooter } from "@/components/AppFooter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AuthFlowDisplay } from "@/components/AuthFlowDisplay";
-import { parseAuthOutput } from "@/lib/authOutput";
+import { buildSignInUrl, parseAuthOutput } from "@/lib/authOutput";
 import { useInvalidateAuth } from "@/api/hooks/useAuth";
 import { subscribeSSE } from "@/api/client";
 import { LogIn } from "lucide-react";
@@ -37,10 +37,10 @@ export function AuthRequiredView() {
               if (authUrl) {
                 autoOpenedRef.current = true;
                 import("@tauri-apps/plugin-opener")
-                  .then(({ openUrl }) => openUrl(authUrl))
+                  .then(({ openUrl }) => openUrl(buildSignInUrl(authUrl)))
                   .catch(() =>
                     import("@tauri-apps/plugin-shell").then(({ open }) =>
-                      open(authUrl)
+                      open(buildSignInUrl(authUrl))
                     )
                   )
                   .catch(() => {});

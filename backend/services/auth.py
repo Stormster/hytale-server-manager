@@ -16,6 +16,11 @@ def has_credentials() -> bool:
     return dl.has_credentials()
 
 
+def cancel_refresh() -> bool:
+    """Abort an in-flight re-auth. True if a login was actually running."""
+    return dl.cancel_auth()
+
+
 def get_auth_health() -> dict:
     """
     Check whether stored auth is still valid for downloader API calls.

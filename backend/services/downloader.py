@@ -10,6 +10,7 @@ Credentials stay in root_dir (user's servers folder) as the downloader uses cwd.
 import os
 import io
 import sys
+import subprocess
 import zipfile
 import threading
 from typing import Callable, Optional
@@ -24,6 +25,31 @@ from config import (
 )
 from utils.paths import resolve_root
 from utils.process import run_capture, run_in_thread
+
+
+# Handle on the in-flight auth subprocess so the UI can cancel a login that
+# is waiting on the browser instead of forcing a restart of the manager.
+_auth_proc_lock = threading.Lock()
+_auth_proc: Optional[subprocess.Popen] = None
+
+
+def cancel_auth() -> bool:
+    """Terminate a running auth subprocess. True if one was actually killed."""
+    global _auth_proc
+    with _auth_proc_lock:
+        proc = _auth_proc
+        _auth_proc = None
+    if proc is None or proc.poll() is not None:
+        return False
+    try:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    except OSError:
+        return False
+    return True
 
 
 def get_downloader_exe() -> str:
@@ -250,4 +276,19 @@ def run_auth(
     root = os.path.abspath(root)
     os.makedirs(root, exist_ok=True)
     cmd = [downloader_path(), "-print-version", "-skip-update-check"]
-    return run_in_thread(cmd, cwd=root, on_output=on_output, on_done=on_done)
+
+    def _on_start(proc: subprocess.Popen):
+        global _auth_proc
+        with _auth_proc_lock:
+            _auth_proc = proc
+
+    def _on_done(rc: int):
+        global _auth_proc
+        with _auth_proc_lock:
+            _auth_proc = None
+        if on_done:
+            on_done(rc)
+
+    return run_in_thread(
+        cmd, cwd=root, on_output=on_output, on_done=_on_done, on_start=_on_start
+    )

@@ -23,6 +23,12 @@ def auth_health():
     return auth_svc.get_auth_health()
 
 
+@router.post("/cancel")
+def cancel_refresh():
+    """Abort a re-auth that is waiting on the browser."""
+    return {"cancelled": auth_svc.cancel_refresh()}
+
+
 @router.post("/refresh")
 async def refresh_auth():
     """Delete credentials and re-authenticate. Returns SSE stream of output."""

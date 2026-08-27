@@ -21,7 +21,7 @@ import { useInstances, useRenameInstance } from "@/api/hooks/useInstances";
 import { useServerStatus } from "@/api/hooks/useServer";
 import { useQueryClient } from "@tanstack/react-query";
 import { subscribeSSE, api } from "@/api/client";
-import { parseAuthOutput } from "@/lib/authOutput";
+import { buildSignInUrl, parseAuthOutput } from "@/lib/authOutput";
 import { toast } from "sonner";
 
 export function SettingsView() {
@@ -86,10 +86,10 @@ export function SettingsView() {
               if (authUrl) {
                 autoOpenedRef.current = true;
                 import("@tauri-apps/plugin-opener")
-                  .then(({ openUrl }) => openUrl(authUrl))
+                  .then(({ openUrl }) => openUrl(buildSignInUrl(authUrl)))
                   .catch(() =>
                     import("@tauri-apps/plugin-shell").then(({ open }) =>
-                      open(authUrl)
+                      open(buildSignInUrl(authUrl))
                     )
                   )
                   .catch(() => {});

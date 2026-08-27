@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Copy, Loader2, CheckCircle2 } from "lucide-react";
 import { api } from "@/api/client";
-import { formatAuthCode, parseAuthOutput } from "@/lib/authOutput";
+import { buildSignInUrl, formatAuthCode, parseAuthOutput } from "@/lib/authOutput";
 
 const AUTH_SUCCESS = /authentication successful/i;
 const PERSISTENCE_DONE =
@@ -35,6 +35,7 @@ export function ServerAuthModal({
 
   const allText = lines.join("\n");
   const { authUrl: oauthUrl, code: rawCode } = parseAuthOutput(lines);
+  const signInUrl = oauthUrl ? buildSignInUrl(oauthUrl) : null;
   const verificationCode = rawCode ? formatAuthCode(rawCode) : null;
   const authSuccess = AUTH_SUCCESS.test(allText);
   const persistenceDone = PERSISTENCE_DONE.test(allText);
@@ -77,13 +78,13 @@ export function ServerAuthModal({
     if (!oauthUrl) return;
     try {
       const { openUrl } = await import("@tauri-apps/plugin-opener");
-      await openUrl(oauthUrl);
+      await openUrl(signInUrl!);
     } catch {
       try {
         const { open } = await import("@tauri-apps/plugin-shell");
-        await open(oauthUrl);
+        await open(signInUrl!);
       } catch {
-        window.open(oauthUrl, "_blank", "noopener");
+        window.open(signInUrl!, "_blank", "noopener");
       }
     }
   };
@@ -91,7 +92,7 @@ export function ServerAuthModal({
   const handleCopyUrl = async () => {
     if (!oauthUrl) return;
     try {
-      await navigator.clipboard.writeText(oauthUrl);
+      await navigator.clipboard.writeText(signInUrl!);
       toast.success("Link copied to clipboard");
     } catch {
       toast.error("Failed to copy");

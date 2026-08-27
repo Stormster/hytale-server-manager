@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, KeyRound } from "lucide-react";
+import { AlertTriangle, KeyRound, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { subscribeSSE } from "@/api/client";
+import { api, subscribeSSE } from "@/api/client";
 import { useAuthHealth } from "@/api/hooks/useAuth";
-import { parseAuthOutput } from "@/lib/authOutput";
+import { buildSignInUrl, parseAuthOutput } from "@/lib/authOutput";
 import { toast } from "sonner";
 
 export function AuthExpiredBanner({
@@ -51,10 +51,10 @@ export function AuthExpiredBanner({
               if (authUrl) {
                 autoOpenedRef.current = true;
                 import("@tauri-apps/plugin-opener")
-                  .then(({ openUrl }) => openUrl(authUrl))
+                  .then(({ openUrl }) => openUrl(buildSignInUrl(authUrl)))
                   .catch(() =>
                     import("@tauri-apps/plugin-shell").then(({ open }) =>
-                      open(authUrl)
+                      open(buildSignInUrl(authUrl))
                     )
                   )
                   .catch(() => {});
@@ -80,6 +80,15 @@ export function AuthExpiredBanner({
       },
       { method: "POST" }
     );
+  };
+
+  const handleCancel = async () => {
+    try {
+      await api("/api/auth/cancel", { method: "POST" });
+    } catch {
+      // The stream's done/error handler still clears the spinner.
+    }
+    setReauthing(false);
   };
 
   if (!expired) return null;
@@ -108,6 +117,17 @@ export function AuthExpiredBanner({
           <KeyRound className="h-3.5 w-3.5" />
           {reauthing ? "Re-authenticating..." : "Re-auth now"}
         </Button>
+        {reauthing && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCancel}
+            className="gap-1.5"
+          >
+            <X className="h-3.5 w-3.5" />
+            Cancel
+          </Button>
+        )}
       </div>
     </div>
   );
