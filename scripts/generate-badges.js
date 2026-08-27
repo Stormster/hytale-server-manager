@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = process.env.STATS_REPO || "Stormster/hytale-server-manager";
+const INSTALL_BASELINE = Number(process.env.INSTALL_BASELINE ?? 600);
 const OUT_DIR = path.join(__dirname, "..", "assets", "badges");
 
 const HEIGHT = 28;
@@ -100,7 +101,7 @@ async function fetchTotalDownloads(repo) {
     }
     if (releases.length < 100) break;
   }
-  return total;
+  return total + INSTALL_BASELINE;
 }
 
 async function main() {
