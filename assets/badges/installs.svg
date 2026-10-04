@@ -1,11 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="137" height="28" viewBox="0 0 137 28" role="img" aria-label="Installs: 996">
-  <title>Installs: 996</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="28" viewBox="0 0 150 28" role="img" aria-label="Installs: 1,000">
+  <title>Installs: 1,000</title>
   <style>
     text { font-family: 'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,'Helvetica Neue',Arial,sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; }
   </style>
   <rect width="87" height="28" fill="#4a4a52"/>
-  <rect x="87" width="50" height="28" fill="#2ea44f"/>
+  <rect x="87" width="63" height="28" fill="#2ea44f"/>
   
   <text x="13" y="17.85" fill="#ffffff" opacity="0.92">INSTALLS</text>
-  <text x="100" y="17.85" fill="#ffffff">996</text>
+  <text x="100" y="17.85" fill="#ffffff">1,000</text>
 </svg>
